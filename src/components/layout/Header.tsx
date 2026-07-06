@@ -221,7 +221,8 @@ function ConditionsMega() {
 }
 
 function BrandsMega() {
-  const allBrands = useQuery(api.brands.list) || [];
+  const queryResult = useQuery(api.brands.list);
+  const allBrands = Array.isArray(queryResult) ? queryResult : [];
   
   return (
     <div className="max-w-7xl mx-auto px-8 py-7 grid grid-cols-[1fr_1fr_240px] gap-8">

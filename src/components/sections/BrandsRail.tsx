@@ -59,7 +59,7 @@ export function BrandsRail() {
   const brands = useQuery(api.brands.list);
 
   // Still loading or no brands yet
-  if (brands === undefined || brands.length === 0) {
+  if (!Array.isArray(brands) || brands.length === 0) {
     return null; // hide section if no brands exist
   }
 
