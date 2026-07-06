@@ -5,7 +5,7 @@ import { branding as defaultBranding } from '@/lib/config/branding';
 export function useBranding() {
   const settings = useQuery(api.settings.getStoreSettings);
   
-  if (settings === undefined) {
+  if (!Array.isArray(settings)) {
     return defaultBranding;
   }
   
