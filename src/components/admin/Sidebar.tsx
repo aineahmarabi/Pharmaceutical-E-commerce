@@ -10,6 +10,9 @@ import {
   ChevronLeft, ChevronRight, Monitor, Store, X,
 } from 'lucide-react';
 import { branding } from '@/lib/config/branding';
+import { useMutation } from 'convex/react';
+import { api } from '../../../convex/_generated/api';
+import { useRouter } from 'next/navigation';
 
 const navGroups = [
   {
@@ -86,6 +89,18 @@ function NavItem({ href, icon: Icon, label, exact, collapsed, onClick }: {
 }
 
 function SidebarContent({ collapsed, onClose, showClose }: { collapsed: boolean; onClose?: () => void; showClose?: boolean }) {
+  const router = useRouter();
+  const logoutMutation = useMutation(api.adminAuth.logout);
+
+  const handleLogout = async () => {
+    const token = localStorage.getItem('adminToken');
+    if (token) {
+      await logoutMutation({ token });
+    }
+    localStorage.removeItem('adminToken');
+    window.location.href = '/admin/login';
+  };
+
   return (
     <div className="flex flex-col h-full">
       {/* Brand header */}
@@ -165,13 +180,17 @@ function SidebarContent({ collapsed, onClose, showClose }: { collapsed: boolean;
               <p className="text-xs font-medium text-white/80 leading-none truncate">Administrator</p>
               <p className="text-[10px] text-white/35 leading-none mt-0.5 truncate">{branding.email}</p>
             </div>
-            <button className="w-7 h-7 rounded-lg flex items-center justify-center text-white/35 hover:text-white hover:bg-white/10 transition-colors">
+            <button 
+              onClick={handleLogout}
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-white/35 hover:text-white hover:bg-white/10 transition-colors"
+            >
               <LogOut size={13} />
             </button>
           </div>
         ) : (
           <button
             title="Log out"
+            onClick={handleLogout}
             className="h-9 w-9 rounded-lg flex items-center justify-center mx-auto text-white/35 hover:text-white hover:bg-white/10 transition-colors"
           >
             <LogOut size={15} />

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Pencil, Trash2, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Upload } from 'lucide-react';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../../../convex/_generated/api';
 import { useToast } from '@/components/ui/Toast';
@@ -11,22 +11,48 @@ const ease = [0.16, 1, 0.3, 1] as const;
 
 export default function AdminBrandsPage() {
   const { toast } = useToast();
-  const brands = useQuery(api.taxonomy.listBrands);
-  const createBrand = useMutation(api.taxonomy.createBrand);
-  const deleteBrand = useMutation(api.taxonomy.deleteBrand);
+  const brands = useQuery(api.brands.list);
+  const createBrand = useMutation(api.brands.create);
+  const deleteBrand = useMutation(api.brands.remove);
+  const generateUploadUrl = useMutation(api.files.generateUploadUrl);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({ name: '', description: '' });
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsUploading(true);
     try {
-      await createBrand(formData);
+      let imageStorageId = undefined;
+      let imageUrl = undefined;
+      
+      if (selectedImage) {
+        const postUrl = await generateUploadUrl();
+        const result = await fetch(postUrl, {
+          method: "POST",
+          headers: { "Content-Type": selectedImage.type },
+          body: selectedImage,
+        });
+        const { storageId } = await result.json();
+        imageStorageId = storageId;
+        
+        // Use placeholder for URL since we need another endpoint to get URL, or we can just leave it empty and let frontend fetch
+        imageUrl = `/api/image?storageId=${storageId}`;
+      }
+      
+      const slug = formData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      
+      await createBrand({ ...formData, slug, imageStorageId, imageUrl });
       setIsModalOpen(false);
       setFormData({ name: '', description: '' });
+      setSelectedImage(null);
       toast('Brand created successfully', 'success');
     } catch (error) {
       toast('Failed to create brand', 'error');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -61,7 +87,7 @@ export default function AdminBrandsPage() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="font-semibold text-lg text-ink">{brand.name}</p>
-                <p className="font-mono text-xs text-petrol-300 mt-1">{brand.productCount} products</p>
+                <p className="font-mono text-xs text-petrol-300 mt-1">{brand.productCount || 0} products</p>
               </div>
               <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button 
@@ -81,7 +107,7 @@ export default function AdminBrandsPage() {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/20 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-ink/20 backdrop-blur-sm">
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }} 
             animate={{ opacity: 1, scale: 1 }} 
@@ -93,6 +119,16 @@ export default function AdminBrandsPage() {
             </div>
             <form onSubmit={handleSubmit} className="p-5 space-y-4">
               <div>
+                <label className="block text-sm font-medium text-ink mb-1.5">Brand Logo</label>
+                <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:bg-gray-50 transition cursor-pointer">
+                  <input type="file" accept="image/*" onChange={(e) => setSelectedImage(e.target.files?.[0] || null)} className="hidden" id="brand-image" />
+                  <label htmlFor="brand-image" className="cursor-pointer flex flex-col items-center">
+                    <Upload size={24} className="text-gray-400 mb-2" />
+                    <span className="text-sm text-gray-600">{selectedImage ? selectedImage.name : 'Click to upload logo'}</span>
+                  </label>
+                </div>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-ink mb-1.5">Brand Name <span className="text-red-500">*</span></label>
                 <input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-4 py-2 text-sm bg-white border border-line rounded-xl focus:outline-none focus:border-petrol" placeholder="e.g. GSK" />
               </div>
@@ -101,8 +137,8 @@ export default function AdminBrandsPage() {
                 <textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} rows={3} className="w-full px-4 py-2 text-sm bg-white border border-line rounded-xl focus:outline-none focus:border-petrol" placeholder="Brief description of the brand..." />
               </div>
               <div className="pt-2">
-                <button type="submit" className="w-full bg-petrol text-white font-semibold py-2.5 rounded-xl hover:bg-petrol/90 transition-colors">
-                  Save Brand
+                <button disabled={isUploading} type="submit" className="w-full bg-petrol text-white font-semibold py-2.5 rounded-xl hover:bg-petrol/90 transition-colors disabled:opacity-50">
+                  {isUploading ? 'Uploading...' : 'Save Brand'}
                 </button>
               </div>
             </form>

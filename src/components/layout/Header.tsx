@@ -12,12 +12,14 @@ import {
   Package, Tag, Boxes,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { branding } from '@/lib/config/branding';
+import { useBranding } from '@/hooks/useBranding';
 import { categories } from '@/lib/fixtures/categories';
 import { conditions } from '@/lib/fixtures/conditions';
 import { brands } from '@/lib/fixtures/categories';
 import { useCartStore, useWishlistStore } from '@/store/cart';
 import { SearchOverlay } from '@/components/search/SearchOverlay';
+import { useQuery } from 'convex/react';
+import { api } from '../../../convex/_generated/api';
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
@@ -219,32 +221,36 @@ function ConditionsMega() {
 }
 
 function BrandsMega() {
+  const allBrands = useQuery(api.brands.list) || [];
+  
   return (
     <div className="max-w-7xl mx-auto px-8 py-7 grid grid-cols-[1fr_1fr_240px] gap-8">
       <div>
         <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-petrol-300/70 mb-3">Pharmaceutical Brands</p>
         <div className="grid grid-cols-2 gap-1.5">
-          {brands.slice(0, 8).map((b) => (
+          {allBrands.slice(0, 8).map((b) => (
             <Link key={b.slug} href={`/brand/${b.slug}`} className="flex items-center gap-2 px-2.5 py-2 rounded-xl text-sm font-medium text-ink hover:bg-petrol-50 hover:text-petrol transition-colors">
               <span className="w-6 h-6 rounded-md bg-petrol-50 flex items-center justify-center flex-shrink-0">
                 <Boxes size={11} className="text-petrol" />
               </span>
-              {b.name}
+              <span className="truncate block max-w-[120px]">{b.name}</span>
             </Link>
           ))}
+          {allBrands.length === 0 && <span className="text-sm text-petrol-300">No brands yet.</span>}
         </div>
       </div>
       <div>
         <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-petrol-300/70 mb-3">More Brands</p>
         <div className="grid grid-cols-1 gap-1.5">
-          {brands.slice(8).map((b) => (
+          {allBrands.slice(8, 14).map((b) => (
             <Link key={b.slug} href={`/brand/${b.slug}`} className="flex items-center gap-2 px-2.5 py-2 rounded-xl text-sm font-medium text-ink hover:bg-petrol-50 hover:text-petrol transition-colors">
               <span className="w-6 h-6 rounded-md bg-petrol-50 flex items-center justify-center flex-shrink-0">
                 <Boxes size={11} className="text-petrol" />
               </span>
-              {b.name}
+              <span className="truncate block max-w-[120px]">{b.name}</span>
             </Link>
           ))}
+          {allBrands.length <= 8 && allBrands.length > 0 && <span className="text-sm text-petrol-300">More brands coming soon.</span>}
         </div>
         <Link href="/products" className="flex items-center gap-1.5 mt-4 px-2 text-xs font-semibold text-petrol hover:text-petrol/80 transition-colors">
           View all brands <ArrowRight size={12} />
@@ -282,6 +288,7 @@ export function Header() {
   const { ids } = useWishlistStore();
   const cartCount = items.reduce((n, i) => n + i.quantity, 0);
   const wishCount = ids.size;
+  const branding = useBranding();
 
   useEffect(() => {
     const t = setInterval(() => setPromoIdx((i) => (i + 1) % promos.length), 4200);
@@ -373,7 +380,11 @@ export function Header() {
                 <line x1="24" y1="18" x2="24" y2="30" stroke="white" strokeWidth="1.5" />
                 <circle cx="36" cy="12" r="5" fill="#5FA89C" fillOpacity="0.6" />
               </svg>
-              <span className="font-display font-bold text-xl text-ink hidden sm:block tracking-tight group-hover:text-petrol transition-colors">{branding.name}</span>
+              {branding.logo ? (
+                <img src={branding.logo} alt={branding.name} className="h-8 object-contain" />
+              ) : (
+                <span className="font-display font-bold text-xl text-ink hidden sm:block tracking-tight group-hover:text-petrol transition-colors">{branding.name}</span>
+              )}
             </Link>
 
             <div className="flex-1 max-w-2xl hidden md:block">

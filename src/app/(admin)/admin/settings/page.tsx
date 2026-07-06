@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/components/ui/Toast';
-import { Store, CreditCard, Truck, Bell, Users, FileText, Globe, Check, Save, Plus, Trash2 } from 'lucide-react';
-import { branding } from '@/lib/config/branding';
+import { Store, CreditCard, Truck, Bell, Users, FileText, Globe, Check, Save, Plus, Trash2, Upload } from 'lucide-react';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../../../convex/_generated/api';
+import { useBranding } from '@/hooks/useBranding';
+import { branding as defaultBranding } from '@/lib/config/branding';
 
 const tabs = [
   { id: 'general', label: 'Store Details', icon: Store },
@@ -22,13 +23,43 @@ export default function AdminSettingsPage() {
   const [activeTab, setActiveTab] = useState<typeof tabs[number]['id']>('general');
   const [saving, setSaving] = useState(false);
 
+  const branding = useBranding();
+  
+  // Settings Form State
+  const [formData, setFormData] = useState<{
+    name: string;
+    email: string;
+    phone: string;
+    whatsapp: string;
+  }>({
+    name: branding.name,
+    email: branding.email,
+    phone: branding.phone,
+    whatsapp: branding.whatsapp,
+  });
+  
   // Delivery Zones
   const zones = useQuery(api.delivery.adminListZones);
   const createZone = useMutation(api.delivery.createZone);
   const deleteZone = useMutation(api.delivery.deleteZone);
 
+  const updateSetting = useMutation(api.settings.updateStoreSetting);
+  const generateUploadUrl = useMutation(api.files.generateUploadUrl);
+
   const [newZoneName, setNewZoneName] = useState('');
   const [newZonePrice, setNewZonePrice] = useState('');
+  
+  const [selectedLogo, setSelectedLogo] = useState<File | null>(null);
+
+  // Update local state when convex data arrives
+  useEffect(() => {
+    setFormData({
+      name: branding.name,
+      email: branding.email,
+      phone: branding.phone,
+      whatsapp: branding.whatsapp,
+    });
+  }, [branding.name, branding.email, branding.phone, branding.whatsapp]);
 
   const handleAddZone = async () => {
     if (!newZoneName || !newZonePrice) return;
@@ -41,9 +72,33 @@ export default function AdminSettingsPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setSaving(false);
-    toast('Settings successfully updated', 'success');
+    try {
+      if (activeTab === 'general') {
+        let logoUrl = branding.logo;
+        if (selectedLogo) {
+          const postUrl = await generateUploadUrl();
+          const result = await fetch(postUrl, {
+            method: "POST",
+            headers: { "Content-Type": selectedLogo.type },
+            body: selectedLogo,
+          });
+          const { storageId } = await result.json();
+          // We assume a simple endpoint or string interpolation for the logo URL in frontend
+          logoUrl = `/api/image?storageId=${storageId}` as any;
+          await updateSetting({ key: 'logo', value: logoUrl });
+        }
+        await updateSetting({ key: 'name', value: formData.name });
+        await updateSetting({ key: 'email', value: formData.email });
+        await updateSetting({ key: 'phone', value: formData.phone });
+        await updateSetting({ key: 'whatsapp', value: formData.whatsapp });
+      }
+      toast('Settings successfully updated', 'success');
+      setSelectedLogo(null);
+    } catch (err) {
+      toast('Failed to save settings', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -106,22 +161,36 @@ export default function AdminSettingsPage() {
                   
                   <div className="bg-white rounded-2xl border border-line shadow-sm overflow-hidden">
                     <div className="p-6 space-y-5">
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium text-ink mb-1.5">Store Logo</label>
+                        <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:bg-gray-50 transition cursor-pointer">
+                          <input type="file" accept="image/*" onChange={(e) => setSelectedLogo(e.target.files?.[0] || null)} className="hidden" id="store-logo" />
+                          <label htmlFor="store-logo" className="cursor-pointer flex flex-col items-center">
+                            {branding.logo && !selectedLogo ? (
+                              <img src={branding.logo} alt="Current Logo" className="h-16 object-contain mb-2" />
+                            ) : (
+                              <Upload size={24} className="text-gray-400 mb-2" />
+                            )}
+                            <span className="text-sm text-gray-600">{selectedLogo ? selectedLogo.name : 'Click to upload a new logo'}</span>
+                          </label>
+                        </div>
+                      </div>
                       <div className="grid sm:grid-cols-2 gap-5">
                         <div>
                           <label className="block text-sm font-medium text-ink mb-1.5">Store Name</label>
-                          <input defaultValue={branding.name} className="w-full bg-white border border-line rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-petrol shadow-sm" />
+                          <input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full bg-white border border-line rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-petrol shadow-sm" />
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-ink mb-1.5">Support Email</label>
-                          <input type="email" defaultValue={branding.email} className="w-full bg-white border border-line rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-petrol shadow-sm" />
+                          <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full bg-white border border-line rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-petrol shadow-sm" />
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-ink mb-1.5">Phone Number</label>
-                          <input defaultValue={branding.phone} className="w-full bg-white border border-line rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-petrol shadow-sm" />
+                          <input value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full bg-white border border-line rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-petrol shadow-sm" />
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-ink mb-1.5">WhatsApp Number</label>
-                          <input defaultValue={branding.whatsapp} className="w-full bg-white border border-line rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-petrol shadow-sm" />
+                          <input value={formData.whatsapp} onChange={e => setFormData({...formData, whatsapp: e.target.value})} className="w-full bg-white border border-line rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-petrol shadow-sm" />
                         </div>
                       </div>
                     </div>
@@ -285,7 +354,7 @@ export default function AdminSettingsPage() {
                       <div className="pt-4 space-y-4">
                         <div>
                           <label className="block text-sm font-medium text-ink mb-1.5">Free Delivery Threshold (KES)</label>
-                          <input type="number" defaultValue={branding.deliveryThreshold} className="w-full bg-white border border-line rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-petrol shadow-sm" />
+                          <input type="number" defaultValue={defaultBranding.deliveryThreshold} className="w-full bg-white border border-line rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-petrol shadow-sm" />
                           <p className="text-xs text-petrol-300 mt-1.5">Orders above this amount will automatically qualify for free standard delivery.</p>
                         </div>
                       </div>
