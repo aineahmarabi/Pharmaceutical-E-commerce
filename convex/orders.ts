@@ -1,5 +1,6 @@
 import { query, mutation, internalMutation } from './_generated/server';
 import { v } from 'convex/values';
+import { Id } from './_generated/dataModel';
 
 // ─── QUERIES ─────────────────────────────────────────────────────────────
 
@@ -432,10 +433,10 @@ export const createOrder = mutation({
     
     // In pharmacare, products track inventory natively via stockQty and inStock
     for (const item of args.items) {
-      const product = await ctx.db.get(item.productId as any);
+      const product = await ctx.db.get(item.productId as Id<'products'>);
       if (!product) continue;
       
-      const newQty = product.stockQty - item.qty;
+      const newQty = (product.stockQty ?? 0) - item.qty;
       inventoryUpdates.push({ id: product._id, newQty });
     }
 
