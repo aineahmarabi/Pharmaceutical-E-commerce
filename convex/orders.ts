@@ -426,6 +426,8 @@ export const createOrder = mutation({
       v.literal('completed'),
       v.literal('cancelled')
     )),
+    deliveryFee: v.optional(v.number()),
+    channel: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // 1. Collect inventory updates
@@ -450,7 +452,7 @@ export const createOrder = mutation({
 
     // 3. Calculate totals
     const subtotal = args.items.reduce((acc, i) => acc + (i.price * i.qty), 0);
-    const deliveryFee = 250; // standard flat fee for admin-created orders
+    const deliveryFee = args.deliveryFee ?? 250;
     const total = subtotal + deliveryFee;
 
     // 4. Create Order
@@ -467,7 +469,7 @@ export const createOrder = mutation({
       paymentMethod: args.paymentMethod,
       paymentStatus: args.paymentStatus ?? 'pending',
       deliveryAddress: args.deliveryAddress,
-      channel: 'Admin POS',
+      channel: args.channel ?? 'Admin POS',
     });
 
     // 5. Apply inventory decrements
