@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { ToastProvider } from '@/components/ui/Toast';
+import { ConvexClientProvider } from '@/lib/convex';
 
 export const metadata: Metadata = {
   title: { default: 'PharmaCare — Your health, delivered', template: '%s | PharmaCare' },
@@ -11,9 +12,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className="h-full antialiased">
       <body className="min-h-full flex flex-col">
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <ConvexClientProvider>
+          <ToastProvider>
+            {children}
+          </ToastProvider>
+        </ConvexClientProvider>
       </body>
     </html>
   );

@@ -41,7 +41,6 @@ const navGroups = [
     label: 'Insights',
     items: [
       { href: '/admin/analytics', icon: BarChart3, label: 'Analytics' },
-      { href: '/admin/audit-log', icon: ClipboardList, label: 'Audit Log' },
     ],
   },
   {

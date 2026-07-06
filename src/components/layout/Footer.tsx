@@ -70,7 +70,7 @@ export function Footer() {
             <address className="not-italic space-y-2.5 text-sm text-porcelain/60">
               <p>{branding.address}</p>
               <a href={`tel:${branding.phone}`} className="block hover:text-porcelain transition-colors">{branding.phone}</a>
-              <a href={`mailto:${branding.email}`} className="block hover:text-porcelain transition-colors">{branding.email}</a>
+
               <a href={`https://wa.me/${branding.whatsapp}`} target="_blank" rel="noopener noreferrer" className="block text-whatsapp hover:opacity-80 transition-opacity">
                 WhatsApp Chat →
               </a>

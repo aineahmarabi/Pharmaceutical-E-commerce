@@ -50,8 +50,8 @@ export function ChartSkeleton({ className }: SkeletonProps) {
         ))}
       </div>
       <div className="flex justify-between px-4 py-2">
-        {['J','F','M','A','M','J','J','A','S','O','N','D'].map((m) => (
-          <Skeleton key={m} className="h-3 w-3" />
+        {['J','F','M','A','M','J','J','A','S','O','N','D'].map((m, i) => (
+          <Skeleton key={i} className="h-3 w-3" />
         ))}
       </div>
     </div>

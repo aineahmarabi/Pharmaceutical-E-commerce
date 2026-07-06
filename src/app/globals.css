@@ -115,7 +115,52 @@ body {
   animation: wa-pulse 2.5s ease-in-out infinite;
 }
 
-/* ─── Count-up (targets via JS) ─── */
+/* ══════════════════════════════════════════════════════════════
+   HERO MESH BACKGROUND
+   Blobs are driven by mouse parallax via framer-motion springs.
+   No CSS drift animation — mouse IS the animation.
+══════════════════════════════════════════════════════════════ */
+.hero-mesh {
+  overflow: hidden;
+}
+
+.mesh-blob {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  /* will-change so GPU composites the parallax cheaply */
+  will-change: transform;
+}
+
+.mesh-blob-a {
+  width: 80vw;
+  height: 80vw;
+  top: -25%;
+  right: -12%;
+  background: radial-gradient(circle, #16695e 0%, #5FA89C55 45%, transparent 72%);
+  filter: blur(90px);
+  opacity: 0.42;
+}
+
+.mesh-blob-b {
+  width: 65vw;
+  height: 65vw;
+  bottom: -28%;
+  left: -14%;
+  background: radial-gradient(circle, #0A3B35 0%, #0E4D4577 50%, transparent 78%);
+  filter: blur(85px);
+  opacity: 0.38;
+}
+
+.mesh-blob-c {
+  width: 52vw;
+  height: 52vw;
+  top: 22%;
+  left: 35%;
+  background: radial-gradient(circle, #5FA89C44 0%, #0E4D4522 55%, transparent 75%);
+  filter: blur(70px);
+  opacity: 0.30;
+}
 
 /* ─── Accessibility: respect reduced motion ─── */
 @media (prefers-reduced-motion: reduce) {
@@ -127,5 +172,8 @@ body {
   .skeleton-shimmer {
     animation: none;
     background: var(--color-petrol-50);
+  }
+  .mesh-blob {
+    animation: none !important;
   }
 }

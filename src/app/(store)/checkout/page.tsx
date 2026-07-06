@@ -9,6 +9,8 @@ import { ProductImagePlaceholder } from '@/components/ui/ProductImagePlaceholder
 import { useCartStore } from '@/store/cart';
 import { useToast } from '@/components/ui/Toast';
 import { branding } from '@/lib/config/branding';
+import { useQuery, useMutation } from 'convex/react';
+import { api } from '../../../../../convex/_generated/api';
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
@@ -19,21 +21,55 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { items, subtotal, clearCart } = useCartStore();
   const { toast } = useToast();
+  const zones = useQuery(api.delivery.listZones);
+  const createOrder = useMutation(api.orders.createOrder);
+
   const [step, setStep] = useState<Step>('Delivery');
   const [placing, setPlacing] = useState(false);
+  const [selectedZoneId, setSelectedZoneId] = useState<string>('');
+  const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'card' | 'cod'>('mpesa');
 
-  const deliveryFee = subtotal >= branding.deliveryThreshold ? 0 : 200;
+  const selectedZone = zones?.find(z => z._id === selectedZoneId);
+  const baseDeliveryFee = selectedZone ? selectedZone.price : 0;
+  const deliveryFee = subtotal >= branding.deliveryThreshold ? 0 : baseDeliveryFee;
   const total = subtotal + deliveryFee;
 
-  const [form, setForm] = useState({ name: '', phone: '', email: '', address: '', city: '', notes: '' });
+  const [form, setForm] = useState({ name: '', phone: '', email: '', address: '', notes: '' });
   const update = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setForm(prev => ({ ...prev, [k]: e.target.value }));
 
   const handlePlace = async () => {
+    if (!selectedZone) {
+      toast('Please select a delivery zone', 'error');
+      setStep('Delivery');
+      return;
+    }
+
     setPlacing(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    clearCart();
-    toast('Order placed successfully!', 'success');
-    router.push('/account/orders');
+    try {
+      await createOrder({
+        customerName: form.name,
+        customerPhone: form.phone,
+        customerEmail: form.email,
+        items: items.map(i => ({
+          productId: i.product.id,
+          name: i.product.name,
+          qty: i.quantity,
+          price: i.product.price
+        })),
+        deliveryFee,
+        paymentMethod,
+        deliveryAddress: `${form.address}, ${selectedZone.name}`,
+        channel: 'storefront'
+      });
+      
+      clearCart();
+      toast('Order placed successfully!', 'success');
+      router.push('/account/orders');
+    } catch (err) {
+      console.error(err);
+      toast('Failed to place order', 'error');
+      setPlacing(false);
+    }
   };
 
   const stepIdx = steps.indexOf(step);
@@ -101,6 +137,21 @@ export default function CheckoutPage() {
                         />
                       </div>
                     ))}
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-medium text-petrol-300 mb-1.5">Delivery Area / Zone <span className="text-red-500">*</span></label>
+                      <select
+                        value={selectedZoneId}
+                        onChange={(e) => setSelectedZoneId(e.target.value)}
+                        className="w-full bg-porcelain border border-line rounded-xl px-3.5 py-2.5 text-sm text-ink focus:outline-none focus:border-petrol transition-colors"
+                      >
+                        <option value="" disabled>Select your delivery area</option>
+                        {zones?.map(z => (
+                          <option key={z._id} value={z._id}>{z.name} (KES {z.price})</option>
+                        ))}
+                      </select>
+                    </div>
+
                     <div className="sm:col-span-2">
                       <label className="block text-xs font-medium text-petrol-300 mb-1.5">Order notes (optional)</label>
                       <textarea
@@ -138,7 +189,7 @@ export default function CheckoutPage() {
                       { id: 'cod', label: 'Cash on delivery', sub: 'Pay when your order arrives' },
                     ].map(({ id, label, sub }) => (
                       <label key={id} className="flex items-start gap-3 p-4 rounded-xl border-2 border-line hover:border-petrol cursor-pointer transition-colors has-[:checked]:border-petrol has-[:checked]:bg-petrol-50">
-                        <input type="radio" name="payment" value={id} defaultChecked={id === 'mpesa'} className="mt-0.5 accent-petrol" />
+                        <input type="radio" name="payment" value={id} checked={paymentMethod === id} onChange={() => setPaymentMethod(id as any)} className="mt-0.5 accent-petrol" />
                         <div>
                           <p className="font-semibold text-sm text-ink">{label}</p>
                           <p className="text-xs text-petrol-300 mt-0.5">{sub}</p>
@@ -181,7 +232,7 @@ export default function CheckoutPage() {
                   </div>
                   <div className="p-4 bg-petrol-50 rounded-xl text-sm space-y-1 mb-5">
                     <p className="font-medium text-ink">{form.name || 'No name'}</p>
-                    <p className="text-petrol-300">{form.address}{form.city ? `, ${form.city}` : ''}</p>
+                    <p className="text-petrol-300">{form.address}{selectedZone ? `, ${selectedZone.name}` : ''}</p>
                     <p className="text-petrol-300">{form.phone}</p>
                   </div>
                   <button

@@ -3,7 +3,7 @@ export const branding = {
   tagline: 'Your health, delivered',
   logo: null as null,
   phone: '+254 700 000 000',
-  email: 'hello@pharmacare.co.ke',
+
   whatsapp: '+254700000000',
   address: 'Nairobi, Kenya',
   socialLinks: {
