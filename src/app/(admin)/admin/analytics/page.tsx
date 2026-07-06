@@ -108,7 +108,7 @@ export default function AdminAnalyticsPage() {
                 />
                 <RechartsTooltip 
                   contentStyle={{ borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                  formatter={(value: number) => [`KES ${value.toLocaleString()}`, 'Revenue']}
+                  formatter={(value: any) => [`KES ${Number(value).toLocaleString()}`, 'Revenue']}
                   labelFormatter={(label) => new Date(label).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
                 />
                 <Area type="monotone" dataKey="revenue" stroke="#1a2e2b" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
@@ -137,7 +137,7 @@ export default function AdminAnalyticsPage() {
                       <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                     ))}
                   </Pie>
-                  <RechartsTooltip formatter={(value: number) => `KES ${value.toLocaleString()}`} />
+                  <RechartsTooltip formatter={(value: any) => `KES ${Number(value).toLocaleString()}`} />
                   <Legend verticalAlign="bottom" height={36} />
                 </PieChart>
               </ResponsiveContainer>
