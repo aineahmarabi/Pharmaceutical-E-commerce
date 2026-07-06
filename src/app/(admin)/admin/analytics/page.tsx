@@ -167,7 +167,7 @@ export default function AdminAnalyticsPage() {
                   <RechartsTooltip 
                     cursor={{fill: 'transparent'}}
                     contentStyle={{ borderRadius: '12px', border: '1px solid #e5e7eb' }}
-                    formatter={(value: number) => `KES ${value.toLocaleString()}`}
+                    formatter={(value: any) => `KES ${Number(value).toLocaleString()}`}
                   />
                   <Bar dataKey="revenue" fill="#2a4b46" radius={[0, 4, 4, 0]} barSize={24} />
                 </BarChart>
