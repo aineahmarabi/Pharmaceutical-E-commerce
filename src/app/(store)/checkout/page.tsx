@@ -10,7 +10,7 @@ import { useCartStore } from '@/store/cart';
 import { useToast } from '@/components/ui/Toast';
 import { branding } from '@/lib/config/branding';
 import { useQuery, useMutation } from 'convex/react';
-import { api } from '../../../../../convex/_generated/api';
+import { api } from '../../../../convex/_generated/api';
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
