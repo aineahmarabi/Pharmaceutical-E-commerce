@@ -39,6 +39,7 @@ export default defineSchema({
     inStock: v.boolean(),
     stockQty: v.number(), // Legacy/Aggregated available
     sku: v.optional(v.string()),
+    manufacturer: v.optional(v.string()),
     barcode: v.optional(v.string()),
     weight: v.optional(v.string()),
     trackQuantity: v.optional(v.boolean()),
@@ -57,6 +58,7 @@ export default defineSchema({
     isTrending: v.optional(v.boolean()),
     isBestSeller: v.optional(v.boolean()),
     isOffer: v.optional(v.boolean()),
+    offerEndsAt: v.optional(v.number()),
     rating: v.optional(v.number()),
     reviewCount: v.optional(v.number()),
   })
@@ -66,6 +68,14 @@ export default defineSchema({
     .index('by_best_seller', ['isBestSeller'])
     .index('by_new', ['isNew'])
     .index('by_offer', ['isOffer']),
+
+  reviews: defineTable({
+    productId: v.id('products'),
+    customerName: v.string(),
+    rating: v.number(),
+    comment: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index('by_product', ['productId']),
 
   productVariants: defineTable({
     productId: v.id('products'),
@@ -157,6 +167,7 @@ export default defineSchema({
     paymentMethod: v.union(v.literal('mpesa'), v.literal('card'), v.literal('cod')),
     paymentStatus: v.optional(v.union(v.literal('pending'), v.literal('paid'), v.literal('collected'), v.literal('refunded'), v.literal('partially_refunded'))),
     paymentRef: v.optional(v.string()),
+    prescriptionFileId: v.optional(v.id('_storage')),
     deliveryAddress: v.string(),
     // Shopify Specifics
     channel: v.optional(v.string()),
@@ -225,6 +236,15 @@ export default defineSchema({
     riskLevel: v.union(v.literal('low'), v.literal('medium'), v.literal('high')),
     reasons: v.array(v.string()),
   }).index('by_order', ['orderId']),
+
+  contactMessages: defineTable({
+    name: v.string(),
+    email: v.string(),
+    subject: v.optional(v.string()),
+    message: v.string(),
+    read: v.boolean(),
+    createdAt: v.number(),
+  }).index('by_read', ['read']),
 
   adminSecurity: defineTable({
     passcodeHash: v.string(),
@@ -331,7 +351,7 @@ export default defineSchema({
   }),
 
   notifications: defineTable({
-    type: v.union(v.literal('new_order'), v.literal('low_stock'), v.literal('prescription_approval'), v.literal('refund_processed')),
+    type: v.union(v.literal('new_order'), v.literal('low_stock'), v.literal('prescription_approval'), v.literal('refund_processed'), v.literal('new_message')),
     title: v.string(),
     message: v.string(),
     targetId: v.optional(v.string()),

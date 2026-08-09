@@ -19,10 +19,10 @@ export default function AboutPage() {
           <div className="max-w-3xl mx-auto text-center">
             <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease }}>
               <h1 className="font-display font-extrabold text-4xl text-paper tracking-tight mb-4">
-                Kenya&rsquo;s most trusted pharmacy
+                Your trusted online pharmacy
               </h1>
               <p className="text-paper/70 leading-relaxed max-w-xl mx-auto">
-                {branding.name} has been serving Kenyan families since 2005. We believe everyone deserves convenient access to genuine, affordable healthcare.
+                {branding.name} exists to give Kenyan families convenient access to genuine, affordable healthcare.
               </p>
             </motion.div>
           </div>
@@ -76,10 +76,10 @@ export default function AboutPage() {
         >
           <h2 className="font-display font-bold text-xl text-ink mb-4">Our story</h2>
           <p className="text-ink/70 leading-relaxed mb-4">
-            Founded in Nairobi in 2005 with a single branch on Kimathi Street, {branding.name} was built on one conviction: every Kenyan family deserves access to genuine, affordable medication — without the guesswork.
+            {branding.name} was built on one conviction: every Kenyan family deserves access to genuine, affordable medication — without the guesswork.
           </p>
           <p className="text-ink/70 leading-relaxed">
-            Today, we operate 60+ branches across the country and serve over 200,000 customers through our online platform. Our registered pharmacists are available online and in-store to answer your questions, no appointment needed.
+            We work directly with licensed manufacturers and distributors to bring genuine medicines to your door, with registered pharmacists available to answer your questions.
           </p>
         </motion.div>
       </div>

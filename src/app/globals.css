@@ -29,6 +29,134 @@
   --radius-pill: 9999px;
   --radius-input: 0.75rem;
   --radius-card: 1rem;
+
+  /* ══════════════════════════════════════════════════════════════
+     ADMIN DESIGN SYSTEM (Polaris-style, "p-" prefixed)
+     Scoped by name only — admin components consume these via
+     bg-p-*, text-p-*, border-p-*, shadow-p-* utilities. Storefront
+     components never reference these, so there is no collision
+     with the --color-* tokens above.
+  ══════════════════════════════════════════════════════════════ */
+  /* Palette mirrors the storefront's petrol/slate brand theme
+     ([data-theme='storefront'] below) so admin and store read as
+     one product. */
+  --color-p-bg: #F1F5F9;
+  --color-p-bg-surface: #FFFFFF;
+  --color-p-bg-surface-hover: #F8FAFC;
+  --color-p-bg-surface-active: #E2E8F0;
+  --color-p-bg-surface-selected: #CCFBF1;
+  --color-p-bg-surface-subdued: #F8FAFC;
+  --color-p-bg-inverse: #0F172A;
+
+  --color-p-primary: #0D9488;
+  --color-p-primary-hover: #0F766E;
+  --color-p-primary-active: #115E59;
+
+  --color-p-critical: #EF4444;
+  --color-p-critical-subdued: #FEF2F2;
+
+  --color-p-warning: #FDE68A;
+  --color-p-warning-subdued: #FFFBEB;
+
+  --color-p-success: #BBF7D0;
+  --color-p-success-subdued: #F0FDF4;
+
+  --color-p-info: #BAE6FD;
+  --color-p-info-subdued: #F0F9FF;
+
+  --color-p-text: #0F172A;
+  --color-p-text-subdued: #64748B;
+  --color-p-text-disabled: #94A3B8;
+  --color-p-text-inverse: #FFFFFF;
+  --color-p-text-primary: #0D9488;
+  --color-p-text-critical: #EF4444;
+
+  --color-p-icon: #64748B;
+  --color-p-icon-subdued: #94A3B8;
+
+  --color-p-border: #CBD5E1;
+  --color-p-border-subdued: #E2E8F0;
+  --color-p-border-input: #94A3B8;
+  --color-p-border-primary: #0D9488;
+  --color-p-border-critical: #EF4444;
+
+  --color-p-focus: #0F766E;
+
+  --shadow-p-card: 0px 1px 0px rgba(0, 0, 0, 0.05);
+  --shadow-p-popover: 0px 4px 6px -2px rgba(0, 0, 0, 0.2);
+  --shadow-p-modal: 0px 8px 16px -4px rgba(0, 0, 0, 0.22);
+
+  --font-p-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --font-p-mono: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   STOREFRONT THEME OVERRIDE
+   Scoped to [data-theme="storefront"] (set on the (store) route
+   group layout) so the admin panel keeps its current palette and
+   typography untouched — the token *names* stay the same, only
+   the values shift within this scope.
+══════════════════════════════════════════════════════════════ */
+[data-theme='storefront'] {
+  --color-petrol: #0D9488;
+  --color-petrol-700: #0F766E;
+  --color-petrol-300: #5EEAD4;
+  --color-petrol-50: #CCFBF1;
+  --color-ink: #0F172A;
+  --color-porcelain: #F1F5F9;
+  --color-surface-alt: #F8FAFC;
+  --color-text-secondary: #64748B;
+  --color-text-muted: #94A3B8;
+  --color-signal: #F59E0B;
+  --color-amber: #D97706;
+  --color-success: #22C55E;
+  --color-danger: #EF4444;
+  --color-line: #E2E8F0;
+
+  --font-display: var(--font-inter), 'Inter', system-ui, sans-serif;
+  --font-body: var(--font-inter), 'Inter', system-ui, sans-serif;
+  --font-mono: var(--font-jbmono), 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* ─── Admin custom scrollbars ─── */
+.admin-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #CBD5E1 transparent;
+}
+.admin-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.admin-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.admin-scroll::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 9999px;
+}
+.admin-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+/* ─── Product image ghost float (hover) ─── */
+@keyframes ghost-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+.ghost-float-hover {
+  transition: transform 0.3s ease;
+}
+.group:hover .ghost-float-hover {
+  animation: ghost-float 2.8s ease-in-out infinite;
+}
+
+/* ─── Admin page transition ─── */
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.page-enter {
+  animation: pageEnter 200ms ease-out;
 }
 
 /* ─── Base ─── */

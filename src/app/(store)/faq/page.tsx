@@ -11,9 +11,8 @@ const faqs = [
   { q: 'Do you require a prescription for Rx medicines?', a: 'Prescription-Only Medicines (POM) require a valid prescription from a licensed healthcare provider. OTC and P-class medicines can be purchased without a prescription.' },
   { q: 'How fast is delivery?', a: 'We offer same-day delivery in Nairobi for orders placed before 2pm. Delivery to other towns takes 1–3 business days.' },
   { q: 'What is the return policy?', a: 'For safety reasons, medicines cannot be returned once dispensed. If you receive a wrong or damaged product, contact us within 24 hours and we will arrange a replacement at no cost.' },
-  { q: 'Is my payment information secure?', a: 'Yes. All payments are processed over 256-bit SSL encryption. We support M-PESA, card (via Stripe), and cash on delivery.' },
-  { q: 'Can I pick up in-store?', a: 'Yes. Select "Pick-up" at checkout and choose your nearest branch. Orders are usually ready within 30 minutes.' },
-  { q: 'How do I track my order?', a: 'You will receive SMS and email updates at each stage of your order. You can also track in real time from My Account → Orders.' },
+  { q: 'Is my payment information secure?', a: 'Yes. All payments are processed over an encrypted connection. We support M-PESA, card, and cash on delivery.' },
+  { q: 'How do I track my order?', a: 'You can check your order status any time from My Account → Orders.' },
   { q: 'Do you deliver outside Kenya?', a: 'Currently we only deliver within Kenya. International orders are not supported at this time.' },
 ];
 

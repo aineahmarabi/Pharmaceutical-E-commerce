@@ -3,11 +3,16 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp } from 'lucide-react';
-import { ProductCardSkeleton } from '@/components/ui/Skeleton';
+import { useQuery } from 'convex/react';
+import { api } from '../../../../convex/_generated/api';
+import { toProduct } from '@/lib/adapters/product';
+import { ProductGrid } from '@/components/product/ProductGrid';
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
 export default function TrendingPage() {
+  const products = useQuery(api.products.listTrending, { limit: 24 });
+
   return (
     <div className="min-h-screen bg-porcelain">
       <div className="bg-ink py-12 px-4 sm:px-6 lg:px-8">
@@ -22,9 +27,11 @@ export default function TrendingPage() {
         </div>
       </div>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5">
-          {Array.from({ length: 12 }).map((_, i) => <ProductCardSkeleton key={i} />)}
-        </div>
+        <ProductGrid
+          products={products?.map(toProduct)}
+          emptyTitle="Nothing trending yet"
+          emptyDescription="Check back soon as customers start shopping."
+        />
       </div>
     </div>
   );

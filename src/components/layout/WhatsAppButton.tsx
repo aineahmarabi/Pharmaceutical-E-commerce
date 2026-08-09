@@ -3,7 +3,7 @@ import { branding } from '@/lib/config/branding';
 
 export function WhatsAppButton() {
   return (
-    <div className="fixed bottom-6 right-6 z-30 group">
+    <div className="fixed bottom-20 md:bottom-6 right-6 z-30 group">
       <a
         href={`https://wa.me/${branding.whatsapp}`}
         target="_blank"

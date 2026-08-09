@@ -19,7 +19,7 @@ type Step = typeof steps[number];
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { items, subtotal, clearCart } = useCartStore();
+  const { items, clearCart } = useCartStore();
   const { toast } = useToast();
   const zones = useQuery(api.delivery.listZones);
   const createOrder = useMutation(api.orders.createOrder);
@@ -29,6 +29,7 @@ export default function CheckoutPage() {
   const [selectedZoneId, setSelectedZoneId] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'card' | 'cod'>('mpesa');
 
+  const subtotal = items.reduce((s, i) => s + i.product.price * i.quantity, 0);
   const selectedZone = zones?.find(z => z._id === selectedZoneId);
   const baseDeliveryFee = selectedZone ? selectedZone.price : 0;
   const deliveryFee = subtotal >= branding.deliveryThreshold ? 0 : baseDeliveryFee;
@@ -59,7 +60,7 @@ export default function CheckoutPage() {
         deliveryFee,
         paymentMethod,
         deliveryAddress: `${form.address}, ${selectedZone.name}`,
-        channel: 'storefront'
+        channel: 'storefront',
       });
       
       clearCart();
@@ -163,6 +164,7 @@ export default function CheckoutPage() {
                       />
                     </div>
                   </div>
+
                   <button
                     onClick={() => setStep('Payment')}
                     className="mt-5 w-full bg-petrol hover:bg-petrol-700 text-paper font-semibold py-3.5 rounded-xl transition-all hover:-translate-y-0.5"

@@ -1,189 +1,241 @@
 'use client';
 
-import React from 'react';
-import { motion } from 'framer-motion';
-import { useQuery } from 'convex/react';
-import { api } from '../../../../convex/_generated/api';
-import { StatCardSkeleton, RowSkeleton } from '@/components/ui/Skeleton';
+import React, { useMemo } from 'react';
 import Link from 'next/link';
-import { Package, TrendingUp, TrendingDown, DollarSign, Users, ShoppingCart } from 'lucide-react';
+import { useQuery } from 'convex/react';
+import { TrendingUp, TrendingDown, Package, Sun, Sunrise, Sunset, Moon } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { api } from '../../../../convex/_generated/api';
+import { Card } from '@/components/admin/ui/Card';
+import { DataTable } from '@/components/admin/ui/DataTable';
+import { SkeletonLoader } from '@/components/admin/ui/SkeletonLoader';
+import { EmptyState } from '@/components/admin/ui/EmptyState';
+import { Sparkline } from '@/components/admin/ui/Sparkline';
+import { useAdminName } from '@/hooks/useAdminName';
 
-const ease = [0.16, 1, 0.3, 1] as const;
+function formatKES(n: number) {
+  return `KES ${Math.round(n).toLocaleString()}`;
+}
+
+function getGreeting(hour: number) {
+  if (hour < 5) return { text: 'Good night', icon: Moon };
+  if (hour < 12) return { text: 'Good morning', icon: Sunrise };
+  if (hour < 17) return { text: 'Good afternoon', icon: Sun };
+  if (hour < 21) return { text: 'Good evening', icon: Sunset };
+  return { text: 'Good night', icon: Moon };
+}
+
+function GreetingHeader() {
+  const { name } = useAdminName();
+  const now = new Date();
+  const { text, icon: Icon } = getGreeting(now.getHours());
+
+  return (
+    <div className="py-5 mb-1">
+      <div className="flex items-center gap-2">
+        <Icon size={22} className="text-p-primary" />
+        <h1 className="text-xl font-semibold text-p-text">{text}, {name}</h1>
+      </div>
+      <p className="text-sm text-p-text-subdued mt-1">
+        {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} · {now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+      </p>
+    </div>
+  );
+}
+
+function KpiCard({ label, value, delta, deltaFormat = 'percent', trend }: { label: string; value: string; delta?: number; deltaFormat?: 'percent' | 'currency'; trend?: number[] }) {
+  const hasDelta = delta !== undefined && Number.isFinite(delta);
+  const positive = (delta ?? 0) >= 0;
+  return (
+    <Card padding="compact">
+      <p className="text-[12px] text-p-text-subdued mb-0.5">{label}</p>
+      <p className="text-lg font-semibold text-p-text">{value}</p>
+      {hasDelta && (
+        <p className={`text-[12px] mt-0.5 flex items-center gap-1 ${positive ? 'text-p-primary' : 'text-p-critical'}`}>
+          {positive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+          {deltaFormat === 'percent'
+            ? `${Math.abs(delta!).toFixed(1)}%`
+            : formatKES(Math.abs(delta!))}
+        </p>
+      )}
+      {trend && <Sparkline data={trend} positive={positive} />}
+    </Card>
+  );
+}
 
 export default function AdminDashboard() {
   const revenueSummary = useQuery(api.analytics.getRevenueSummary);
+  const salesTrend = useQuery(api.analytics.getSalesTrend, { days: 7 });
   const topProducts = useQuery(api.analytics.getTopProducts, { by: 'revenue', limit: 5 });
-  const recentOrders = useQuery(api.orders.listOrders, { limit: 5 });
+  const recentOrders = useQuery(api.orders.listOrders, { limit: 200 });
   const products = useQuery(api.adminProducts.adminListProducts, { limit: 100 });
   const customers = useQuery(api.customers.listCustomers, {});
 
-  const lowStockProducts = products?.filter(p => p.stockQty < 10).slice(0, 5);
+  const ordersToday = useMemo(() => {
+    if (!recentOrders) return undefined;
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    return recentOrders.filter((o) => o._creationTime >= start.getTime()).length;
+  }, [recentOrders]);
+
+  const fulfillmentCounts = useMemo(() => {
+    if (!recentOrders) return undefined;
+    return {
+      toFulfill: recentOrders.filter((o) => o.status === 'placed' || o.status === 'confirmed').length,
+      awaitingPayment: recentOrders.filter((o) => o.paymentStatus === 'pending').length,
+      awaitingShipment: recentOrders.filter((o) => o.status === 'packed' || o.status === 'delivering').length,
+    };
+  }, [recentOrders]);
+
+  const lowStockProducts = products?.filter((p) => p.stockQty < 10).slice(0, 5);
+
+  const chartData = salesTrend?.map((d) => ({
+    date: new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    sales: d.revenue,
+  }));
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-[1200px] mx-auto">
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease }}>
-        <p className="text-petrol-300 text-sm">Overview</p>
-        <h2 className="font-display font-bold text-2xl text-ink">Dashboard</h2>
-      </motion.div>
+    <div className="pb-16">
+      <GreetingHeader />
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {!revenueSummary ? (
-          Array.from({ length: 4 }).map((_, i) => <StatCardSkeleton key={i} />)
-        ) : (
-          <>
-            <div className="bg-paper rounded-2xl border border-line p-5 shadow-sm">
-              <div className="flex items-center gap-2 mb-2 text-petrol-300">
-                <DollarSign size={16} />
-                <p className="text-sm font-medium">Today's Revenue</p>
-              </div>
-              <h3 className="text-2xl font-bold text-ink">KES {revenueSummary.today.revenue.toLocaleString()}</h3>
-              <div className={`flex items-center gap-1 mt-2 text-xs font-medium ${revenueSummary.today.change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {revenueSummary.today.change >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                {Math.abs(revenueSummary.today.change).toFixed(1)}% vs yesterday
-              </div>
-            </div>
-
-            <div className="bg-paper rounded-2xl border border-line p-5 shadow-sm">
-              <div className="flex items-center gap-2 mb-2 text-petrol-300">
-                <ShoppingCart size={16} />
-                <p className="text-sm font-medium">7-Day Revenue</p>
-              </div>
-              <h3 className="text-2xl font-bold text-ink">KES {revenueSummary.sevenDay.revenue.toLocaleString()}</h3>
-              <div className={`flex items-center gap-1 mt-2 text-xs font-medium ${revenueSummary.sevenDay.change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {revenueSummary.sevenDay.change >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                {Math.abs(revenueSummary.sevenDay.change).toFixed(1)}% vs prev 7 days
-              </div>
-            </div>
-
-            <div className="bg-paper rounded-2xl border border-line p-5 shadow-sm">
-              <div className="flex items-center gap-2 mb-2 text-petrol-300">
-                <TrendingUp size={16} />
-                <p className="text-sm font-medium">30-Day Revenue</p>
-              </div>
-              <h3 className="text-2xl font-bold text-ink">KES {revenueSummary.thirtyDay.revenue.toLocaleString()}</h3>
-              <div className={`flex items-center gap-1 mt-2 text-xs font-medium ${revenueSummary.thirtyDay.change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {revenueSummary.thirtyDay.change >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                {Math.abs(revenueSummary.thirtyDay.change).toFixed(1)}% vs prev 30 days
-              </div>
-            </div>
-
-            <div className="bg-paper rounded-2xl border border-line p-5 shadow-sm flex flex-col justify-center items-center text-center bg-porcelain/30">
-              <Users size={24} className="text-petrol-300 mb-2" />
-              <p className="text-sm font-medium text-petrol-300">Active Customers</p>
-              {customers === undefined ? (
-                <div className="w-12 h-6 bg-line/50 rounded mt-1 animate-pulse" />
-              ) : (
-                <h3 className="text-xl font-bold text-ink mt-1">{customers.length}</h3>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-
-      <div className="grid lg:grid-cols-2 gap-5">
-        {/* Recent orders */}
-        <div className="bg-paper rounded-2xl border border-line p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <p className="font-semibold text-base text-ink">Recent orders</p>
-            <Link href="/admin/orders" className="text-sm font-medium text-petrol hover:underline">View all</Link>
-          </div>
-          <div className="space-y-3">
-            {recentOrders === undefined ? (
-              Array.from({ length: 5 }).map((_, i) => <RowSkeleton key={i} />)
-            ) : recentOrders.length === 0 ? (
-              <p className="text-sm text-ink/50 py-4 text-center">No recent orders.</p>
-            ) : (
-              recentOrders.map(order => (
-                <div key={order._id} className="flex items-center justify-between p-3 rounded-xl hover:bg-porcelain/50 transition-colors border border-transparent hover:border-line">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-porcelain flex items-center justify-center text-petrol font-semibold text-sm">
-                      #{order.orderNumber}
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm text-ink">{order.customerName}</p>
-                      <p className="text-xs text-ink/60">{new Date(order._creationTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-sm text-ink">KES {order.total.toLocaleString()}</p>
-                    <span className={`inline-flex mt-1 px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider ${
-                      order.status === 'delivering' ? 'bg-petrol/10 text-petrol' : 
-                      order.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'
-                    }`}>
-                      {order.status}
-                    </span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Top Products */}
-        <div className="bg-paper rounded-2xl border border-line p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <p className="font-semibold text-base text-ink">Top selling products</p>
-            <Link href="/admin/analytics" className="text-sm font-medium text-petrol hover:underline">Full report</Link>
-          </div>
-          <div className="space-y-3">
-            {topProducts === undefined ? (
-              Array.from({ length: 5 }).map((_, i) => <RowSkeleton key={i} />)
-            ) : topProducts.length === 0 ? (
-              <p className="text-sm text-ink/50 py-4 text-center">No sales data yet.</p>
-            ) : (
-              topProducts.map((prod, idx) => (
-                <div key={prod.name} className="flex items-center justify-between p-3 rounded-xl hover:bg-porcelain/50 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className="w-6 text-center text-petrol-300 font-bold text-sm">{idx + 1}</div>
-                    <div className="w-10 h-10 rounded bg-porcelain border border-line flex items-center justify-center">
-                      <Package size={16} className="text-petrol-300" />
-                    </div>
-                    <p className="font-medium text-sm text-ink line-clamp-1">{prod.name}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-sm text-ink">KES {prod.revenue.toLocaleString()}</p>
-                    <p className="text-xs text-ink/60">{prod.units} units</p>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-      
-      {/* Low stock alerts */}
-      <div className="bg-paper rounded-2xl border border-line p-5 shadow-sm max-w-2xl">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-red-500" />
-            <p className="font-semibold text-base text-ink">Low stock alerts</p>
-          </div>
-          <Link href="/admin/inventory" className="text-sm font-medium text-petrol hover:underline">View inventory</Link>
-        </div>
-        <div className="space-y-3">
-          {lowStockProducts === undefined ? (
-            Array.from({ length: 3 }).map((_, i) => <RowSkeleton key={i} />)
-          ) : lowStockProducts.length === 0 ? (
-            <p className="text-sm text-ink/50 py-4 text-center">All products are well stocked.</p>
-          ) : (
-            lowStockProducts.map(p => (
-              <div key={p._id} className="flex items-center justify-between p-3 rounded-xl hover:bg-porcelain/50 transition-colors border border-transparent hover:border-red-100">
-                <div className="flex items-center gap-3">
-                  <div>
-                    <p className="font-medium text-sm text-ink">{p.name}</p>
-                    <p className="text-xs text-ink/60">{p.brand}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className="inline-flex px-2 py-1 rounded bg-red-100 text-red-700 font-bold text-xs">
-                    {p.stockQty} left
-                  </span>
-                </div>
-              </div>
+      <div className="space-y-5 max-w-[998px] mx-auto">
+        {/* Today's activity — individual KPI cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {!revenueSummary || ordersToday === undefined || !customers ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <Card key={i}>
+                <SkeletonLoader type="text" count={2} />
+              </Card>
             ))
+          ) : (
+            <>
+              <KpiCard label="Orders today" value={String(ordersToday)} />
+              <KpiCard label="Revenue today" value={formatKES(revenueSummary.today.revenue)} delta={revenueSummary.today.change} trend={salesTrend?.map((d) => d.revenue)} />
+              <KpiCard label="7-day revenue" value={formatKES(revenueSummary.sevenDay.revenue)} delta={revenueSummary.sevenDay.change} trend={salesTrend?.map((d) => d.revenue)} />
+              <KpiCard label="Active customers" value={String(customers.length)} />
+            </>
           )}
         </div>
+
+        {/* Sales chart */}
+        <Card
+          title="Total sales"
+          headerAction={<Link href="/admin/analytics" className="hover:underline">View report</Link>}
+        >
+          {!chartData ? (
+            <SkeletonLoader type="card" />
+          ) : chartData.length === 0 ? (
+            <EmptyState heading="No sales yet" body="Sales data will appear here once orders come in." />
+          ) : (
+            <div style={{ height: 200 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="salesFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#0D9488" stopOpacity={0.08} />
+                      <stop offset="100%" stopColor="#0D9488" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="#E1E3E5" vertical={false} />
+                  <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#6D7175' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 12, fill: '#6D7175' }} axisLine={false} tickLine={false} tickFormatter={(v) => `KES ${v}`} width={70} />
+                  <Tooltip
+                    formatter={(value) => [formatKES(Number(value)), 'Sales']}
+                    contentStyle={{ borderRadius: 8, border: '1px solid #E1E3E5', fontSize: 13 }}
+                  />
+                  <Area type="monotone" dataKey="sales" stroke="#0D9488" strokeWidth={2} fill="url(#salesFill)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </Card>
+
+        <div className="grid md:grid-cols-[2fr_1fr] gap-5 items-start">
+          {/* Top products */}
+          <Card
+            title="Top products"
+            headerAction={<Link href="/admin/analytics" className="hover:underline">View report</Link>}
+          >
+            {!topProducts ? (
+              <SkeletonLoader type="text" count={5} />
+            ) : (
+              <DataTable
+                columns={[
+                  {
+                    key: 'name',
+                    label: 'Product',
+                    render: (row) => (
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded bg-p-bg border border-p-border-subdued flex items-center justify-center flex-shrink-0">
+                          <Package size={16} className="text-p-icon-subdued" />
+                        </div>
+                        <span className="font-medium text-p-focus truncate">{row.name}</span>
+                      </div>
+                    ),
+                  },
+                  { key: 'units', label: 'Units sold', align: 'right' },
+                  {
+                    key: 'revenue',
+                    label: 'Net sales',
+                    align: 'right',
+                    render: (row) => formatKES(row.revenue),
+                  },
+                ]}
+                rows={topProducts.map((p, i) => ({ id: String(i), ...p }))}
+                emptyState={<EmptyState heading="No sales data yet" body="Top-selling products will show up here." />}
+              />
+            )}
+          </Card>
+
+          {/* Orders to fulfill */}
+          <Card title="Orders">
+            {!fulfillmentCounts ? (
+              <SkeletonLoader type="text" count={3} />
+            ) : (
+              <div>
+                {[
+                  { label: 'To fulfill', value: fulfillmentCounts.toFulfill, tab: 'to-fulfill' },
+                  { label: 'Awaiting payment', value: fulfillmentCounts.awaitingPayment, tab: 'awaiting-payment' },
+                  { label: 'Packed / delivering', value: fulfillmentCounts.awaitingShipment, tab: 'packed-delivering' },
+                ].map((row, i, arr) => (
+                  <Link
+                    key={row.label}
+                    href={`/admin/orders?tab=${row.tab}`}
+                    className={`flex items-center justify-between py-3 ${i < arr.length - 1 ? 'border-b border-p-border-subdued' : ''}`}
+                  >
+                    <span className="text-sm text-p-text">{row.label}</span>
+                    <span className="text-sm font-semibold text-p-focus">{row.value}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+
+        {/* Low stock alerts */}
+        <Card
+          title="Low stock alerts"
+          headerAction={<Link href="/admin/inventory" className="hover:underline">View inventory</Link>}
+        >
+          {lowStockProducts === undefined ? (
+            <SkeletonLoader type="text" count={3} />
+          ) : (
+            <DataTable
+              columns={[
+                { key: 'name', label: 'Product', render: (row) => <span className="font-medium">{row.name}</span> },
+                { key: 'brand', label: 'Brand' },
+                {
+                  key: 'stockQty',
+                  label: 'Stock',
+                  align: 'right',
+                  render: (row) => <span className="font-semibold text-p-critical">{row.stockQty} left</span>,
+                },
+              ]}
+              rows={lowStockProducts.map((p) => ({ id: p._id, ...p }))}
+              emptyState={<EmptyState heading="All products are well stocked" />}
+            />
+          )}
+        </Card>
       </div>
     </div>
   );

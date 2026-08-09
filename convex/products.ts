@@ -70,15 +70,19 @@ export const listNewArrivals = query({
   },
 });
 
-/** Special offers — excludes out-of-stock */
+/** Special offers — excludes out-of-stock and expired offers */
 export const listOffers = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, { limit = 6 }) => {
-    const products = await ctx.db
+    const now = Date.now();
+    const candidates = await ctx.db
       .query('products')
       .withIndex('by_offer', (q) => q.eq('isOffer', true))
       .filter((q) => q.eq(q.field('inStock'), true))
-      .take(limit);
+      .collect();
+    const products = candidates
+      .filter((p) => p.offerEndsAt === undefined || p.offerEndsAt > now)
+      .slice(0, limit);
     return Promise.all(
       products.map(async (p) => ({
         ...p,
@@ -99,6 +103,93 @@ export const listByCategory = query({
       .take(limit);
     return Promise.all(
       products.map(async (p) => ({
+        ...p,
+        imageUrl: await resolveImageUrl(ctx, p.imageStorageId, p.imageUrl),
+      }))
+    );
+  },
+});
+
+/** Fetch a specific set of products by id — used for the wishlist */
+export const listByIds = query({
+  args: { ids: v.array(v.id('products')) },
+  handler: async (ctx, { ids }) => {
+    const results = await Promise.all(ids.map((id) => ctx.db.get(id)));
+    const found = results.filter((p): p is NonNullable<typeof p> => p !== null);
+    return Promise.all(
+      found.map(async (p) => ({
+        ...p,
+        imageUrl: await resolveImageUrl(ctx, p.imageStorageId, p.imageUrl),
+      }))
+    );
+  },
+});
+
+/** All products for the /products listing — excludes out-of-stock, supports filter+sort */
+export const listAll = query({
+  args: {
+    categorySlug: v.optional(v.string()),
+    brandSlug: v.optional(v.string()),
+    sort: v.optional(v.union(v.literal('featured'), v.literal('price-asc'), v.literal('price-desc'), v.literal('new'))),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, { categorySlug, brandSlug, sort = 'featured', limit = 60 }) => {
+    let results = await ctx.db
+      .query('products')
+      .filter((q) => q.eq(q.field('inStock'), true))
+      .collect();
+
+    if (categorySlug) results = results.filter((p) => p.categorySlug === categorySlug);
+    if (brandSlug) results = results.filter((p) => p.brandSlug === brandSlug);
+
+    if (sort === 'price-asc') results.sort((a, b) => a.price - b.price);
+    else if (sort === 'price-desc') results.sort((a, b) => b.price - a.price);
+    else if (sort === 'new') results.sort((a, b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0));
+
+    results = results.slice(0, limit);
+
+    return Promise.all(
+      results.map(async (p) => ({
+        ...p,
+        imageUrl: await resolveImageUrl(ctx, p.imageStorageId, p.imageUrl),
+      }))
+    );
+  },
+});
+
+/** Products tagged with a given condition slug — excludes out-of-stock */
+export const listByCondition = query({
+  args: { conditionSlug: v.string(), limit: v.optional(v.number()) },
+  handler: async (ctx, { conditionSlug, limit = 20 }) => {
+    const all = await ctx.db
+      .query('products')
+      .filter((q) => q.eq(q.field('inStock'), true))
+      .collect();
+    const filtered = all
+      .filter((p) => p.conditions.includes(conditionSlug))
+      .slice(0, limit);
+    return Promise.all(
+      filtered.map(async (p) => ({
+        ...p,
+        imageUrl: await resolveImageUrl(ctx, p.imageStorageId, p.imageUrl),
+      }))
+    );
+  },
+});
+
+/** Products by brand slug — excludes out-of-stock */
+export const listByBrand = query({
+  args: { brandSlug: v.string(), limit: v.optional(v.number()) },
+  handler: async (ctx, { brandSlug, limit = 20 }) => {
+    const all = await ctx.db
+      .query('products')
+      .filter((q) => q.eq(q.field('inStock'), true))
+      .collect();
+    const filtered = all
+      .filter((p) => p.brandSlug === brandSlug)
+      .slice(0, limit);
+    return Promise.all(
+      filtered.map(async (p) => ({
         ...p,
         imageUrl: await resolveImageUrl(ctx, p.imageStorageId, p.imageUrl),
       }))
@@ -203,6 +294,8 @@ export const upsertProduct = mutation({
     imageUrl: v.optional(v.string()),
     inStock: v.boolean(),
     stockQty: v.number(),
+    sku: v.optional(v.string()),
+    manufacturer: v.optional(v.string()),
     isNew: v.optional(v.boolean()),
     isTrending: v.optional(v.boolean()),
     isBestSeller: v.optional(v.boolean()),
@@ -220,6 +313,22 @@ export const upsertProduct = mutation({
       return existing._id;
     }
     return await ctx.db.insert('products', args);
+  },
+});
+
+/** One-off cleanup: remove fabricated rating/reviewCount placeholder data */
+export const clearFakeRatings = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const all = await ctx.db.query('products').collect();
+    let cleared = 0;
+    for (const p of all) {
+      if (p.rating !== undefined || p.reviewCount !== undefined) {
+        await ctx.db.patch(p._id, { rating: undefined, reviewCount: undefined });
+        cleared += 1;
+      }
+    }
+    return { cleared };
   },
 });
 

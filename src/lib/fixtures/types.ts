@@ -27,6 +27,11 @@ export interface Product {
   isBestSeller?: boolean;
   isOffer?: boolean;
   ageRestricted?: boolean;
+  rating?: number;
+  reviewCount?: number;
+  manufacturer?: string;
+  sku?: string;
+  imageUrl?: string;
 }
 
 export interface Category {

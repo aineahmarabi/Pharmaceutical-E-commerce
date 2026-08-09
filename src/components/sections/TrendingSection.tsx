@@ -3,13 +3,22 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp } from 'lucide-react';
-import { ProductCardSkeleton } from '@/components/ui/Skeleton';
+import { useQuery } from 'convex/react';
+import { api } from '../../../convex/_generated/api';
+import { toProduct } from '@/lib/adapters/product';
+import { ProductGrid } from '@/components/product/ProductGrid';
 
 const ease = [0.16, 1, 0.3, 1] as const;
 const tabs = ['Trending', 'Best Sellers', 'New Arrivals'] as const;
 
 export function TrendingSection() {
   const [active, setActive] = useState<typeof tabs[number]>('Trending');
+
+  const trending = useQuery(api.products.listTrending, { limit: 8 });
+  const bestSellers = useQuery(api.products.listBestSellers, { limit: 8 });
+  const newArrivals = useQuery(api.products.listNewArrivals, { limit: 8 });
+
+  const products = active === 'Trending' ? trending : active === 'Best Sellers' ? bestSellers : newArrivals;
 
   return (
     <section className="py-16 px-4 sm:px-6 lg:px-8 bg-porcelain">
@@ -40,11 +49,12 @@ export function TrendingSection() {
           </div>
         </motion.div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <ProductCardSkeleton key={i} />
-          ))}
-        </div>
+        <ProductGrid
+          products={products?.map(toProduct)}
+          skeletonCount={8}
+          emptyTitle="Nothing here yet"
+          emptyDescription="Check back soon."
+        />
       </div>
     </section>
   );

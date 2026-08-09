@@ -1,34 +1,78 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
-import { motion } from 'framer-motion';
-import { Search, Plus, ShoppingCart, ChevronRight, Download, Upload } from 'lucide-react';
-import { TableRowSkeleton } from '@/components/ui/Skeleton';
-import { useQuery } from 'convex/react';
-import { api } from '../../../../../convex/_generated/api';
+import React, { useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useQuery } from 'convex/react';
+import { ShoppingCart } from 'lucide-react';
+import { api } from '../../../../../convex/_generated/api';
+import { PageHeader } from '@/components/admin/shared/PageHeader';
+import { Card } from '@/components/admin/ui/Card';
+import { Tabs } from '@/components/admin/ui/Tabs';
+import { FilterBar } from '@/components/admin/shared/FilterBar';
+import { DataTable, type DataTableColumn } from '@/components/admin/ui/DataTable';
+import { Badge } from '@/components/admin/ui/Badge';
+import { BulkActionBar } from '@/components/admin/ui/BulkActionBar';
+import { EmptyState } from '@/components/admin/ui/EmptyState';
+import { SkeletonLoader } from '@/components/admin/ui/SkeletonLoader';
+import { useAdminToast } from '@/components/admin/ui/Toast';
+import { useMutation } from 'convex/react';
 
-const ease = [0.16, 1, 0.3, 1] as const;
+const TABS = [
+  { id: 'all', label: 'All' },
+  { id: 'to-fulfill', label: 'To fulfill' },
+  { id: 'awaiting-payment', label: 'Awaiting payment' },
+  { id: 'packed-delivering', label: 'Packed & delivering' },
+  { id: 'completed', label: 'Completed' },
+];
+
+function matchesTab(order: any, tab: string): boolean {
+  if (tab === 'all') return true;
+  if (tab === 'to-fulfill') return order.status === 'placed' || order.status === 'confirmed';
+  if (tab === 'awaiting-payment') return order.paymentStatus === 'pending';
+  if (tab === 'packed-delivering') return order.status === 'packed' || order.status === 'delivering';
+  if (tab === 'completed') return order.status === 'completed';
+  return true;
+}
+
+function paymentBadge(status: string) {
+  if (status === 'paid' || status === 'collected') return <Badge status="success" dot>Paid</Badge>;
+  if (status === 'pending') return <Badge status="warning" dot>Pending</Badge>;
+  if (status === 'refunded' || status === 'partially_refunded') return <Badge status="default" dot>Refunded</Badge>;
+  return <Badge status="default">{status}</Badge>;
+}
+
+function fulfillmentBadge(status: string) {
+  if (status === 'completed') return <Badge status="success" dot>Fulfilled</Badge>;
+  if (status === 'cancelled') return <Badge status="critical">Cancelled</Badge>;
+  if (status === 'packed' || status === 'delivering') return <Badge status="info" dot>Partially fulfilled</Badge>;
+  return <Badge status="warning" dot>Unfulfilled</Badge>;
+}
 
 export default function AdminOrdersPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { toast } = useAdminToast();
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all'|'placed'|'confirmed'|'delivering'|'completed'>('all');
+  const [tab, setTab] = useState(() => searchParams.get('tab') ?? 'all');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  const orders = useQuery(api.orders.listOrders, { 
-    limit: 100,
+  const bulkFulfill = useMutation(api.orders.bulkFulfill);
+
+  const allOrders = useQuery(api.orders.listOrders, {
+    limit: 200,
     search: searchTerm || undefined,
-    status: statusFilter === 'all' ? undefined : statusFilter
   });
+
+  const orders = useMemo(() => allOrders?.filter((o) => matchesTab(o, tab)), [allOrders, tab]);
 
   const handleExport = () => {
     if (!orders || orders.length === 0) return;
     const headers = ['OrderNumber', 'CustomerName', 'CustomerEmail', 'Status', 'PaymentStatus', 'Total'];
     const csvContent = [
       headers.join(','),
-      ...orders.map(o => `"${o.orderNumber}","${o.customerName}","${o.customerEmail}","${o.status}","${o.paymentStatus}",${o.total}`)
+      ...orders.map((o) => `"${o.orderNumber}","${o.customerName}","${o.customerEmail}","${o.status}","${o.paymentStatus}",${o.total}`),
     ].join('\n');
-    
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -38,135 +82,96 @@ export default function AdminOrdersPage() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    toast('Orders exported');
   };
 
-  const handleImportClick = () => fileInputRef.current?.click();
-
-  const handleImportChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    alert(`Importing ${file.name}... (Parsing logic to be connected to Convex bulkImport)`);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
+  const columns: DataTableColumn<any>[] = [
+    {
+      key: 'orderNumber',
+      label: 'Order',
+      render: (row) => (
+        <Link href={`/admin/orders/${row._id}`} className="font-medium text-p-focus">
+          {row.orderNumber}
+        </Link>
+      ),
+    },
+    {
+      key: '_creationTime',
+      label: 'Date',
+      hideOnMobile: true,
+      render: (row) => new Date(row._creationTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+    },
+    {
+      key: 'customerName',
+      label: 'Customer',
+      render: (row) => (
+        <Link href={`/admin/customers/${encodeURIComponent(row.customerEmail || row.customerPhone)}`} className="text-p-focus">
+          {row.customerName}
+        </Link>
+      ),
+    },
+    { key: 'channel', label: 'Channel', hideOnMobile: true, render: (row) => row.channel ?? 'Online Store' },
+    { key: 'total', label: 'Total', align: 'right', render: (row) => `KES ${row.total.toLocaleString()}` },
+    { key: 'paymentStatus', label: 'Payment', render: (row) => paymentBadge(row.paymentStatus) },
+    { key: 'status', label: 'Fulfillment', render: (row) => fulfillmentBadge(row.status) },
+    { key: 'items', label: 'Items', align: 'right', hideOnMobile: true, render: (row) => row.items.length },
+  ];
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-[1200px] mx-auto">
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease }} className="flex items-center justify-between">
-        <div>
-          <p className="text-petrol-300 text-sm">Manage</p>
-          <h2 className="font-display font-bold text-2xl text-ink">Orders</h2>
-        </div>
-        <div className="flex items-center gap-2">
-          <input type="file" accept=".csv" className="hidden" ref={fileInputRef} onChange={handleImportChange} />
-          <button onClick={handleImportClick} className="flex items-center gap-1.5 bg-paper border border-line text-ink text-sm font-semibold px-4 py-2 rounded-xl hover:bg-porcelain transition-colors shadow-sm">
-            <Upload size={16} /> Import
-          </button>
-          <button onClick={handleExport} className="flex items-center gap-1.5 bg-paper border border-line text-ink text-sm font-semibold px-4 py-2 rounded-xl hover:bg-porcelain transition-colors shadow-sm">
-            <Download size={16} /> Export
-          </button>
-          <Link 
-            href="/admin/orders/new" 
-            className="flex items-center gap-1.5 bg-petrol text-paper text-sm font-semibold px-4 py-2 rounded-xl hover:bg-petrol/90 transition-colors shadow-sm ml-2"
-          >
-            <Plus size={16} /> Create Order
-          </Link>
-        </div>
-      </motion.div>
+    <div className="pb-16">
+      <PageHeader
+        title="Orders"
+        secondaryActions={[{ label: 'Export', onClick: handleExport }]}
+        primaryAction={{ label: 'Create order', href: '/admin/orders/new' }}
+      />
 
-      <div className="bg-paper rounded-2xl border border-line shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-line bg-porcelain/30 flex flex-col sm:flex-row gap-4 items-center justify-between">
-          <div className="flex bg-white border border-line rounded-xl p-1 shadow-sm w-full sm:w-auto overflow-x-auto">
-            {['All', 'Placed', 'Confirmed', 'Delivering', 'Completed'].map(tab => (
-              <button 
-                key={tab}
-                onClick={() => setStatusFilter(tab.toLowerCase() as any)}
-                className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${statusFilter === tab.toLowerCase() ? 'bg-porcelain text-ink' : 'text-petrol-300 hover:text-ink'}`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-          <div className="relative w-full sm:w-72">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-petrol-300" />
-            <input 
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-sm bg-white border border-line rounded-xl focus:outline-none focus:border-petrol shadow-sm" 
-              placeholder="Search orders, customers..." 
-            />
-          </div>
+      <Card>
+        <div className="-mx-5 -mt-5 mb-4">
+          <Tabs tabs={TABS} activeTab={tab} onChange={setTab} />
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-line bg-porcelain/30">
-                <th className="text-left px-4 py-3 text-xs font-mono text-petrol-300 uppercase tracking-wider">Order ID</th>
-                <th className="text-left px-4 py-3 text-xs font-mono text-petrol-300 uppercase tracking-wider hidden sm:table-cell">Customer</th>
-                <th className="text-left px-4 py-3 text-xs font-mono text-petrol-300 uppercase tracking-wider">Status</th>
-                <th className="text-right px-4 py-3 text-xs font-mono text-petrol-300 uppercase tracking-wider hidden md:table-cell">Total</th>
-                <th className="text-left px-4 py-3 text-xs font-mono text-petrol-300 uppercase tracking-wider hidden lg:table-cell">Date</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {orders === undefined ? (
-                Array.from({ length: 8 }).map((_, i) => <TableRowSkeleton key={i} cols={6} />)
-              ) : orders.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-16 text-center">
-                    <ShoppingCart size={40} className="text-petrol-300/50 mx-auto mb-4" />
-                    <p className="font-semibold text-ink">No orders found</p>
-                    <p className="text-sm text-petrol-300">Create a new order to get started</p>
-                  </td>
-                </tr>
-              ) : (
-                orders.map(order => (
-                  <tr key={order._id} className="hover:bg-porcelain/30 transition-colors group">
-                    <td className="px-4 py-4">
-                      <Link href={`/admin/orders/${order._id}`} className="font-semibold text-ink group-hover:text-petrol transition-colors">
-                        {order.orderNumber}
-                      </Link>
-                      <p className="text-xs text-petrol-300 sm:hidden mt-1">{order.customerName}</p>
-                    </td>
-                    <td className="px-4 py-4 hidden sm:table-cell">
-                      <p className="font-medium text-ink">{order.customerName}</p>
-                      <p className="text-xs text-petrol-300">{order.customerEmail || order.customerPhone}</p>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex flex-col gap-1">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider w-fit ${
-                          order.status === 'completed' ? 'bg-green-100 text-green-700' :
-                          order.status === 'delivering' ? 'bg-blue-100 text-blue-700' :
-                          order.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
-                        }`}>
-                          {order.status}
-                        </span>
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider w-fit ${
-                          order.paymentStatus === 'paid' || order.paymentStatus === 'collected' ? 'bg-petrol/10 text-petrol' : 'bg-porcelain text-petrol-300'
-                        }`}>
-                          {order.paymentStatus}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-right font-semibold text-ink hidden md:table-cell">
-                      KES {order.total.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-4 text-xs font-medium text-petrol-300 hidden lg:table-cell">
-                      {new Date(order._creationTime).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </td>
-                    <td className="px-4 py-4 text-right">
-                      <Link href={`/admin/orders/${order._id}`} className="p-1.5 inline-flex text-petrol-300 hover:text-ink hover:bg-porcelain rounded-lg transition-colors">
-                        <ChevronRight size={18} />
-                      </Link>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+        <FilterBar
+          searchPlaceholder="Filter orders..."
+          searchValue={searchTerm}
+          onSearch={setSearchTerm}
+        />
+
+        {!orders ? (
+          <SkeletonLoader type="text" count={8} />
+        ) : (
+          <DataTable
+            columns={columns}
+            rows={orders.map((o) => ({ ...o, id: o._id }))}
+            selectable
+            selectedIds={selected}
+            onSelectionChange={setSelected}
+            onRowClick={(row) => router.push(`/admin/orders/${row._id}`)}
+            emptyState={
+              <EmptyState
+                icon={ShoppingCart}
+                heading={searchTerm || tab !== 'all' ? 'No orders found' : 'Your orders will show here'}
+                body={searchTerm || tab !== 'all' ? 'Try changing the filters or search term.' : 'Orders will appear here once customers start checking out.'}
+                action={searchTerm || tab !== 'all' ? undefined : { label: 'Create order', onClick: () => router.push('/admin/orders/new') }}
+              />
+            }
+          />
+        )}
+      </Card>
+
+      <BulkActionBar
+        selectedCount={selected.size}
+        onDeselect={() => setSelected(new Set())}
+        actions={[
+          {
+            label: 'Fulfill orders',
+            onClick: async () => {
+              await bulkFulfill({ orderIds: Array.from(selected) as any });
+              toast(`${selected.size} order(s) fulfilled`);
+              setSelected(new Set());
+            },
+          },
+        ]}
+      />
     </div>
   );
 }

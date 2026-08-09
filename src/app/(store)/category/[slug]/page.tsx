@@ -2,29 +2,40 @@
 
 import React, { use } from 'react';
 import { motion } from 'framer-motion';
-import { ProductCardSkeleton, Skeleton } from '@/components/ui/Skeleton';
-import { categories } from '@/lib/fixtures/categories';
+import { useQuery } from 'convex/react';
+import { api } from '../../../../../convex/_generated/api';
+import { toProduct } from '@/lib/adapters/product';
+import { ProductGrid } from '@/components/product/ProductGrid';
+import { Breadcrumb } from '@/components/ui/Breadcrumb';
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
+function titleize(slug: string) {
+  return slug.split('-').map((w) => w[0]?.toUpperCase() + w.slice(1)).join(' ');
+}
+
 export default function CategoryPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
-  const category = categories.find((c) => c.slug === slug);
+  const products = useQuery(api.products.listByCategory, { categorySlug: slug, limit: 48 });
+  const heading = products?.[0]?.category ?? titleize(slug);
 
   return (
     <div className="min-h-screen bg-porcelain">
       <div className="bg-petrol py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease }}>
+            <Breadcrumb dark className="mb-3" items={[{ label: 'Home', href: '/' }, { label: 'Category' }, { label: heading }]} />
             <p className="font-mono text-xs uppercase tracking-widest text-petrol-300 mb-1">Category</p>
-            <h1 className="font-display font-extrabold text-3xl text-paper tracking-tight">{category?.name ?? slug}</h1>
+            <h1 className="font-display font-extrabold text-3xl text-paper tracking-tight">{heading}</h1>
           </motion.div>
         </div>
       </div>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5">
-          {Array.from({ length: 12 }).map((_, i) => <ProductCardSkeleton key={i} />)}
-        </div>
+        <ProductGrid
+          products={products?.map(toProduct)}
+          emptyTitle="No products in this category yet"
+          emptyDescription="Check back soon or browse another category."
+        />
       </div>
     </div>
   );

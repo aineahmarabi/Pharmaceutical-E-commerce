@@ -9,14 +9,15 @@ import { QuantityStepper } from '@/components/ui/QuantityStepper';
 import { useCartStore } from '@/store/cart';
 import { useToast } from '@/components/ui/Toast';
 import { branding } from '@/lib/config/branding';
+import { formatPrice } from '@/lib/utils';
 
 export default function CartPage() {
-  const { items, removeItem, updateQuantity, subtotal } = useCartStore();
+  const { items, removeItem, updateQuantity } = useCartStore();
   const { toast } = useToast();
   const [coupon, setCoupon] = useState('');
+  const subtotal = items.reduce((s, i) => s + i.product.price * i.quantity, 0);
   const deliveryFee = subtotal >= branding.deliveryThreshold ? 0 : 200;
   const total = subtotal + deliveryFee;
-  const freeDeliveryProgress = Math.min(100, (subtotal / branding.deliveryThreshold) * 100);
 
   return (
     <div className="min-h-screen bg-porcelain py-8 px-4 sm:px-6 lg:px-8">
@@ -50,7 +51,7 @@ export default function CartPage() {
                     className="bg-paper rounded-2xl border border-line border-l-4 border-l-petrol p-4 flex gap-4"
                   >
                     <div className="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0">
-                      <ProductImagePlaceholder className="w-20 h-20" size="sm" />
+                      <ProductImagePlaceholder className="w-20 h-20" size="sm" name={item.product.name} categorySlug={item.product.categorySlug} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-petrol-300 font-medium">{item.product.brand}</p>
@@ -59,7 +60,7 @@ export default function CartPage() {
                       <div className="flex items-center justify-between mt-3">
                         <QuantityStepper value={item.quantity} onChange={(v) => updateQuantity(item.product.id, v)} />
                         <div className="flex items-center gap-3">
-                          <span className="font-mono font-semibold text-base text-ink">KES {(item.product.price * item.quantity).toLocaleString()}</span>
+                          <span className="font-mono font-semibold text-base text-ink">{formatPrice(item.product.price * item.quantity)}</span>
                           <button
                             onClick={() => { removeItem(item.product.id); toast('Item removed', 'info'); }}
                             className="text-danger/40 hover:text-danger transition-colors"
@@ -102,37 +103,20 @@ export default function CartPage() {
               <div className="space-y-2 mb-4">
                 <div className="flex justify-between text-sm">
                   <span className="text-petrol-300">Subtotal</span>
-                  <span className="font-mono font-semibold text-ink">KES {subtotal.toLocaleString()}</span>
+                  <span className="font-mono font-semibold text-ink">{formatPrice(subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-petrol-300">Delivery</span>
                   <span className={`font-mono font-semibold ${deliveryFee === 0 ? 'text-success' : 'text-ink'}`}>
-                    {deliveryFee === 0 ? 'FREE' : `KES ${deliveryFee}`}
+                    {deliveryFee === 0 ? 'FREE' : formatPrice(deliveryFee)}
                   </span>
                 </div>
               </div>
 
-              {/* Free delivery progress */}
-              {subtotal < branding.deliveryThreshold && (
-                <div className="mb-4">
-                  <div className="h-1.5 bg-line rounded-full overflow-hidden mb-1.5">
-                    <motion.div
-                      className="h-full bg-petrol rounded-full"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${freeDeliveryProgress}%` }}
-                      transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-                    />
-                  </div>
-                  <p className="text-xs text-petrol-300">
-                    Add <span className="font-mono font-semibold text-ink">KES {(branding.deliveryThreshold - subtotal).toLocaleString()}</span> more for free delivery
-                  </p>
-                </div>
-              )}
-
               <hr className="border-line my-3" />
               <div className="flex justify-between items-baseline mb-5">
                 <span className="font-semibold text-ink">Total</span>
-                <span className="font-mono font-bold text-2xl text-ink">KES {total.toLocaleString()}</span>
+                <span className="font-mono font-bold text-2xl text-ink">{formatPrice(total)}</span>
               </div>
 
               <Link href="/checkout" className="block w-full text-center bg-signal hover:bg-signal/90 text-paper font-semibold py-3.5 rounded-xl transition-all hover:-translate-y-0.5 active:scale-[0.98]">

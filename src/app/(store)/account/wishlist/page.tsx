@@ -4,11 +4,20 @@ import React from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Heart } from 'lucide-react';
-import { ProductCardSkeleton } from '@/components/ui/Skeleton';
+import { useQuery } from 'convex/react';
+import { api } from '../../../../../convex/_generated/api';
+import type { Id } from '../../../../../convex/_generated/dataModel';
+import { toProduct } from '@/lib/adapters/product';
+import { ProductGrid } from '@/components/product/ProductGrid';
+import { useWishlistStore } from '@/store/cart';
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
 export default function WishlistPage() {
+  const { ids } = useWishlistStore();
+  const idList = Array.from(ids) as Id<'products'>[];
+  const products = useQuery(api.products.listByIds, { ids: idList });
+
   return (
     <div className="min-h-screen bg-porcelain py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-5xl mx-auto">
@@ -21,8 +30,12 @@ export default function WishlistPage() {
           </h1>
         </motion.div>
 
-        <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5">
-          {Array.from({ length: 8 }).map((_, i) => <ProductCardSkeleton key={i} />)}
+        <div className="mt-6">
+          {idList.length === 0 ? (
+            <ProductGrid products={[]} emptyTitle="Your wishlist is empty" emptyDescription="Save products you're interested in by tapping the heart icon." />
+          ) : (
+            <ProductGrid products={products?.map(toProduct)} skeletonCount={idList.length} />
+          )}
         </div>
       </div>
     </div>

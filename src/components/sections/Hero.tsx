@@ -16,19 +16,19 @@ import { branding } from '@/lib/config/branding';
 // ─── Constants ──────────────────────────────────────────────────────────────
 const CATEGORY_PILLS = [
   { label: 'All', slug: '' },
-  { label: 'Pain Relief', slug: 'pain-fever' },
-  { label: 'Vitamins', slug: 'vitamins' },
-  { label: 'Skincare', slug: 'skincare' },
-  { label: 'Cold & Flu', slug: 'cold-flu' },
-  { label: 'Baby & Mum', slug: 'baby-mum' },
+  { label: 'Pain Relief', slug: 'pain-relief' },
+  { label: 'Vitamins', slug: 'vitamins-supplements' },
+  { label: 'Skincare', slug: 'skin-care' },
+  { label: 'Cold & Flu', slug: 'cough-cold' },
+  { label: 'Baby Care', slug: 'baby-care' },
 ];
 
 const TAGLINES = [
-  'Vitamins & supplements',
-  'Pain & fever relief',
-  'Skincare & beauty',
-  'Cold & flu remedies',
-  'Baby & mother care',
+  'vitamins & supplements',
+  'pain & fever relief',
+  'skincare & beauty',
+  'cold & flu remedies',
+  'baby care essentials',
 ];
 
 const ease = [0.16, 1, 0.3, 1] as const;
@@ -203,7 +203,7 @@ export function Hero() {
       ref={sectionRef}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      className="relative bg-ink overflow-hidden pt-8 pb-20 lg:pt-12 lg:pb-24"
+      className="relative bg-ink overflow-hidden min-h-[80vh] lg:min-h-0 flex items-center pt-10 pb-10 lg:pt-12 lg:pb-24"
     >
       {/* ── Interactive parallax background ─────────────────────────── */}
       <InteractiveBg mouseX={mx} mouseY={my} taglineIndex={taglineIndex} />

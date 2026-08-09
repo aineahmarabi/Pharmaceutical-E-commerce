@@ -102,13 +102,34 @@ export const updateProduct = mutation({
       categorySlug: v.optional(v.string()),
       brand: v.optional(v.string()),
       brandSlug: v.optional(v.string()),
+      genericName: v.optional(v.string()),
+      classification: v.optional(v.union(v.literal('OTC'), v.literal('P'), v.literal('POM'))),
+      form: v.optional(v.string()),
+      strength: v.optional(v.string()),
+      packSize: v.optional(v.string()),
       description: v.optional(v.string()),
+      directions: v.optional(v.string()),
+      warnings: v.optional(v.string()),
+      ingredients: v.optional(v.string()),
+      manufacturer: v.optional(v.string()),
+      sku: v.optional(v.string()),
       imageUrl: v.optional(v.string()),
       imageStorageId: v.optional(v.id('_storage')),
+      isNew: v.optional(v.boolean()),
+      isTrending: v.optional(v.boolean()),
+      isBestSeller: v.optional(v.boolean()),
+      isOffer: v.optional(v.boolean()),
+      offerEndsAt: v.optional(v.number()),
     }),
   },
   handler: async (ctx, { id, updates }) => {
     await ctx.db.patch(id, updates);
+    await ctx.db.insert('auditLog', {
+      action: 'UPDATE_PRODUCT',
+      targetType: 'product',
+      targetId: id,
+      createdAt: Date.now(),
+    });
   },
 });
 

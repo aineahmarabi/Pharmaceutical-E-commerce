@@ -1,62 +1,108 @@
 'use client';
 
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Search, AlertTriangle } from 'lucide-react';
-import { TableRowSkeleton } from '@/components/ui/Skeleton';
+import { useMutation, useQuery } from 'convex/react';
+import { AlertTriangle, Boxes } from 'lucide-react';
+import { api } from '../../../../../convex/_generated/api';
+import type { Id } from '../../../../../convex/_generated/dataModel';
+import { PageHeader } from '@/components/admin/shared/PageHeader';
+import { ProductsSubNav } from '@/components/admin/shared/ProductsSubNav';
+import { Card } from '@/components/admin/ui/Card';
+import { Tabs } from '@/components/admin/ui/Tabs';
+import { FilterBar } from '@/components/admin/shared/FilterBar';
+import { DataTable, type DataTableColumn } from '@/components/admin/ui/DataTable';
+import { Badge } from '@/components/admin/ui/Badge';
+import { EmptyState } from '@/components/admin/ui/EmptyState';
+import { SkeletonLoader } from '@/components/admin/ui/SkeletonLoader';
+import { useAdminToast } from '@/components/admin/ui/Toast';
 
-const ease = [0.16, 1, 0.3, 1] as const;
-const filters = ['All', 'Low stock', 'Out of stock'] as const;
+const TABS = [
+  { id: 'all', label: 'All' },
+  { id: 'inStock', label: 'In stock' },
+  { id: 'lowStock', label: 'Low stock' },
+  { id: 'outOfStock', label: 'Out of stock' },
+];
 
 export default function AdminInventoryPage() {
-  const [filter, setFilter] = useState<typeof filters[number]>('All');
+  const { toast } = useAdminToast();
+  const [search, setSearch] = useState('');
+  const [tab, setTab] = useState('all');
+
+  const products = useQuery(api.inventory.listInventory, {
+    search: search || undefined,
+    stockStatus: tab === 'all' ? undefined : (tab as 'inStock' | 'lowStock' | 'outOfStock'),
+    limit: 300,
+  });
+  const adjustStock = useMutation(api.inventory.adjustStock);
+
+  const handleAdjust = async (productId: Id<'products'>, delta: number, name: string) => {
+    await adjustStock({ productId, changeAmount: delta, reason: 'Manual adjustment' });
+    toast(`${name} stock ${delta > 0 ? 'increased' : 'decreased'} by ${Math.abs(delta)}`);
+  };
+
+  const columns: DataTableColumn<any>[] = [
+    { key: 'name', label: 'Product', render: (r) => <span className="font-medium text-p-text">{r.name}</span> },
+    { key: 'sku', label: 'SKU', hideOnMobile: true, render: (r) => r.sku || '—' },
+    { key: 'classification', label: 'Class', hideOnMobile: true },
+    {
+      key: 'stockQty',
+      label: 'Stock',
+      align: 'right',
+      render: (r) => <span className={r.stockQty === 0 ? 'text-p-critical font-semibold' : r.stockQty <= 10 ? 'text-[#92400E] font-semibold' : ''}>{r.stockQty}</span>,
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (r) =>
+        r.stockQty === 0 ? (
+          <Badge status="critical">Out of stock</Badge>
+        ) : r.stockQty <= 10 ? (
+          <Badge status="warning">Low stock</Badge>
+        ) : (
+          <Badge status="success">In stock</Badge>
+        ),
+    },
+    {
+      key: 'actions',
+      label: '',
+      align: 'right',
+      render: (r) => (
+        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+          <button onClick={() => handleAdjust(r._id, -1, r.name)} disabled={r.stockQty === 0} className="w-6 h-6 rounded border border-p-border-input hover:bg-p-bg disabled:opacity-40">−</button>
+          <button onClick={() => handleAdjust(r._id, 1, r.name)} className="w-6 h-6 rounded border border-p-border-input hover:bg-p-bg">+</button>
+        </div>
+      ),
+    },
+  ];
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease }} className="flex items-center justify-between">
-        <div>
-          <p className="text-petrol-300 text-sm">Manage</p>
-          <h2 className="font-display font-bold text-xl text-ink flex items-center gap-2">
-            <AlertTriangle size={18} className="text-warning" />Inventory
-          </h2>
+    <div className="pb-16">
+      <PageHeader title="Products" />
+      <ProductsSubNav />
+
+      <Card>
+        <div className="-mx-5 -mt-5 mb-4">
+          <Tabs tabs={TABS} activeTab={tab} onChange={setTab} />
         </div>
-      </motion.div>
 
-      <div className="flex gap-2 flex-wrap">
-        {filters.map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`px-4 py-1.5 rounded-xl text-sm font-medium transition-colors ${filter === f ? 'bg-petrol text-paper' : 'bg-paper border border-line text-petrol-300 hover:text-ink'}`}
-          >
-            {f}
-          </button>
-        ))}
-      </div>
+        <FilterBar searchPlaceholder="Search inventory..." searchValue={search} onSearch={setSearch} />
 
-      <div className="relative">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-petrol-300" />
-        <input className="w-full pl-8 pr-4 py-2.5 text-sm bg-paper border border-line rounded-xl focus:outline-none focus:border-petrol" placeholder="Search inventory…" disabled />
-      </div>
-
-      <div className="bg-paper rounded-2xl border border-line overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-line bg-porcelain/50">
-                <th className="text-left px-4 py-3 text-xs font-mono text-petrol-300 uppercase tracking-wider">Product</th>
-                <th className="text-left px-4 py-3 text-xs font-mono text-petrol-300 uppercase tracking-wider hidden sm:table-cell">SKU</th>
-                <th className="text-left px-4 py-3 text-xs font-mono text-petrol-300 uppercase tracking-wider hidden md:table-cell">Class</th>
-                <th className="text-right px-4 py-3 text-xs font-mono text-petrol-300 uppercase tracking-wider">Stock</th>
-                <th className="text-left px-4 py-3 text-xs font-mono text-petrol-300 uppercase tracking-wider">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {Array.from({ length: 10 }).map((_, i) => <TableRowSkeleton key={i} cols={5} />)}
-            </tbody>
-          </table>
-        </div>
-      </div>
+        {products === undefined ? (
+          <SkeletonLoader type="text" count={8} />
+        ) : (
+          <DataTable
+            columns={columns}
+            rows={products.map((p) => ({ ...p, id: p._id }))}
+            emptyState={
+              <EmptyState
+                icon={AlertTriangle}
+                heading="No products found"
+                body="Try changing the filters or search term."
+              />
+            }
+          />
+        )}
+      </Card>
     </div>
   );
 }

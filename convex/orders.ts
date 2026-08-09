@@ -45,6 +45,44 @@ export const listOrders = query({
   },
 });
 
+/**
+ * Public order tracking — no customer auth exists in this app, so we verify
+ * identity by requiring the order number PLUS a matching phone or email
+ * rather than exposing orders by number alone.
+ */
+export const trackOrder = query({
+  args: { orderNumber: v.string(), contact: v.string() },
+  handler: async (ctx, { orderNumber, contact }) => {
+    const normalizedNumber = orderNumber.trim().toUpperCase();
+    const normalizedContact = contact.trim().toLowerCase();
+
+    const order = await ctx.db
+      .query('orders')
+      .filter((q) => q.eq(q.field('orderNumber'), normalizedNumber))
+      .first();
+
+    if (!order) return { found: false as const, error: 'No order found with that number.' };
+
+    const matches =
+      order.customerEmail?.toLowerCase() === normalizedContact ||
+      order.customerPhone?.toLowerCase() === normalizedContact ||
+      order.customerPhone?.replace(/\s+/g, '') === contact.trim().replace(/\s+/g, '');
+
+    if (!matches) {
+      return { found: false as const, error: "That phone or email doesn't match this order." };
+    }
+
+    const timeline = await ctx.db
+      .query('auditLog')
+      .withIndex('by_action')
+      .filter((q) => q.eq(q.field('targetId'), order._id))
+      .order('desc')
+      .collect();
+
+    return { found: true as const, order, timeline };
+  },
+});
+
 export const getOrderById = query({
   args: { orderId: v.id('orders') },
   handler: async (ctx, { orderId }) => {
@@ -428,6 +466,7 @@ export const createOrder = mutation({
     )),
     deliveryFee: v.optional(v.number()),
     channel: v.optional(v.string()),
+    prescriptionFileId: v.optional(v.id('_storage')),
   },
   handler: async (ctx, args) => {
     // 1. Collect inventory updates
@@ -470,13 +509,23 @@ export const createOrder = mutation({
       paymentStatus: args.paymentStatus ?? 'pending',
       deliveryAddress: args.deliveryAddress,
       channel: args.channel ?? 'Admin POS',
+      prescriptionFileId: args.prescriptionFileId,
+    });
+
+    await ctx.db.insert('notifications', {
+      type: 'new_order',
+      title: 'New order received',
+      message: `${orderNumber} — ${args.customerName} · KES ${total.toLocaleString()}`,
+      targetId: orderId,
+      read: false,
+      createdAt: Date.now(),
     });
 
     // 5. Apply inventory decrements
     for (const update of inventoryUpdates) {
-      await ctx.db.patch(update.id as any, { 
+      await ctx.db.patch(update.id as any, {
         stockQty: update.newQty,
-        inStock: update.newQty > 0 
+        inStock: update.newQty > 0
       });
       // create audit trail for inventory
       await ctx.db.insert('inventoryLog', {
@@ -485,6 +534,20 @@ export const createOrder = mutation({
         reason: `Admin created order: ${orderNumber}`,
         createdAt: Date.now(),
       });
+
+      if (update.newQty <= 10) {
+        const product = await ctx.db.get(update.id as Id<'products'>);
+        if (product) {
+          await ctx.db.insert('notifications', {
+            type: 'low_stock',
+            title: update.newQty <= 0 ? 'Out of stock' : 'Low stock warning',
+            message: `${product.name} has ${update.newQty} unit(s) left`,
+            targetId: update.id,
+            read: false,
+            createdAt: Date.now(),
+          });
+        }
+      }
     }
 
     return orderId;

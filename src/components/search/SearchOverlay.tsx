@@ -4,11 +4,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, X, Clock, TrendingUp, ArrowRight } from 'lucide-react';
+import { useQuery } from 'convex/react';
+import { api } from '../../../convex/_generated/api';
 import { categories } from '@/lib/fixtures/categories';
 import { SearchResultSkeleton } from '@/components/ui/Skeleton';
+import { ProductImagePlaceholder } from '@/components/ui/ProductImagePlaceholder';
+import { useDebounce } from '@/hooks/useDebounce';
+import { formatPrice } from '@/lib/utils';
 
-const popularSearches = ['Paracetamol', 'Vitamin D', 'Blood pressure', 'Amoxicillin', 'ORS sachets', 'Cetirizine'];
-const recentSearches = ['Vitamin C', 'Metformin 500mg'];
+const popularSearches = ['Paracetamol', 'Vitamin D', 'Amoxicillin', 'Cetirizine', 'Ibuprofen'];
+const recentSearches = ['Vitamin C', 'Panadol'];
 
 interface SearchOverlayProps {
   open: boolean;
@@ -17,25 +22,17 @@ interface SearchOverlayProps {
 
 export function SearchOverlay({ open, onClose }: SearchOverlayProps) {
   const [query, setQuery] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const debouncedQuery = useDebounce(query, 300);
+  const results = useQuery(api.products.searchProducts, { term: debouncedQuery, limit: 6 });
+  const isSearching = query.trim().length > 0 && results === undefined;
 
   useEffect(() => {
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 60);
       setQuery('');
-      setIsSearching(false);
     }
   }, [open]);
-
-  useEffect(() => {
-    if (!query.trim()) { setIsSearching(false); return; }
-    setIsSearching(true);
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => setIsSearching(false), 400);
-    return () => clearTimeout(debounceRef.current);
-  }, [query]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') onClose();
@@ -96,6 +93,38 @@ export function SearchOverlay({ open, onClose }: SearchOverlayProps) {
                 {isSearching && (
                   <div className="py-2">
                     {Array.from({ length: 4 }).map((_, i) => <SearchResultSkeleton key={i} />)}
+                  </div>
+                )}
+
+                {!isSearching && query && results && results.length === 0 && (
+                  <div className="px-5 py-8 text-center text-sm text-petrol-300">
+                    No products found for &quot;{query}&quot;
+                  </div>
+                )}
+
+                {!isSearching && query && results && results.length > 0 && (
+                  <div className="py-2">
+                    {results.map((p) => (
+                      <Link
+                        key={p._id}
+                        href={`/products/${p.slug}`}
+                        onClick={onClose}
+                        className="flex items-center gap-3 px-5 py-2.5 hover:bg-petrol-50 transition-colors"
+                      >
+                        <ProductImagePlaceholder
+                          className="w-10 h-10 rounded-xl flex-shrink-0"
+                          aspectRatio=""
+                          size="sm"
+                          name={p.name}
+                          categorySlug={p.categorySlug}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-ink truncate">{p.name}</p>
+                          <p className="text-xs text-petrol-300 truncate">{p.brand}</p>
+                        </div>
+                        <span className="font-mono text-sm text-ink font-semibold flex-shrink-0">{formatPrice(p.price)}</span>
+                      </Link>
+                    ))}
                   </div>
                 )}
 

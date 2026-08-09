@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Phone, Mail, MapPin, MessageCircle } from 'lucide-react';
+import { useMutation } from 'convex/react';
+import { api } from '../../../../convex/_generated/api';
 import { useToast } from '@/components/ui/Toast';
 import { branding } from '@/lib/config/branding';
 
@@ -10,13 +12,32 @@ const ease = [0.16, 1, 0.3, 1] as const;
 
 export default function ContactPage() {
   const { toast } = useToast();
+  const submitMessage = useMutation(api.messages.submitContactMessage);
   const [form, setForm] = useState({ name: '', email: '', subject: '', message: '' });
+  const [submitting, setSubmitting] = useState(false);
   const update = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast('Message sent! We\'ll get back to you within 24 hours.', 'success');
-    setForm({ name: '', email: '', subject: '', message: '' });
+    if (!form.name || !form.email || !form.message) return;
+    setSubmitting(true);
+    try {
+      await submitMessage(form);
+      toast('Message sent! We\'ll get back to you within 24 hours.', 'success');
+      setForm({ name: '', email: '', subject: '', message: '' });
+    } catch {
+      toast('Failed to send message. Please try again.', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const waDigits = branding.whatsapp.replace(/[^0-9]/g, '');
+  const contactHref: Record<string, string> = {
+    Phone: `tel:${branding.phone.replace(/\s+/g, '')}`,
+    WhatsApp: `https://wa.me/${waDigits}`,
+    Email: 'mailto:info@pharmacare.co.ke',
+    'Head office': 'https://maps.google.com/?q=14+Waiyaki+Way,+Westlands,+Nairobi',
   };
 
   return (
@@ -36,7 +57,13 @@ export default function ContactPage() {
               { icon: Mail, label: 'Email', value: 'info@pharmacare.co.ke', sub: 'Reply within 24 hours' },
               { icon: MapPin, label: 'Head office', value: '14 Waiyaki Way, Westlands', sub: 'Nairobi, Kenya' },
             ].map(({ icon: Icon, label, value, sub }) => (
-              <div key={label} className="flex items-start gap-3 bg-paper rounded-2xl border border-line p-4">
+              <a
+                key={label}
+                href={contactHref[label]}
+                target={label === 'Head office' ? '_blank' : undefined}
+                rel={label === 'Head office' ? 'noopener noreferrer' : undefined}
+                className="flex items-start gap-3 bg-paper rounded-2xl border border-line p-4 hover:border-petrol/50 hover:shadow-sm transition-all cursor-pointer"
+              >
                 <div className="w-10 h-10 rounded-xl bg-petrol flex items-center justify-center flex-shrink-0">
                   <Icon size={16} className="text-paper" />
                 </div>
@@ -45,7 +72,7 @@ export default function ContactPage() {
                   <p className="font-semibold text-sm text-ink">{value}</p>
                   <p className="text-xs text-petrol-300">{sub}</p>
                 </div>
-              </div>
+              </a>
             ))}
           </div>
 
@@ -77,8 +104,8 @@ export default function ContactPage() {
                 />
               </div>
             </div>
-            <button type="submit" className="w-full bg-petrol hover:bg-petrol-700 text-paper font-semibold py-3 rounded-xl transition-all hover:-translate-y-0.5">
-              Send message
+            <button type="submit" disabled={submitting} className="w-full bg-petrol hover:bg-petrol-700 text-paper font-semibold py-3 rounded-xl transition-all hover:-translate-y-0.5 disabled:opacity-60">
+              {submitting ? 'Sending...' : 'Send message'}
             </button>
           </form>
         </div>

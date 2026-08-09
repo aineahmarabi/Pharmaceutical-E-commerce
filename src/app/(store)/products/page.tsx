@@ -3,8 +3,12 @@
 import React, { Suspense, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Filter, LayoutGrid, LayoutList, ChevronDown, ChevronUp } from 'lucide-react';
-import { categories, brands } from '@/lib/fixtures/categories';
-import { ProductCardSkeleton } from '@/components/ui/Skeleton';
+import { useQuery } from 'convex/react';
+import { api } from '../../../../convex/_generated/api';
+import { toProduct } from '@/lib/adapters/product';
+import { ProductGrid } from '@/components/product/ProductGrid';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { useMounted } from '@/hooks/useMounted';
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
@@ -13,7 +17,7 @@ const sortOptions = [
   { value: 'price-asc', label: 'Price: Low to High' },
   { value: 'price-desc', label: 'Price: High to Low' },
   { value: 'new', label: 'New Arrivals' },
-];
+] as const;
 
 function Accordion({ title, defaultOpen = true, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -50,10 +54,22 @@ export default function ProductsPage() {
 
 function ProductsContent() {
   const [layout, setLayout] = useState<'grid' | 'list'>('grid');
-  const [sort, setSort] = useState('featured');
+  const [sort, setSort] = useState<typeof sortOptions[number]['value']>('featured');
   const [filterOpen, setFilterOpen] = useState(false);
   const [activeCat, setActiveCat] = useState('all');
   const [activeBrand, setActiveBrand] = useState('all');
+
+  const mounted = useMounted();
+  const categoriesQuery = useQuery(api.taxonomy.listCategories, {});
+  const brandsQuery = useQuery(api.brands.list, {});
+  const categories = mounted ? categoriesQuery : undefined;
+  const brands = mounted ? brandsQuery : undefined;
+  const products = useQuery(api.products.listAll, {
+    categorySlug: activeCat === 'all' ? undefined : activeCat,
+    brandSlug: activeBrand === 'all' ? undefined : activeBrand,
+    sort,
+    limit: 60,
+  });
 
   const sidebar = (
     <div className="space-y-0 bg-paper rounded-2xl border border-line/50 p-5 divide-y divide-line/40">
@@ -63,19 +79,27 @@ function ProductsContent() {
       <Accordion title="Category">
         <div className="space-y-1 pt-1 max-h-52 overflow-y-auto">
           <button onClick={() => setActiveCat('all')} className={`w-full text-left px-3 py-1.5 rounded-xl text-sm transition-colors ${activeCat === 'all' ? 'bg-petrol text-paper' : 'text-ink hover:bg-petrol-50'}`}>All Categories</button>
-          {categories.map((c) => (
-            <button key={c.slug} onClick={() => setActiveCat(c.slug)} className={`w-full flex justify-between text-left px-3 py-1.5 rounded-xl text-sm transition-colors ${activeCat === c.slug ? 'bg-petrol text-paper' : 'text-ink hover:bg-petrol-50'}`}>
-              <span>{c.name}</span>
-            </button>
-          ))}
+          {categories === undefined ? (
+            Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-7 mx-3 my-1" />)
+          ) : (
+            categories.map((c) => (
+              <button key={c.slug} onClick={() => setActiveCat(c.slug)} className={`w-full flex justify-between text-left px-3 py-1.5 rounded-xl text-sm transition-colors ${activeCat === c.slug ? 'bg-petrol text-paper' : 'text-ink hover:bg-petrol-50'}`}>
+                <span>{c.name}</span>
+              </button>
+            ))
+          )}
         </div>
       </Accordion>
       <Accordion title="Brand" defaultOpen={false}>
-        <div className="space-y-1 pt-1">
+        <div className="space-y-1 pt-1 max-h-64 overflow-y-auto">
           <button onClick={() => setActiveBrand('all')} className={`w-full text-left px-3 py-1.5 rounded-xl text-sm transition-colors ${activeBrand === 'all' ? 'bg-petrol text-paper' : 'text-ink hover:bg-petrol-50'}`}>All Brands</button>
-          {brands.map((b) => (
-            <button key={b.slug} onClick={() => setActiveBrand(b.slug)} className={`w-full text-left px-3 py-1.5 rounded-xl text-sm transition-colors ${activeBrand === b.slug ? 'bg-petrol text-paper' : 'text-ink hover:bg-petrol-50'}`}>{b.name}</button>
-          ))}
+          {brands === undefined ? (
+            Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-7 mx-3 my-1" />)
+          ) : (
+            brands.map((b) => (
+              <button key={b.slug} onClick={() => setActiveBrand(b.slug)} className={`w-full text-left px-3 py-1.5 rounded-xl text-sm transition-colors ${activeBrand === b.slug ? 'bg-petrol text-paper' : 'text-ink hover:bg-petrol-50'}`}>{b.name}</button>
+            ))
+          )}
         </div>
       </Accordion>
     </div>
@@ -97,14 +121,14 @@ function ProductsContent() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex gap-8">
-          <aside className="w-64 flex-shrink-0 hidden md:block">{sidebar}</aside>
+          <aside className="w-64 flex-shrink-0 hidden md:block sticky top-[168px] self-start max-h-[calc(100vh-184px)] overflow-y-auto">{sidebar}</aside>
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-5 gap-3">
               <button onClick={() => setFilterOpen((v) => !v)} className="md:hidden flex items-center gap-1.5 text-sm text-ink border border-line rounded-xl px-3 py-2 hover:bg-petrol-50 transition-colors">
                 <Filter size={14} />Filters
               </button>
               <div className="flex items-center gap-3 ml-auto">
-                <select value={sort} onChange={(e) => setSort(e.target.value)} className="text-sm bg-paper border border-line rounded-xl px-3 py-2 text-ink focus:outline-none focus:border-petrol">
+                <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} className="text-sm bg-paper border border-line rounded-xl px-3 py-2 text-ink focus:outline-none focus:border-petrol">
                   {sortOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
                 <div className="flex items-center border border-line rounded-xl overflow-hidden">
@@ -122,9 +146,12 @@ function ProductsContent() {
               )}
             </AnimatePresence>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-5">
-              {Array.from({ length: 12 }).map((_, i) => <ProductCardSkeleton key={i} />)}
-            </div>
+            <ProductGrid
+              products={products?.map(toProduct)}
+              columns={layout === 'grid' ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-1'}
+              emptyTitle="No products match these filters"
+              emptyDescription="Try a different category or brand."
+            />
           </div>
         </div>
       </div>

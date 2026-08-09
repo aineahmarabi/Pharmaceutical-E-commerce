@@ -7,9 +7,9 @@ import { Search, ShoppingBag, Truck } from 'lucide-react';
 const ease = [0.16, 1, 0.3, 1] as const;
 
 const steps = [
-  { icon: Search, title: 'Browse & search', body: 'Search 2,000+ medicines by name, brand, or condition. Filter by category and price.' },
+  { icon: Search, title: 'Browse & search', body: 'Search genuine medicines by name, brand, or category. Filter by price and availability.' },
   { icon: ShoppingBag, title: 'Add to cart', body: 'Add your items, review your order, and apply any promo codes.' },
-  { icon: Truck, title: 'Get it delivered', body: 'Same-day delivery in Nairobi. Pick-up available at all branches.' },
+  { icon: Truck, title: 'Get it delivered', body: 'Fast, discreet delivery across Kenya.' },
 ];
 
 export function HowItWorks() {

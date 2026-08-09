@@ -3,11 +3,16 @@
 import React from 'react';
 import Link from 'next/link';
 import { Globe, MessageCircle, Share2 } from 'lucide-react';
+import { useQuery } from 'convex/react';
+import { api } from '../../../convex/_generated/api';
 import { useBranding } from '@/hooks/useBranding';
-import { categories } from '@/lib/fixtures/categories';
+import { categories as fixtureCategories } from '@/lib/fixtures/categories';
+import { BrandName } from '@/components/ui/BrandName';
 
 export function Footer() {
   const branding = useBranding();
+  const liveCategories = useQuery(api.taxonomy.listCategories, {});
+  const categories = liveCategories && liveCategories.length > 0 ? liveCategories : fixtureCategories;
   return (
     <footer className="bg-ink text-porcelain">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
@@ -23,7 +28,7 @@ export function Footer() {
               {branding.logo ? (
                 <img src={branding.logo} alt={branding.name} className="h-8 object-contain" />
               ) : (
-                <span className="font-display font-bold text-xl">{branding.name}</span>
+                <BrandName name={branding.name} className="font-display font-bold text-xl" accentClassName="text-petrol-300" />
               )}
             </div>
             <p className="text-sm text-porcelain/60 leading-relaxed max-w-xs">{branding.tagline}. Your trusted online pharmacy in Kenya.</p>
@@ -48,9 +53,7 @@ export function Footer() {
                 { label: 'About Us', href: '/about' },
                 { label: 'Contact', href: '/contact' },
                 { label: 'FAQ', href: '/faq' },
-                { label: 'Blog', href: '/blog' },
                 { label: 'Track Order', href: '/account/orders' },
-                { label: 'Store Locator', href: '/store-locator' },
               ].map((item) => (
                 <li key={item.href}>
                   <Link href={item.href} className="text-sm text-porcelain/60 hover:text-porcelain transition-colors">{item.label}</Link>

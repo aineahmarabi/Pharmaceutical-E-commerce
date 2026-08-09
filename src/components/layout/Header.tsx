@@ -7,17 +7,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, CircleUser, Heart, ShoppingBag, Phone, MapPin,
   ChevronDown, X, Menu, ArrowRight,
-  Pill, Wind, Leaf, Sparkles, Baby, Smile, Activity, HeartPulse,
-  Brain, Shield, AlertCircle, Zap, Moon, User,
-  Package, Tag, Boxes,
+  Pill, Wind, Leaf, Sparkles, Baby, Smile, Activity, HeartPulse, Shield,
+  Package, Tag, Boxes, Lock, HeartHandshake, Flower2, CircleDot, ShieldCheck, Bug, Droplets, Stethoscope,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useBranding } from '@/hooks/useBranding';
 import { categories } from '@/lib/fixtures/categories';
-import { conditions } from '@/lib/fixtures/conditions';
 import { brands } from '@/lib/fixtures/categories';
 import { useCartStore, useWishlistStore } from '@/store/cart';
 import { SearchOverlay } from '@/components/search/SearchOverlay';
+import { BrandName } from '@/components/ui/BrandName';
 import { useQuery } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 
@@ -25,20 +24,18 @@ const ease = [0.16, 1, 0.3, 1] as const;
 
 const promos = [
   'Fast, discreet delivery across Kenya',
-  'Talk to a pharmacist 24/7 via WhatsApp',
-  'Over 2,000 genuine medicines in stock',
+  'Talk to a pharmacist via WhatsApp',
+  'Genuine medicines, sourced from licensed manufacturers',
 ];
 
 const catIcons: Record<string, React.ElementType> = {
   'pain-fever': Pill, 'cold-flu': Wind, vitamins: Leaf, skincare: Sparkles,
   'baby-mum': Baby, digestive: Smile, diabetes: Activity, 'personal-care': HeartPulse,
-};
-
-const condIcons: Record<string, React.ElementType> = {
-  'headaches-migraines': Brain, 'cough-sore-throat': Wind, 'immune-support': Shield,
-  'acne-skin-issues': Sparkles, 'allergies-hayfever': AlertCircle,
-  'blood-sugar': Activity, 'heart-health': HeartPulse, 'joint-muscle-pain': Zap,
-  'sleep-relaxation': Moon, 'womens-health': User,
+  'pain-relief': Pill, antibiotics: Shield, 'cough-cold': Wind, 'baby-care': Baby,
+  'skin-care': Sparkles, 'arthritis-joint-care': Activity, 'sexual-wellness': Lock,
+  'mother-baby': HeartHandshake, allergy: Flower2, 'vitamins-supplements': Leaf,
+  'digestive-health': CircleDot, cardiovascular: HeartPulse, 'anti-infective': ShieldCheck,
+  antimalarial: Bug, antifungal: Droplets, respiratory: Stethoscope,
 };
 
 const catBg: Record<string, string> = {
@@ -46,72 +43,96 @@ const catBg: Record<string, string> = {
   vitamins: 'bg-success/10 text-success', skincare: 'bg-amber/10 text-warning',
   'baby-mum': 'bg-petrol-50 text-petrol', digestive: 'bg-signal/10 text-signal',
   diabetes: 'bg-danger/10 text-danger', 'personal-care': 'bg-success/10 text-success',
+  'pain-relief': 'bg-signal/10 text-signal', antibiotics: 'bg-petrol-50 text-petrol',
+  'cough-cold': 'bg-info/10 text-info', 'baby-care': 'bg-petrol-50 text-petrol',
+  'skin-care': 'bg-amber/10 text-warning', 'arthritis-joint-care': 'bg-danger/10 text-danger',
+  'sexual-wellness': 'bg-petrol-50 text-petrol', 'mother-baby': 'bg-petrol-50 text-petrol',
+  allergy: 'bg-success/10 text-success', 'vitamins-supplements': 'bg-success/10 text-success',
+  'digestive-health': 'bg-signal/10 text-signal', cardiovascular: 'bg-danger/10 text-danger',
+  'anti-infective': 'bg-petrol-50 text-petrol', antimalarial: 'bg-success/10 text-success',
+  antifungal: 'bg-info/10 text-info', respiratory: 'bg-info/10 text-info',
 };
 
-const condBg: Record<string, string> = {
-  'headaches-migraines': 'bg-signal/10 text-signal', 'cough-sore-throat': 'bg-info/10 text-info',
-  'immune-support': 'bg-success/10 text-success', 'acne-skin-issues': 'bg-amber/10 text-warning',
-  'allergies-hayfever': 'bg-danger/10 text-danger', 'blood-sugar': 'bg-petrol-50 text-petrol',
-  'heart-health': 'bg-danger/10 text-danger', 'joint-muscle-pain': 'bg-amber/10 text-warning',
-  'sleep-relaxation': 'bg-info/10 text-info', 'womens-health': 'bg-success/10 text-success',
+const CATEGORY_GROUPS: Record<string, string[]> = {
+  'Everyday Health': ['pain-relief', 'cough-cold', 'allergy', 'digestive-health'],
+  'Prescription & Chronic Care': ['antibiotics', 'antimalarial', 'anti-infective', 'cardiovascular', 'arthritis-joint-care', 'respiratory', 'antifungal'],
+  'Family & Wellness': ['baby-care', 'mother-baby', 'skin-care', 'vitamins-supplements', 'sexual-wellness'],
 };
 
 function CategoriesMega() {
+  const liveCategories = useQuery(api.taxonomy.listCategories, {});
+  const source = liveCategories && liveCategories.length > 0 ? liveCategories : categories;
+  const groupNames = Object.keys(CATEGORY_GROUPS);
+
   return (
-    <div className="max-w-7xl mx-auto px-8 py-7 grid grid-cols-[1fr_1fr_1fr_240px] gap-8">
-      <div>
-        <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-petrol-300/70 mb-3">Pain & Respiratory</p>
-        <ul className="space-y-0.5">
-          {categories.filter((c) => ['pain-fever', 'cold-flu'].includes(c.slug)).map((c) => {
-            const Icon = catIcons[c.slug] ?? Pill;
-            return (
-              <li key={c.slug}>
-                <Link href={`/category/${c.slug}`} className="flex items-center gap-2.5 px-2 py-2 rounded-xl text-sm text-ink hover:bg-petrol-50 hover:text-petrol transition-colors group">
-                  <span className={cn('w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110', catBg[c.slug] ?? 'bg-petrol-50 text-petrol')}>
-                    <Icon size={13} />
-                  </span>
-                  <span className="font-medium">{c.name}</span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-        <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-petrol-300/70 mb-3 mt-5">Chronic & Metabolic</p>
-        <ul className="space-y-0.5">
-          {categories.filter((c) => ['diabetes', 'digestive'].includes(c.slug)).map((c) => {
-            const Icon = catIcons[c.slug] ?? Pill;
-            return (
-              <li key={c.slug}>
-                <Link href={`/category/${c.slug}`} className="flex items-center gap-2.5 px-2 py-2 rounded-xl text-sm text-ink hover:bg-petrol-50 hover:text-petrol transition-colors group">
-                  <span className={cn('w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110', catBg[c.slug] ?? 'bg-petrol-50 text-petrol')}>
-                    <Icon size={13} />
-                  </span>
-                  <span className="font-medium">{c.name}</span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+    <div className="max-w-7xl mx-auto px-8 py-7 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_240px] gap-8">
+      <div className="min-w-0">
+        {groupNames.slice(0, 1).map((group) => (
+          <React.Fragment key={group}>
+            <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-petrol-300/70 mb-3">{group}</p>
+            <ul className="space-y-0.5">
+              {source.filter((c) => CATEGORY_GROUPS[group].includes(c.slug)).map((c) => {
+                const Icon = catIcons[c.slug] ?? Pill;
+                return (
+                  <li key={c.slug}>
+                    <Link href={`/category/${c.slug}`} className="flex items-center gap-2.5 px-2 py-2 rounded-xl text-sm text-ink hover:bg-petrol-50 hover:text-petrol transition-colors group">
+                      <span className={cn('w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110', catBg[c.slug] ?? 'bg-petrol-50 text-petrol')}>
+                        <Icon size={13} />
+                      </span>
+                      <span className="font-medium">{c.name}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </React.Fragment>
+        ))}
       </div>
-      <div>
-        <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-petrol-300/70 mb-3">Wellness & Nutrition</p>
-        <ul className="space-y-0.5">
-          {categories.filter((c) => ['vitamins', 'skincare', 'baby-mum', 'personal-care'].includes(c.slug)).map((c) => {
-            const Icon = catIcons[c.slug] ?? Pill;
-            return (
-              <li key={c.slug}>
-                <Link href={`/category/${c.slug}`} className="flex items-center gap-2.5 px-2 py-2 rounded-xl text-sm text-ink hover:bg-petrol-50 hover:text-petrol transition-colors group">
-                  <span className={cn('w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110', catBg[c.slug] ?? 'bg-petrol-50 text-petrol')}>
-                    <Icon size={13} />
-                  </span>
-                  <span className="font-medium">{c.name}</span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+      <div className="min-w-0">
+        {groupNames.slice(1, 2).map((group) => (
+          <React.Fragment key={group}>
+            <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-petrol-300/70 mb-3">{group}</p>
+            <ul className="space-y-0.5">
+              {source.filter((c) => CATEGORY_GROUPS[group].includes(c.slug)).map((c) => {
+                const Icon = catIcons[c.slug] ?? Pill;
+                return (
+                  <li key={c.slug}>
+                    <Link href={`/category/${c.slug}`} className="flex items-center gap-2.5 px-2 py-2 rounded-xl text-sm text-ink hover:bg-petrol-50 hover:text-petrol transition-colors group">
+                      <span className={cn('w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110', catBg[c.slug] ?? 'bg-petrol-50 text-petrol')}>
+                        <Icon size={13} />
+                      </span>
+                      <span className="font-medium">{c.name}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </React.Fragment>
+        ))}
       </div>
-      <div>
+      <div className="min-w-0">
+        {groupNames.slice(2, 3).map((group) => (
+          <React.Fragment key={group}>
+            <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-petrol-300/70 mb-3">{group}</p>
+            <ul className="space-y-0.5">
+              {source.filter((c) => CATEGORY_GROUPS[group].includes(c.slug)).map((c) => {
+                const Icon = catIcons[c.slug] ?? Pill;
+                return (
+                  <li key={c.slug}>
+                    <Link href={`/category/${c.slug}`} className="flex items-center gap-2.5 px-2 py-2 rounded-xl text-sm text-ink hover:bg-petrol-50 hover:text-petrol transition-colors group">
+                      <span className={cn('w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110', catBg[c.slug] ?? 'bg-petrol-50 text-petrol')}>
+                        <Icon size={13} />
+                      </span>
+                      <span className="font-medium">{c.name}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </React.Fragment>
+        ))}
+      </div>
+      <div className="min-w-0">
         <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-petrol-300/70 mb-3">Quick links</p>
         <ul className="space-y-0.5">
           {[
@@ -135,85 +156,14 @@ function CategoriesMega() {
           })}
         </ul>
       </div>
-      <div className="bg-gradient-to-br from-[#0E4D45] to-[#0a3830] rounded-2xl p-5 flex flex-col justify-between">
+      <div className="bg-gradient-to-br from-[#0E4D45] to-[#0a3830] rounded-2xl p-5 flex flex-col justify-between flex-shrink-0 w-[240px]">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-widest text-petrol-300/80 mb-2">Featured</p>
           <p className="font-display font-bold text-xl text-paper leading-tight mb-2">Vitamins &amp; Supplements</p>
           <p className="text-xs text-porcelain/60 leading-relaxed">Immune support, omega-3, multivitamins and daily wellness — all in one place.</p>
         </div>
-        <Link href="/category/vitamins" className="mt-5 flex items-center gap-1.5 text-sm font-semibold text-petrol-300 hover:text-paper transition-colors">
+        <Link href="/category/vitamins-supplements" className="mt-5 flex items-center gap-1.5 text-sm font-semibold text-petrol-300 hover:text-paper transition-colors">
           Shop vitamins <ArrowRight size={14} />
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-function ConditionsMega() {
-  return (
-    <div className="max-w-7xl mx-auto px-8 py-7 grid grid-cols-[1fr_1fr_1fr_240px] gap-8">
-      <div>
-        <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-petrol-300/70 mb-3">Pain & ENT</p>
-        <ul className="space-y-0.5">
-          {conditions.filter((c) => ['headaches-migraines', 'cough-sore-throat', 'joint-muscle-pain'].includes(c.slug)).map((c) => {
-            const Icon = condIcons[c.slug] ?? Shield;
-            return (
-              <li key={c.slug}>
-                <Link href={`/condition/${c.slug}`} className="flex items-center gap-2.5 px-2 py-2 rounded-xl text-sm text-ink hover:bg-petrol-50 hover:text-petrol transition-colors group">
-                  <span className={cn('w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform', condBg[c.slug] ?? 'bg-petrol-50 text-petrol')}>
-                    <Icon size={13} />
-                  </span>
-                  <span className="font-medium">{c.name}</span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-      <div>
-        <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-petrol-300/70 mb-3">Immune & Skin</p>
-        <ul className="space-y-0.5">
-          {conditions.filter((c) => ['immune-support', 'acne-skin-issues', 'allergies-hayfever'].includes(c.slug)).map((c) => {
-            const Icon = condIcons[c.slug] ?? Shield;
-            return (
-              <li key={c.slug}>
-                <Link href={`/condition/${c.slug}`} className="flex items-center gap-2.5 px-2 py-2 rounded-xl text-sm text-ink hover:bg-petrol-50 hover:text-petrol transition-colors group">
-                  <span className={cn('w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform', condBg[c.slug] ?? 'bg-petrol-50 text-petrol')}>
-                    <Icon size={13} />
-                  </span>
-                  <span className="font-medium">{c.name}</span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-      <div>
-        <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-petrol-300/70 mb-3">Metabolic & Lifestyle</p>
-        <ul className="space-y-0.5">
-          {conditions.filter((c) => ['blood-sugar', 'heart-health', 'sleep-relaxation', 'womens-health'].includes(c.slug)).map((c) => {
-            const Icon = condIcons[c.slug] ?? Shield;
-            return (
-              <li key={c.slug}>
-                <Link href={`/condition/${c.slug}`} className="flex items-center gap-2.5 px-2 py-2 rounded-xl text-sm text-ink hover:bg-petrol-50 hover:text-petrol transition-colors group">
-                  <span className={cn('w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform', condBg[c.slug] ?? 'bg-petrol-50 text-petrol')}>
-                    <Icon size={13} />
-                  </span>
-                  <span className="font-medium">{c.name}</span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-      <div className="bg-gradient-to-br from-[#1e2d4e] to-[#111d35] rounded-2xl p-5 flex flex-col justify-between">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-widest text-blue-300/80 mb-2">Health guide</p>
-          <p className="font-display font-bold text-xl text-paper leading-tight mb-2">Find the right treatment</p>
-          <p className="text-xs text-porcelain/60 leading-relaxed">Browse by condition to find medicines and supplements tailored to your needs.</p>
-        </div>
-        <Link href="/products" className="mt-5 flex items-center gap-1.5 text-sm font-semibold text-blue-300/80 hover:text-paper transition-colors">
-          Browse all <ArrowRight size={14} />
         </Link>
       </div>
     </div>
@@ -273,7 +223,6 @@ function BrandsMega() {
 
 const megaComponents = {
   categories: CategoriesMega,
-  conditions: ConditionsMega,
   brands: BrandsMega,
 };
 
@@ -285,11 +234,13 @@ export function Header() {
   const [activeMega, setActiveMega] = useState<string | null>(null);
   const megaTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const pathname = usePathname();
-  const { items } = useCartStore();
+  const { items, toggleCart } = useCartStore();
   const { ids } = useWishlistStore();
   const cartCount = items.reduce((n, i) => n + i.quantity, 0);
   const wishCount = ids.size;
   const branding = useBranding();
+  const liveCategories = useQuery(api.taxonomy.listCategories, {});
+  const mobileCategories = liveCategories && liveCategories.length > 0 ? liveCategories : categories;
 
   useEffect(() => {
     const t = setInterval(() => setPromoIdx((i) => (i + 1) % promos.length), 4200);
@@ -317,7 +268,6 @@ export function Header() {
 
   const navItems = [
     { label: 'Categories', key: 'categories' },
-    { label: 'Conditions', key: 'conditions' },
     { label: 'Brands', key: 'brands' },
     { label: 'New Arrivals', href: '/new-arrivals' },
     { label: 'Trending', href: '/trending' },
@@ -384,7 +334,7 @@ export function Header() {
               {branding.logo ? (
                 <img src={branding.logo} alt={branding.name} className="h-8 object-contain" />
               ) : (
-                <span className="font-display font-bold text-xl text-ink hidden sm:block tracking-tight group-hover:text-petrol transition-colors">{branding.name}</span>
+                <BrandName name={branding.name} className="font-display font-bold text-lg sm:text-xl text-ink tracking-tight" />
               )}
             </Link>
 
@@ -399,17 +349,15 @@ export function Header() {
             </div>
 
             <div className="flex items-center gap-0.5 ml-auto">
-              <button className="md:hidden w-10 h-10 flex items-center justify-center rounded-xl hover:bg-petrol-50 transition-colors" onClick={() => setSearchOpen(true)}>
-                <Search size={19} className="text-ink" />
-              </button>
+              {/* Search & Cart are covered by the mobile bottom tab bar — desktop only there */}
               <Link href="/account" className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-petrol-50 transition-colors" title="Account">
                 <CircleUser size={19} className="text-ink" />
               </Link>
-              <Link href="/account/wishlist" className="relative w-10 h-10 flex items-center justify-center rounded-xl hover:bg-petrol-50 transition-colors" title="Wishlist">
+              <Link href="/account/wishlist" className="hidden md:flex relative w-10 h-10 items-center justify-center rounded-xl hover:bg-petrol-50 transition-colors" title="Wishlist">
                 <Heart size={19} className="text-ink" />
                 {wishCount > 0 && <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-signal text-paper font-mono text-[10px] font-bold flex items-center justify-center">{wishCount}</span>}
               </Link>
-              <Link href="/cart" className="relative w-10 h-10 flex items-center justify-center rounded-xl hover:bg-petrol-50 transition-colors" title="Cart">
+              <button type="button" onClick={toggleCart} className="hidden md:flex relative w-10 h-10 items-center justify-center rounded-xl hover:bg-petrol-50 transition-colors" title="Cart">
                 <ShoppingBag size={19} className="text-ink" />
                 <AnimatePresence>
                   {cartCount > 0 && (
@@ -418,7 +366,7 @@ export function Header() {
                     </motion.span>
                   )}
                 </AnimatePresence>
-              </Link>
+              </button>
             </div>
           </div>
         </div>
@@ -504,7 +452,7 @@ export function Header() {
               className="fixed inset-y-0 left-0 z-50 w-[288px] bg-paper shadow-2xl overflow-y-auto md:hidden flex flex-col"
             >
               <div className="flex items-center justify-between px-5 h-16 border-b border-line flex-shrink-0">
-                <span className="font-display font-bold text-lg text-ink">{branding.name}</span>
+                <BrandName name={branding.name} className="font-display font-bold text-lg text-ink" />
                 <button onClick={() => setMobileMenuOpen(false)} className="w-9 h-9 rounded-xl hover:bg-petrol-50 flex items-center justify-center transition-colors">
                   <X size={18} className="text-ink" />
                 </button>
@@ -512,7 +460,7 @@ export function Header() {
               <div className="flex-1 overflow-y-auto">
                 <div className="px-4 py-3">
                   <p className="px-2 mb-1.5 text-[10px] font-mono uppercase tracking-widest text-petrol-300/60">Categories</p>
-                  {categories.map((cat) => {
+                  {mobileCategories.map((cat) => {
                     const Icon = catIcons[cat.slug] ?? Pill;
                     return (
                       <Link key={cat.slug} href={`/category/${cat.slug}`} className="flex items-center gap-2.5 px-2 py-2.5 rounded-xl text-sm font-medium text-ink hover:bg-petrol-50 hover:text-petrol transition-colors">
@@ -537,12 +485,6 @@ export function Header() {
                       {item.label}
                     </Link>
                   ))}
-                </div>
-                <div className="px-4 pb-4 border-t border-line/50 pt-3">
-                  <p className="px-2 mb-1.5 text-[10px] font-mono uppercase tracking-widest text-petrol-300/60">Account</p>
-                  <Link href="/account" className="flex items-center px-2 py-2.5 rounded-xl text-sm font-medium text-ink hover:bg-petrol-50 hover:text-petrol transition-colors">My Account</Link>
-                  <Link href="/account/orders" className="flex items-center px-2 py-2.5 rounded-xl text-sm font-medium text-ink hover:bg-petrol-50 hover:text-petrol transition-colors">My Orders</Link>
-                  <Link href="/account/wishlist" className="flex items-center px-2 py-2.5 rounded-xl text-sm font-medium text-ink hover:bg-petrol-50 hover:text-petrol transition-colors">Wishlist</Link>
                 </div>
               </div>
             </motion.nav>
