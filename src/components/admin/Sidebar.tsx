@@ -13,6 +13,7 @@ import { branding } from '@/lib/config/branding';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { useAdminName } from '@/hooks/useAdminName';
+import { useBranding } from '@/hooks/useBranding';
 import { BrandName } from '@/components/ui/BrandName';
 
 interface NavLeaf {
@@ -84,6 +85,7 @@ function NavItem({ item, collapsed, onClick, indent = false }: { item: NavLeaf; 
 
 function SidebarContent({ collapsed, onClose, showClose }: { collapsed: boolean; onClose?: () => void; showClose?: boolean }) {
   const router = useRouter();
+  const dynamicBranding = useBranding();
   const [catalogOpen, setCatalogOpen] = useState(false);
   const logoutMutation = useMutation(api.adminAuth.logout);
   const { name: adminName, initials: adminInitials } = useAdminName();
@@ -105,8 +107,12 @@ function SidebarContent({ collapsed, onClose, showClose }: { collapsed: boolean;
         {!collapsed ? (
           <>
             <div className="flex items-center gap-2.5 flex-1 min-w-0">
-              <div className="w-8 h-8 rounded-lg bg-p-primary flex items-center justify-center flex-shrink-0">
-                <Pill size={16} className="text-white" strokeWidth={2.5} />
+              <div className="w-8 h-8 rounded-lg bg-p-primary flex items-center justify-center flex-shrink-0 overflow-hidden">
+                {dynamicBranding.logo ? (
+                  <img src={dynamicBranding.logo} alt={dynamicBranding.name} className="w-full h-full object-cover" />
+                ) : (
+                  <Pill size={16} className="text-white" strokeWidth={2.5} />
+                )}
               </div>
               <div className="min-w-0">
                 <p className="font-display font-bold text-white text-sm leading-none truncate">
@@ -122,8 +128,12 @@ function SidebarContent({ collapsed, onClose, showClose }: { collapsed: boolean;
             )}
           </>
         ) : (
-          <div className="w-8 h-8 rounded-lg bg-p-primary flex items-center justify-center">
-            <Pill size={16} className="text-white" strokeWidth={2.5} />
+          <div className="w-8 h-8 rounded-lg bg-p-primary flex items-center justify-center overflow-hidden">
+            {dynamicBranding.logo ? (
+              <img src={dynamicBranding.logo} alt={dynamicBranding.name} className="w-full h-full object-cover" />
+            ) : (
+              <Pill size={16} className="text-white" strokeWidth={2.5} />
+            )}
           </div>
         )}
       </div>

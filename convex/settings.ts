@@ -23,11 +23,28 @@ export const updateStoreSetting = mutation({
     const existing = await ctx.db.query('storeSettings')
       .withIndex('by_key', q => q.eq('key', key))
       .first();
-      
+
     if (existing) {
       await ctx.db.patch(existing._id, { value });
     } else {
       await ctx.db.insert('storeSettings', { key, value });
     }
+  },
+});
+
+export const updateLogo = mutation({
+  args: { storageId: v.id('_storage') },
+  handler: async (ctx, { storageId }) => {
+    const url = await ctx.storage.getUrl(storageId);
+    const existing = await ctx.db.query('storeSettings')
+      .withIndex('by_key', q => q.eq('key', 'logo'))
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, { value: url });
+    } else {
+      await ctx.db.insert('storeSettings', { key: 'logo', value: url });
+    }
+    return url;
   },
 });

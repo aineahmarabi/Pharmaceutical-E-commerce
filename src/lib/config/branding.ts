@@ -1,7 +1,7 @@
 export const branding = {
   name: 'PharmaCare',
   tagline: 'Your health, delivered',
-  logo: null as null,
+  logo: null as string | null,
   phone: '+254 700 000 000',
   email: '',
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '../../../../../convex/_generated/api';
 import { useBranding } from '@/hooks/useBranding';
@@ -9,13 +9,20 @@ import { Card } from '@/components/admin/ui/Card';
 import { Input } from '@/components/admin/ui/Input';
 import { Button } from '@/components/admin/ui/Button';
 import { useAdminToast } from '@/components/admin/ui/Toast';
+import { UploadCloud, X } from 'lucide-react';
 
 export default function StoreDetailsPage() {
   const { toast } = useAdminToast();
   const branding = useBranding();
   const { name: adminName } = useAdminName();
   const updateSetting = useMutation(api.settings.updateStoreSetting);
+  const updateLogo = useMutation(api.settings.updateLogo);
+  const generateUploadUrl = useMutation(api.files.generateUploadUrl);
   const changePasscode = useMutation(api.adminAuth.changePasscode);
+
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [removingLogo, setRemovingLogo] = useState(false);
 
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', whatsapp: '', address: '' });
   const [saving, setSaving] = useState(false);
@@ -60,6 +67,36 @@ export default function StoreDetailsPage() {
       toast('Store details saved');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingLogo(true);
+    try {
+      const postUrl = await generateUploadUrl();
+      const result = await fetch(postUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': file.type },
+        body: file,
+      });
+      const { storageId } = await result.json();
+      await updateLogo({ storageId });
+      toast('Logo updated');
+    } finally {
+      setUploadingLogo(false);
+      if (logoInputRef.current) logoInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveLogo = async () => {
+    setRemovingLogo(true);
+    try {
+      await updateSetting({ key: 'logo', value: null });
+      toast('Logo removed');
+    } finally {
+      setRemovingLogo(false);
     }
   };
 
@@ -121,6 +158,49 @@ export default function StoreDetailsPage() {
             onChange={(e) => setDisplayName(e.target.value)}
           />
           <Button variant="secondary" onClick={handleSaveName} loading={savingName}>Save name</Button>
+        </div>
+      </Card>
+
+      <Card title="Logo">
+        <p className="text-sm text-p-text-subdued mb-4">Shown in the admin sidebar, storefront header, and used as the browser tab icon.</p>
+        <div className="flex items-center gap-4">
+          <div
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={async (e) => {
+              e.preventDefault();
+              const dropped = e.dataTransfer.files?.[0];
+              if (dropped && dropped.type.startsWith('image/')) {
+                const dt = new DataTransfer();
+                dt.items.add(dropped);
+                if (logoInputRef.current) {
+                  logoInputRef.current.files = dt.files;
+                  await handleLogoChange({ target: logoInputRef.current } as React.ChangeEvent<HTMLInputElement>);
+                }
+              }
+            }}
+            onClick={() => logoInputRef.current?.click()}
+            className="w-20 h-20 flex-shrink-0 rounded-xl border-2 border-dashed border-p-border bg-p-bg flex items-center justify-center cursor-pointer hover:bg-p-bg-surface transition-colors overflow-hidden"
+          >
+            <input type="file" ref={logoInputRef} className="hidden" accept="image/*" onChange={handleLogoChange} />
+            {branding.logo ? (
+              <img src={branding.logo} alt={branding.name} className="w-full h-full object-contain" />
+            ) : (
+              <UploadCloud size={20} className="text-p-icon" />
+            )}
+          </div>
+          <div className="flex flex-col gap-2">
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => logoInputRef.current?.click()} loading={uploadingLogo}>
+                {branding.logo ? 'Replace logo' : 'Upload logo'}
+              </Button>
+              {branding.logo && (
+                <Button variant="plain" icon={X} onClick={handleRemoveLogo} loading={removingLogo}>
+                  Remove
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-p-text-subdued">Square image recommended, PNG or SVG with a transparent background.</p>
+          </div>
         </div>
       </Card>
 
