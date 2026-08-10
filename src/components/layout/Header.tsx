@@ -460,7 +460,7 @@ export function Header() {
             <motion.nav
               initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
               transition={{ type: 'spring', stiffness: 340, damping: 34 }}
-              className="fixed inset-y-0 left-0 z-50 w-[288px] bg-paper shadow-2xl overflow-y-auto md:hidden flex flex-col"
+              className="fixed inset-y-0 left-0 z-50 w-[288px] bg-paper shadow-2xl overflow-y-auto overscroll-contain md:hidden flex flex-col"
             >
               <div className="flex items-center justify-between px-5 h-16 border-b border-line flex-shrink-0">
                 <BrandName name={branding.name} className="font-display font-bold text-lg text-ink" />
@@ -468,7 +468,7 @@ export function Header() {
                   <X size={18} className="text-ink" />
                 </button>
               </div>
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 overflow-y-auto overscroll-contain">
                 <div className="px-4 py-3">
                   <p className="px-2 mb-1.5 text-[10px] font-mono uppercase tracking-widest text-petrol-300/60">Categories</p>
                   {mobileCategories.map((cat) => {

@@ -65,7 +65,7 @@ export function CartDrawer() {
             ) : (
               <>
                 {/* Items */}
-                <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+                <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-3">
                   <AnimatePresence>
                     {items.map((item) => (
                       <motion.div

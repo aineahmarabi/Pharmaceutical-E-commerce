@@ -151,7 +151,7 @@ function SidebarContent({ collapsed, onClose, showClose }: { collapsed: boolean;
         </div>
       )}
 
-      <nav aria-label="Main navigation" className="flex-1 overflow-y-auto py-3 px-2 space-y-1 scrollbar-hide">
+      <nav aria-label="Main navigation" className="flex-1 overflow-y-auto overscroll-contain py-3 px-2 space-y-1 scrollbar-hide">
         {mainNav.map((item) => (
           <NavItem
             key={item.href}

@@ -121,7 +121,7 @@ function ProductsContent() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex gap-8">
-          <aside className="w-64 flex-shrink-0 hidden md:block sticky top-[168px] self-start max-h-[calc(100vh-184px)] overflow-y-auto">{sidebar}</aside>
+          <aside className="w-64 flex-shrink-0 hidden md:block sticky top-[168px] self-start max-h-[calc(100vh-184px)] overflow-y-auto overscroll-contain">{sidebar}</aside>
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-5 gap-3">
               <button onClick={() => setFilterOpen((v) => !v)} className="md:hidden flex items-center gap-1.5 text-sm text-ink border border-line rounded-xl px-3 py-2 hover:bg-petrol-50 transition-colors">
