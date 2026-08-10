@@ -12,7 +12,7 @@ import {
   Truck,
   Clock,
 } from 'lucide-react';
-import { branding } from '@/lib/config/branding';
+import { useBranding } from '@/hooks/useBranding';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 const CATEGORY_PILLS = [
@@ -197,6 +197,7 @@ function InteractiveBg({ mouseX, mouseY, taglineIndex }: { mouseX: number; mouse
 
 // ─── HERO ────────────────────────────────────────────────────────────────────
 export function Hero() {
+  const branding = useBranding();
   const sectionRef = useRef<HTMLElement>(null);
 
   // Raw mouse pos relative to section center (in px)

@@ -2,9 +2,10 @@
 
 import React from 'react';
 import { LegalPage } from '@/components/layout/LegalPage';
-import { branding } from '@/lib/config/branding';
+import { useBranding } from '@/hooks/useBranding';
 
 export default function TermsPage() {
+  const branding = useBranding();
   return (
     <LegalPage
       eyebrow="Legal"

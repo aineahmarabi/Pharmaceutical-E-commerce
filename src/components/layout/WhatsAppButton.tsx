@@ -1,7 +1,10 @@
-import React from 'react';
-import { branding } from '@/lib/config/branding';
+'use client';
+
+import { useBranding } from '@/hooks/useBranding';
 
 export function WhatsAppButton() {
+  const branding = useBranding();
+
   return (
     <div className="fixed bottom-20 md:bottom-6 right-6 z-30 group">
       <a

@@ -6,11 +6,12 @@ import { Phone, Mail, MapPin, MessageCircle } from 'lucide-react';
 import { useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { useToast } from '@/components/ui/Toast';
-import { branding } from '@/lib/config/branding';
+import { useBranding } from '@/hooks/useBranding';
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
 export default function ContactPage() {
+  const branding = useBranding();
   const { toast } = useToast();
   const submitMessage = useMutation(api.messages.submitContactMessage);
   const [form, setForm] = useState({ name: '', email: '', subject: '', message: '' });
