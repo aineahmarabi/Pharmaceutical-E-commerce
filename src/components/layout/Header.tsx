@@ -336,17 +336,17 @@ export function Header() {
             </button>
 
             <Link href="/" className="flex items-center gap-2.5 flex-shrink-0 group">
-              <svg width="32" height="32" viewBox="0 0 48 48" fill="none">
-                <rect x="8" y="18" width="32" height="12" rx="6" fill="#0E4D45" />
-                <rect x="8" y="18" width="16" height="12" rx="6" fill="#5FA89C" />
-                <line x1="24" y1="18" x2="24" y2="30" stroke="white" strokeWidth="1.5" />
-                <circle cx="36" cy="12" r="5" fill="#5FA89C" fillOpacity="0.6" />
-              </svg>
               {branding.logo ? (
-                <img src={branding.logo} alt={branding.name} className="h-8 object-contain" />
+                <img src={branding.logo} alt={branding.name} className="h-8 w-8 object-contain flex-shrink-0" />
               ) : (
-                <BrandName name={branding.name} className="font-display font-bold text-lg sm:text-xl text-ink tracking-tight" />
+                <svg width="32" height="32" viewBox="0 0 48 48" fill="none">
+                  <rect x="8" y="18" width="32" height="12" rx="6" fill="#0E4D45" />
+                  <rect x="8" y="18" width="16" height="12" rx="6" fill="#5FA89C" />
+                  <line x1="24" y1="18" x2="24" y2="30" stroke="white" strokeWidth="1.5" />
+                  <circle cx="36" cy="12" r="5" fill="#5FA89C" fillOpacity="0.6" />
+                </svg>
               )}
+              <BrandName name={branding.name} className="font-display font-bold text-lg sm:text-xl text-ink tracking-tight" />
             </Link>
 
             <div className="flex-1 max-w-2xl hidden md:block">
