@@ -24,19 +24,15 @@ export function ProductCard({ product, className }: ProductCardProps) {
   const { addItem, closeCart } = useCartStore();
   const { toggle, has } = useWishlistStore();
   const { toast } = useToast();
-  const [adding, setAdding] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
   const wishlisted = has(product.id);
 
-  const handleAdd = async (e: React.MouseEvent) => {
+  const handleAdd = (e: React.MouseEvent) => {
     e.preventDefault();
-    if (product.classification === 'POM' || !product.inStock || adding || justAdded) return;
-    setAdding(true);
-    await new Promise((r) => setTimeout(r, 320));
+    if (product.classification === 'POM' || !product.inStock || justAdded) return;
     addItem(product);
-    setAdding(false);
     setJustAdded(true);
-    setTimeout(() => setJustAdded(false), 1100);
+    setTimeout(() => setJustAdded(false), 800);
   };
 
   const handleBuyNow = (e: React.MouseEvent) => {
@@ -120,19 +116,17 @@ export function ProductCard({ product, className }: ProductCardProps) {
           </div>
         </div>
 
-        {/* Quick-action bar (slides up on hover) */}
+        {/* Quick-action bar — in-flow below the price on touch devices (no hover there); overlays on hover from md+ */}
         {product.inStock && (
-          <div className="absolute bottom-0 left-0 right-0 translate-y-full group-hover:translate-y-0 transition-transform duration-200 ease-out flex">
+          <div className="static md:absolute md:bottom-0 md:left-0 md:right-0 flex md:translate-y-full md:group-hover:translate-y-0 transition-transform duration-200 ease-out">
             <button
               type="button"
               onClick={handleAdd}
-              disabled={adding || justAdded}
-              className="relative flex-1 flex items-center justify-center gap-1.5 bg-petrol hover:bg-petrol-700 text-paper text-xs font-semibold py-3 transition-colors disabled:opacity-100 overflow-hidden"
+              disabled={justAdded}
+              className="relative flex-1 flex items-center justify-center gap-1.5 bg-petrol hover:bg-petrol-700 active:bg-petrol-700 text-paper text-xs font-semibold py-2.5 md:py-3 transition-colors disabled:opacity-100 overflow-hidden"
             >
               <AnimatePresence mode="wait" initial={false}>
-                {adding ? (
-                  <motion.span key="spinner" exit={{ opacity: 0 }} className="w-4 h-4 border-2 border-paper/30 border-t-paper rounded-full animate-spin" />
-                ) : justAdded ? (
+                {justAdded ? (
                   <motion.span key="dropped" className="flex items-center gap-1.5" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                     <span className="relative w-4 h-4 flex items-center justify-center">
                       <motion.span
@@ -152,14 +146,14 @@ export function ProductCard({ product, className }: ProductCardProps) {
                         <Check size={7} className="text-paper" strokeWidth={4} />
                       </motion.span>
                     </span>
-                    <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
+                    <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }} className="hidden sm:inline">
                       Added to cart
                     </motion.span>
                   </motion.span>
                 ) : (
                   <motion.span key="idle" className="flex items-center gap-1.5" exit={{ opacity: 0 }}>
                     <ShoppingCart size={14} />
-                    Add to cart
+                    <span className="hidden sm:inline">Add to cart</span>
                   </motion.span>
                 )}
               </AnimatePresence>
@@ -167,10 +161,10 @@ export function ProductCard({ product, className }: ProductCardProps) {
             <button
               type="button"
               onClick={handleBuyNow}
-              className="flex-1 flex items-center justify-center gap-1.5 bg-signal hover:bg-signal/90 text-paper text-xs font-semibold py-3 transition-colors border-l border-paper/20"
+              className="flex-1 flex items-center justify-center gap-1.5 bg-signal hover:bg-signal/90 active:bg-signal/90 text-paper text-xs font-semibold py-2.5 md:py-3 transition-colors border-l border-paper/20"
             >
               <Zap size={14} />
-              Buy now
+              <span className="hidden sm:inline">Buy now</span>
             </button>
           </div>
         )}

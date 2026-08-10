@@ -50,20 +50,16 @@ function ProductDetailContent({ product }: { product: ReturnType<typeof toProduc
   const { toggle, has } = useWishlistStore();
   const { toast } = useToast();
   const [qty, setQty] = useState(1);
-  const [adding, setAdding] = useState(false);
   const [tab, setTab] = useState<typeof tabs[number]>('Description');
   const wishlisted = has(product.id);
 
   const related = useQuery(api.products.listByCategory, { categorySlug: product.categorySlug, limit: 8 });
   const relatedFiltered = related?.map(toProduct).filter((p) => p.id !== product.id).slice(0, 5);
 
-  const handleAdd = async () => {
-    if (!product.inStock || adding) return;
-    setAdding(true);
-    await new Promise((r) => setTimeout(r, 320));
+  const handleAdd = () => {
+    if (!product.inStock) return;
     addItem(product, qty);
     toast(`Added ${qty} × ${product.name}`, 'success');
-    setAdding(false);
   };
 
   const handleBuyNow = () => {
@@ -149,17 +145,11 @@ function ProductDetailContent({ product }: { product: ReturnType<typeof toProduc
               <button
                 type="button"
                 onClick={handleAdd}
-                disabled={!product.inStock || adding}
+                disabled={!product.inStock}
                 className="flex-1 flex items-center justify-center gap-2 bg-petrol hover:bg-petrol-700 text-paper text-sm font-semibold py-3 rounded-xl transition-colors disabled:opacity-60"
               >
-                {adding ? (
-                  <span className="w-4 h-4 border-2 border-paper/30 border-t-paper rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <ShoppingCart size={16} />
-                    Add to cart
-                  </>
-                )}
+                <ShoppingCart size={16} />
+                Add to cart
               </button>
               <button
                 type="button"

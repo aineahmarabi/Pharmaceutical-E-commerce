@@ -248,7 +248,18 @@ export function Header() {
   }, []);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 80);
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        // Hysteresis: collapse past 80px, but don't re-expand until well back
+        // above the top (40px). A single shared threshold flickers the header
+        // open/closed when scroll position jitters right around that pixel.
+        setScrolled((prev) => (prev ? window.scrollY > 40 : window.scrollY > 80));
+        ticking = false;
+      });
+    };
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
