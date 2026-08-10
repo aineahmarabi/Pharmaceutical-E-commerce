@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { ToastProvider } from '@/components/ui/Toast';
 import { ConvexClientProvider } from '@/lib/convex';
+import { CustomerAuthProvider } from '@/lib/auth/customerAuth';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' });
 const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jbmono', display: 'swap' });
@@ -18,7 +19,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-full flex flex-col">
         <ConvexClientProvider>
           <ToastProvider>
-            {children}
+            <CustomerAuthProvider>
+              {children}
+            </CustomerAuthProvider>
           </ToastProvider>
         </ConvexClientProvider>
       </body>

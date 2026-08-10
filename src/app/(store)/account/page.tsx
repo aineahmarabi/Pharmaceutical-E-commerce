@@ -3,7 +3,8 @@
 import React from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { ShoppingBag, Heart, MapPin, User, ChevronRight } from 'lucide-react';
+import { ShoppingBag, Heart, MapPin, User, ChevronRight, LogOut } from 'lucide-react';
+import { useCustomerAuth } from '@/lib/auth/customerAuth';
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
@@ -15,13 +16,49 @@ const tiles = [
 ];
 
 export default function AccountPage() {
+  const { customer, isAuthenticated, logout } = useCustomerAuth();
+
   return (
     <div className="min-h-screen bg-porcelain py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl mx-auto">
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease }}>
           <p className="font-mono text-xs uppercase tracking-widest text-petrol-300 mb-1">Account</p>
-          <h1 className="font-display font-bold text-2xl text-ink tracking-tight">Welcome back</h1>
+          {isAuthenticated ? (
+            <div className="flex items-center justify-between gap-4">
+              <h1 className="font-display font-bold text-2xl text-ink tracking-tight">Welcome back, {customer?.name?.split(' ')[0]}</h1>
+              <button
+                onClick={logout}
+                className="flex items-center gap-1.5 text-xs font-semibold text-ink/50 hover:text-danger transition-colors flex-shrink-0"
+              >
+                <LogOut size={14} />Log out
+              </button>
+            </div>
+          ) : (
+            <h1 className="font-display font-bold text-2xl text-ink tracking-tight">Welcome</h1>
+          )}
         </motion.div>
+
+        {!isAuthenticated && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.06, duration: 0.4, ease }}
+            className="mt-4 bg-paper rounded-2xl border border-line p-5 flex flex-wrap items-center justify-between gap-4"
+          >
+            <div>
+              <p className="text-sm font-semibold text-ink">Browsing as a guest</p>
+              <p className="text-xs text-ink/50 mt-0.5">An account is optional — sign up to save your profile, addresses, and order history.</p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Link href="/account/login" className="text-sm font-semibold text-petrol border border-petrol/30 hover:bg-petrol-50 rounded-xl px-4 py-2 transition-colors">
+                Log in
+              </Link>
+              <Link href="/account/signup" className="text-sm font-semibold bg-petrol hover:bg-petrol-700 text-paper rounded-xl px-4 py-2 transition-colors">
+                Sign up
+              </Link>
+            </div>
+          </motion.div>
+        )}
 
         <div className="mt-8 grid sm:grid-cols-2 gap-4">
           {tiles.map(({ icon: Icon, title, sub, href }, i) => (

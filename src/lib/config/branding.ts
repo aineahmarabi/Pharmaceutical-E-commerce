@@ -8,9 +8,9 @@ export const branding = {
   whatsapp: '+254700000000',
   address: 'Nairobi, Kenya',
   socialLinks: {
-    twitter: '#',
-    instagram: '#',
-    facebook: '#',
+    twitter: '',
+    instagram: '',
+    facebook: '',
   },
   deliveryThreshold: 1500,
   currency: 'KES',

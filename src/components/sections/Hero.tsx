@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { motion, useMotionValue, useSpring } from 'framer-motion';
 import {
   ArrowRight,
@@ -29,6 +30,14 @@ const TAGLINES = [
   'skincare & beauty',
   'cold & flu remedies',
   'baby care essentials',
+];
+
+const HERO_IMAGES = [
+  { desktop: '/images/hero/hero-vitamins.png', mobile: '/images/hero/hero-vitamins-mobile.png' },
+  { desktop: '/images/hero/hero-painrelief.png', mobile: '/images/hero/hero-painrelief-mobile.png' },
+  { desktop: '/images/hero/hero-skincare.png', mobile: '/images/hero/hero-skincare-mobile.png' },
+  { desktop: '/images/hero/hero-coldflu.png', mobile: '/images/hero/hero-coldflu-mobile.png' },
+  { desktop: '/images/hero/hero-babycare.png', mobile: '/images/hero/hero-babycare-mobile.png' },
 ];
 
 const ease = [0.16, 1, 0.3, 1] as const;
@@ -76,6 +85,43 @@ const PILL_PARTICLES = Array.from({ length: 14 }, (_, i) => ({
   duration: 7 + i * 1.2,
   delay: i * 0.45,
 }));
+
+// ─── Crossfading hero photography per category state ────────────────────────
+function HeroPhotoLayer({ taglineIndex }: { taglineIndex: number }) {
+  return (
+    <div className="absolute inset-0 z-0 overflow-hidden" aria-hidden>
+      {HERO_IMAGES.map((img, i) => (
+        <motion.div
+          key={img.desktop}
+          className="absolute inset-0"
+          initial={false}
+          animate={{ opacity: i === taglineIndex ? 1 : 0 }}
+          transition={{ duration: 1, ease }}
+        >
+          <Image
+            src={img.desktop}
+            alt=""
+            fill
+            priority={i === 0}
+            sizes="100vw"
+            className="hidden object-cover lg:block"
+          />
+          <Image
+            src={img.mobile}
+            alt=""
+            fill
+            priority={i === 0}
+            sizes="100vw"
+            className="object-cover lg:hidden"
+          />
+        </motion.div>
+      ))}
+      {/* Legibility scrim so text reads over any photo */}
+      <div className="absolute inset-0 bg-gradient-to-r from-ink via-ink/75 to-ink/25 lg:to-ink/15" />
+      <div className="absolute inset-0 bg-gradient-to-t from-ink via-transparent to-transparent" />
+    </div>
+  );
+}
 
 // ─── Interactive Background ──────────────────────────────────────────────────
 function InteractiveBg({ mouseX, mouseY, taglineIndex }: { mouseX: number; mouseY: number; taglineIndex: number }) {
@@ -205,6 +251,9 @@ export function Hero() {
       onMouseLeave={handleMouseLeave}
       className="relative bg-ink overflow-hidden min-h-[80vh] lg:min-h-0 flex items-center pt-10 pb-10 lg:pt-12 lg:pb-24"
     >
+      {/* ── Crossfading category photography ────────────────────────── */}
+      <HeroPhotoLayer taglineIndex={taglineIndex} />
+
       {/* ── Interactive parallax background ─────────────────────────── */}
       <InteractiveBg mouseX={mx} mouseY={my} taglineIndex={taglineIndex} />
 

@@ -1,6 +1,7 @@
 import { query, mutation, internalMutation } from './_generated/server';
 import { v } from 'convex/values';
 import { Id } from './_generated/dataModel';
+import { requireCustomerId } from './customerAuth';
 
 // ─── QUERIES ─────────────────────────────────────────────────────────────
 
@@ -46,7 +47,28 @@ export const listOrders = query({
 });
 
 /**
- * Public order tracking — no customer auth exists in this app, so we verify
+ * Order history for a logged-in customer account. Accounts are optional
+ * (see customerAuth.ts), so guests keep using trackOrder below instead.
+ */
+export const listMyOrders = query({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    let customerId;
+    try {
+      customerId = await requireCustomerId(ctx, args.token);
+    } catch {
+      return []; // expired/invalid session — treat as signed out rather than erroring the query
+    }
+    return await ctx.db
+      .query('orders')
+      .withIndex('by_customer', (q) => q.eq('customerId', customerId))
+      .order('desc')
+      .collect();
+  },
+});
+
+/**
+ * Public order tracking for guests (accounts are optional) — verifies
  * identity by requiring the order number PLUS a matching phone or email
  * rather than exposing orders by number alone.
  */
@@ -442,6 +464,7 @@ export const convertDraftOrderToOrder = mutation({
 });
 export const createOrder = mutation({
   args: {
+    customerId: v.optional(v.string()),
     customerName: v.string(),
     customerPhone: v.string(),
     customerEmail: v.string(),
@@ -454,6 +477,7 @@ export const createOrder = mutation({
       })
     ),
     deliveryAddress: v.string(),
+    notes: v.optional(v.string()),
     paymentMethod: v.union(v.literal('mpesa'), v.literal('card'), v.literal('cod')),
     paymentStatus: v.optional(v.union(v.literal('pending'), v.literal('paid'), v.literal('collected'), v.literal('refunded'), v.literal('partially_refunded'))),
     status: v.optional(v.union(
@@ -464,24 +488,42 @@ export const createOrder = mutation({
       v.literal('completed'),
       v.literal('cancelled')
     )),
+    // Storefront checkout passes the selected zone so the fee is computed
+    // server-side from the canonical zone price — never trust a client-supplied fee.
+    deliveryZoneId: v.optional(v.id('deliveryZones')),
     deliveryFee: v.optional(v.number()),
     channel: v.optional(v.string()),
     prescriptionFileId: v.optional(v.id('_storage')),
   },
   handler: async (ctx, args) => {
-    // 1. Collect inventory updates
-    const inventoryUpdates: Array<{ id: string, newQty: number }> = [];
-    
-    // In pharmacare, products track inventory natively via stockQty and inStock
+    // 1. Validate required order-level fields
+    if (args.items.length === 0) throw new Error('Your cart is empty.');
+    if (!args.customerName.trim()) throw new Error('Customer name is required.');
+    if (args.channel === 'storefront' && !args.customerPhone.trim() && !args.customerEmail.trim()) {
+      throw new Error('A phone number or email is required.');
+    }
+    if (!args.deliveryAddress.trim()) throw new Error('Delivery address is required.');
+
+    // 2. Resolve each line item against the database — quantity comes from the
+    // client, but name/price/stock are always sourced from the product record
+    // so a tampered request can't under-price an order or oversell stock.
+    const resolvedItems: Array<{ productId: string; name: string; qty: number; price: number }> = [];
+    const inventoryUpdates: Array<{ id: Id<'products'>; newQty: number }> = [];
+
     for (const item of args.items) {
+      if (!Number.isFinite(item.qty) || item.qty <= 0) {
+        throw new Error(`Invalid quantity for ${item.name}.`);
+      }
       const product = await ctx.db.get(item.productId as Id<'products'>);
-      if (!product) continue;
-      
-      const newQty = (product.stockQty ?? 0) - item.qty;
-      inventoryUpdates.push({ id: product._id, newQty });
+      if (!product) throw new Error(`${item.name} is no longer available.`);
+      if (!product.inStock || product.stockQty < item.qty) {
+        throw new Error(`Only ${Math.max(product.stockQty, 0)} unit(s) of ${product.name} left in stock.`);
+      }
+      resolvedItems.push({ productId: item.productId, name: product.name, qty: item.qty, price: product.price });
+      inventoryUpdates.push({ id: product._id, newQty: product.stockQty - item.qty });
     }
 
-    // 2. Generate Order Number
+    // 3. Generate Order Number
     const allOrders = await ctx.db.query('orders').collect();
     const maxNum = allOrders.reduce((max, o) => {
       const n = parseInt(o.orderNumber.replace(/[^0-9]/g, ''), 10);
@@ -489,25 +531,40 @@ export const createOrder = mutation({
     }, 1000);
     const orderNumber = `#PHR${maxNum + 1}`;
 
-    // 3. Calculate totals
-    const subtotal = args.items.reduce((acc, i) => acc + (i.price * i.qty), 0);
-    const deliveryFee = args.deliveryFee ?? 250;
+    // 4. Calculate totals from resolved (server-trusted) prices
+    const subtotal = resolvedItems.reduce((acc, i) => acc + i.price * i.qty, 0);
+
+    let deliveryFee: number;
+    if (args.deliveryZoneId) {
+      const zone = await ctx.db.get(args.deliveryZoneId);
+      if (!zone || !zone.isActive) throw new Error('The selected delivery area is not available.');
+      const thresholdSetting = await ctx.db
+        .query('storeSettings')
+        .withIndex('by_key', (q) => q.eq('key', 'deliveryThreshold'))
+        .first();
+      const threshold = typeof thresholdSetting?.value === 'number' ? thresholdSetting.value : 1500;
+      deliveryFee = subtotal >= threshold ? 0 : zone.price;
+    } else {
+      deliveryFee = args.deliveryFee ?? 250;
+    }
     const total = subtotal + deliveryFee;
 
-    // 4. Create Order
+    // 5. Create Order
     const orderId = await ctx.db.insert('orders', {
       orderNumber,
-      customerName: args.customerName,
-      customerPhone: args.customerPhone,
-      customerEmail: args.customerEmail,
-      items: args.items,
+      customerId: args.customerId,
+      customerName: args.customerName.trim(),
+      customerPhone: args.customerPhone.trim(),
+      customerEmail: args.customerEmail.trim(),
+      items: resolvedItems,
       subtotal,
       deliveryFee,
       total,
       status: args.status ?? 'placed',
       paymentMethod: args.paymentMethod,
       paymentStatus: args.paymentStatus ?? 'pending',
-      deliveryAddress: args.deliveryAddress,
+      deliveryAddress: args.deliveryAddress.trim(),
+      notes: args.notes?.trim() || undefined,
       channel: args.channel ?? 'Admin POS',
       prescriptionFileId: args.prescriptionFileId,
     });
@@ -521,22 +578,22 @@ export const createOrder = mutation({
       createdAt: Date.now(),
     });
 
-    // 5. Apply inventory decrements
+    // 6. Apply inventory decrements
     for (const update of inventoryUpdates) {
-      await ctx.db.patch(update.id as any, {
+      await ctx.db.patch(update.id, {
         stockQty: update.newQty,
         inStock: update.newQty > 0
       });
       // create audit trail for inventory
       await ctx.db.insert('inventoryLog', {
-        productId: update.id as any,
-        changeAmount: -args.items.find(i => i.productId === update.id)!.qty,
-        reason: `Admin created order: ${orderNumber}`,
+        productId: update.id,
+        changeAmount: -resolvedItems.find(i => i.productId === update.id)!.qty,
+        reason: `Order ${orderNumber}`,
         createdAt: Date.now(),
       });
 
       if (update.newQty <= 10) {
-        const product = await ctx.db.get(update.id as Id<'products'>);
+        const product = await ctx.db.get(update.id);
         if (product) {
           await ctx.db.insert('notifications', {
             type: 'low_stock',

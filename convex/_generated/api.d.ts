@@ -14,6 +14,8 @@ import type * as adminProducts from "../adminProducts.js";
 import type * as analytics from "../analytics.js";
 import type * as auditLog from "../auditLog.js";
 import type * as brands from "../brands.js";
+import type * as customerAddresses from "../customerAddresses.js";
+import type * as customerAuth from "../customerAuth.js";
 import type * as customers from "../customers.js";
 import type * as delivery from "../delivery.js";
 import type * as discounts from "../discounts.js";
@@ -41,6 +43,8 @@ declare const fullApi: ApiFromModules<{
   analytics: typeof analytics;
   auditLog: typeof auditLog;
   brands: typeof brands;
+  customerAddresses: typeof customerAddresses;
+  customerAuth: typeof customerAuth;
   customers: typeof customers;
   delivery: typeof delivery;
   discounts: typeof discounts;

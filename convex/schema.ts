@@ -169,6 +169,7 @@ export default defineSchema({
     paymentRef: v.optional(v.string()),
     prescriptionFileId: v.optional(v.id('_storage')),
     deliveryAddress: v.string(),
+    notes: v.optional(v.string()),
     // Shopify Specifics
     channel: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
@@ -363,4 +364,32 @@ export default defineSchema({
     key: v.string(),
     value: v.any(),
   }).index('by_key', ['key']),
+
+  // Real customer accounts (login/signup) — separate from the pseudo-customer
+  // records derived from guest orders in customers.ts.
+  customerAccounts: defineTable({
+    name: v.string(),
+    email: v.string(),
+    passwordHash: v.string(),
+    passwordSalt: v.string(),
+    phone: v.optional(v.string()),
+    dob: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index('by_email', ['email']),
+
+  customerAccountSessions: defineTable({
+    customerAccountId: v.id('customerAccounts'),
+    token: v.string(),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+  }).index('by_token', ['token']),
+
+  customerAddresses: defineTable({
+    customerAccountId: v.id('customerAccounts'),
+    label: v.string(),
+    address: v.string(),
+    city: v.string(),
+    phone: v.string(),
+    isDefault: v.boolean(),
+  }).index('by_customer', ['customerAccountId']),
 });

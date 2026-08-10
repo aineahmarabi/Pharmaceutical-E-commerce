@@ -20,6 +20,9 @@ export default function StoreDetailsPage() {
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', whatsapp: '', address: '' });
   const [saving, setSaving] = useState(false);
 
+  const [socialLinks, setSocialLinks] = useState({ twitter: '', instagram: '', facebook: '' });
+  const [savingSocial, setSavingSocial] = useState(false);
+
   const [displayName, setDisplayName] = useState('');
   const [savingName, setSavingName] = useState(false);
 
@@ -39,6 +42,14 @@ export default function StoreDetailsPage() {
   }, [branding.name, branding.email, branding.phone, branding.whatsapp, branding.address]);
 
   useEffect(() => {
+    setSocialLinks({
+      twitter: branding.socialLinks?.twitter ?? '',
+      instagram: branding.socialLinks?.instagram ?? '',
+      facebook: branding.socialLinks?.facebook ?? '',
+    });
+  }, [branding.socialLinks?.twitter, branding.socialLinks?.instagram, branding.socialLinks?.facebook]);
+
+  useEffect(() => {
     setDisplayName(adminName);
   }, [adminName]);
 
@@ -49,6 +60,16 @@ export default function StoreDetailsPage() {
       toast('Store details saved');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveSocial = async () => {
+    setSavingSocial(true);
+    try {
+      await updateSetting({ key: 'socialLinks', value: socialLinks });
+      toast('Social links saved');
+    } finally {
+      setSavingSocial(false);
     }
   };
 
@@ -117,6 +138,16 @@ export default function StoreDetailsPage() {
       </Card>
 
       <Button variant="primary" onClick={handleSave} loading={saving}>Save</Button>
+
+      <Card title="Social links">
+        <p className="text-sm text-p-text-subdued mb-4">Shown as icons in the storefront footer. Leave blank to hide an icon.</p>
+        <div className="grid sm:grid-cols-3 gap-4">
+          <Input label="X (Twitter) URL" placeholder="https://x.com/yourstore" value={socialLinks.twitter} onChange={(e) => setSocialLinks({ ...socialLinks, twitter: e.target.value })} />
+          <Input label="Instagram URL" placeholder="https://instagram.com/yourstore" value={socialLinks.instagram} onChange={(e) => setSocialLinks({ ...socialLinks, instagram: e.target.value })} />
+          <Input label="Facebook URL" placeholder="https://facebook.com/yourstore" value={socialLinks.facebook} onChange={(e) => setSocialLinks({ ...socialLinks, facebook: e.target.value })} />
+        </div>
+        <Button variant="primary" className="mt-4" onClick={handleSaveSocial} loading={savingSocial}>Save social links</Button>
+      </Card>
 
       <Card title="Security">
         <p className="text-sm text-p-text-subdued mb-4">Change the passcode used to log in to this admin panel.</p>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -9,6 +9,7 @@ import { ProductImagePlaceholder } from '@/components/ui/ProductImagePlaceholder
 import { useCartStore } from '@/store/cart';
 import { useToast } from '@/components/ui/Toast';
 import { branding } from '@/lib/config/branding';
+import { useCustomerAuth } from '@/lib/auth/customerAuth';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 
@@ -21,6 +22,7 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { items, clearCart } = useCartStore();
   const { toast } = useToast();
+  const { customer } = useCustomerAuth();
   const zones = useQuery(api.delivery.listZones);
   const createOrder = useMutation(api.orders.createOrder);
 
@@ -35,40 +37,79 @@ export default function CheckoutPage() {
   const deliveryFee = subtotal >= branding.deliveryThreshold ? 0 : baseDeliveryFee;
   const total = subtotal + deliveryFee;
 
-  const [form, setForm] = useState({ name: '', phone: '', email: '', address: '', notes: '' });
+  const [form, setForm] = useState({ name: '', phone: '', email: '', address: '', city: '', notes: '' });
   const update = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setForm(prev => ({ ...prev, [k]: e.target.value }));
 
+  // Prefill from a signed-in customer's saved profile — accounts are optional, so guests just leave this blank.
+  useEffect(() => {
+    if (!customer) return;
+    setForm((prev) => ({
+      ...prev,
+      name: prev.name || customer.name,
+      email: prev.email || customer.email,
+      phone: prev.phone || customer.phone,
+    }));
+  }, [customer]);
+
+  const EMAIL_RE = /^\S+@\S+\.\S+$/;
+  const PHONE_RE = /^[0-9+()\s-]{7,}$/;
+
+  const deliveryErrors: string[] = [];
+  if (!form.name.trim()) deliveryErrors.push('Full name is required.');
+  if (!form.phone.trim()) deliveryErrors.push('Phone number is required.');
+  else if (!PHONE_RE.test(form.phone.trim())) deliveryErrors.push('Enter a valid phone number.');
+  if (!form.email.trim()) deliveryErrors.push('Email address is required.');
+  else if (!EMAIL_RE.test(form.email.trim())) deliveryErrors.push('Enter a valid email address.');
+  if (!form.address.trim()) deliveryErrors.push('Street address is required.');
+  if (!form.city.trim()) deliveryErrors.push('City / town is required.');
+  if (!selectedZoneId) deliveryErrors.push('Select a delivery area.');
+  const isDeliveryValid = deliveryErrors.length === 0;
+
+  const handleContinueToPayment = () => {
+    if (!isDeliveryValid) {
+      toast(deliveryErrors[0], 'error');
+      return;
+    }
+    setStep('Payment');
+  };
+
   const handlePlace = async () => {
-    if (!selectedZone) {
-      toast('Please select a delivery zone', 'error');
+    if (!isDeliveryValid || !selectedZone) {
+      toast('Please complete your delivery details', 'error');
       setStep('Delivery');
+      return;
+    }
+    if (items.length === 0) {
+      toast('Your cart is empty', 'error');
       return;
     }
 
     setPlacing(true);
     try {
       await createOrder({
-        customerName: form.name,
-        customerPhone: form.phone,
-        customerEmail: form.email,
+        customerId: customer?._id,
+        customerName: form.name.trim(),
+        customerPhone: form.phone.trim(),
+        customerEmail: form.email.trim(),
         items: items.map(i => ({
           productId: i.product.id,
           name: i.product.name,
           qty: i.quantity,
           price: i.product.price
         })),
-        deliveryFee,
+        deliveryZoneId: selectedZone._id,
         paymentMethod,
-        deliveryAddress: `${form.address}, ${selectedZone.name}`,
+        deliveryAddress: `${form.address.trim()}, ${form.city.trim()}, ${selectedZone.name}`,
+        notes: form.notes.trim() || undefined,
         channel: 'storefront',
       });
-      
+
       clearCart();
       toast('Order placed successfully!', 'success');
       router.push('/account/orders');
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      toast('Failed to place order', 'error');
+      toast(err?.message ?? 'Failed to place order', 'error');
       setPlacing(false);
     }
   };
@@ -166,7 +207,7 @@ export default function CheckoutPage() {
                   </div>
 
                   <button
-                    onClick={() => setStep('Payment')}
+                    onClick={handleContinueToPayment}
                     className="mt-5 w-full bg-petrol hover:bg-petrol-700 text-paper font-semibold py-3.5 rounded-xl transition-all hover:-translate-y-0.5"
                   >
                     Continue to payment

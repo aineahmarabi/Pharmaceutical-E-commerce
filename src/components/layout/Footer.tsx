@@ -2,17 +2,49 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Globe, MessageCircle, Share2 } from 'lucide-react';
 import { useQuery } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { useBranding } from '@/hooks/useBranding';
 import { categories as fixtureCategories } from '@/lib/fixtures/categories';
 import { BrandName } from '@/components/ui/BrandName';
 
+function XIcon({ size = 15 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  );
+}
+
+function InstagramIcon({ size = 15 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} aria-hidden>
+      <rect x="3" y="3" width="18" height="18" rx="5" />
+      <circle cx="12" cy="12" r="4.2" />
+      <circle cx="17.3" cy="6.7" r="1.1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function FacebookIcon({ size = 15 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M13.5 21v-7.6h2.55l.38-2.96h-2.93V8.55c0-.86.24-1.44 1.47-1.44h1.57V4.46A21 21 0 0 0 14.3 4.3c-2.24 0-3.78 1.37-3.78 3.87v2.27H8v2.96h2.52V21h2.98Z" />
+    </svg>
+  );
+}
+
 export function Footer() {
   const branding = useBranding();
   const liveCategories = useQuery(api.taxonomy.listCategories, {});
   const categories = liveCategories && liveCategories.length > 0 ? liveCategories : fixtureCategories;
+
+  const socialLinks = [
+    { icon: XIcon, href: branding.socialLinks?.twitter, label: 'X (Twitter)' },
+    { icon: InstagramIcon, href: branding.socialLinks?.instagram, label: 'Instagram' },
+    { icon: FacebookIcon, href: branding.socialLinks?.facebook, label: 'Facebook' },
+  ].filter((s): s is typeof s & { href: string } => Boolean(s.href));
+
   return (
     <footer className="bg-ink text-porcelain">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
@@ -32,17 +64,22 @@ export function Footer() {
               )}
             </div>
             <p className="text-sm text-porcelain/60 leading-relaxed max-w-xs">{branding.tagline}. Your trusted online pharmacy in Kenya.</p>
-            <div className="flex items-center gap-3 mt-5">
-              {[
-                { icon: Globe, href: branding.socialLinks.twitter, label: 'Twitter/X' },
-                { icon: Share2, href: branding.socialLinks.instagram, label: 'Instagram' },
-                { icon: MessageCircle, href: branding.socialLinks.facebook, label: 'Facebook' },
-              ].map(({ icon: Icon, href, label }) => (
-                <a key={label} href={href} aria-label={label} className="w-9 h-9 rounded-full border border-porcelain/20 flex items-center justify-center text-porcelain/60 hover:bg-porcelain/10 hover:text-porcelain transition-colors">
-                  <Icon size={15} />
-                </a>
-              ))}
-            </div>
+            {socialLinks.length > 0 && (
+              <div className="flex items-center gap-3 mt-5">
+                {socialLinks.map(({ icon: Icon, href, label }) => (
+                  <a
+                    key={label}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={label}
+                    className="w-9 h-9 rounded-full border border-porcelain/20 flex items-center justify-center text-porcelain/60 hover:bg-porcelain/10 hover:text-porcelain transition-colors"
+                  >
+                    <Icon size={15} />
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Col 2 — Quick links */}
@@ -92,8 +129,13 @@ export function Footer() {
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-12 pt-6 border-t border-porcelain/10 text-xs text-porcelain/40">
           <p>© 2026 {branding.name}. All rights reserved.</p>
           <div className="flex items-center gap-4">
-            {['Shipping Policy', 'Returns', 'Terms', 'Privacy'].map((label) => (
-              <a key={label} href="#" className="hover:text-porcelain/70 transition-colors">{label}</a>
+            {[
+              { label: 'Shipping Policy', href: '/shipping' },
+              { label: 'Returns', href: '/returns' },
+              { label: 'Terms', href: '/terms' },
+              { label: 'Privacy', href: '/privacy' },
+            ].map((item) => (
+              <Link key={item.href} href={item.href} className="hover:text-porcelain/70 transition-colors">{item.label}</Link>
             ))}
           </div>
         </div>

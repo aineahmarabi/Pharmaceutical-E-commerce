@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { useQuery } from 'convex/react';
 import { Search, Package, MapPin } from 'lucide-react';
 import { api } from '../../../../../convex/_generated/api';
+import { useCustomerAuth } from '@/lib/auth/customerAuth';
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
@@ -19,6 +20,9 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export default function OrdersPage() {
+  const { isAuthenticated, token } = useCustomerAuth();
+  const myOrders = useQuery(api.orders.listMyOrders, token ? { token } : 'skip');
+
   const [orderNumber, setOrderNumber] = useState('');
   const [contact, setContact] = useState('');
   const [submitted, setSubmitted] = useState<{ orderNumber: string; contact: string } | null>(null);
@@ -41,11 +45,45 @@ export default function OrdersPage() {
           <nav className="text-xs text-petrol-300 mb-3 flex gap-2">
             <Link href="/account" className="hover:text-petrol">Account</Link><span>/</span><span className="text-ink/70">Track order</span>
           </nav>
-          <h1 className="font-display font-bold text-2xl text-ink tracking-tight">Track your order</h1>
-          <p className="text-sm text-ink/60 mt-1">Enter your order number and the phone number or email you used at checkout.</p>
+          <h1 className="font-display font-bold text-2xl text-ink tracking-tight">{isAuthenticated ? 'My orders' : 'Track your order'}</h1>
+          <p className="text-sm text-ink/60 mt-1">
+            {isAuthenticated
+              ? 'Your order history, saved to your account.'
+              : 'Enter your order number and the phone number or email you used at checkout.'}
+          </p>
         </motion.div>
 
-        <form onSubmit={handleSubmit} className="mt-6 bg-paper border border-line rounded-2xl p-5 space-y-4 shadow-sm">
+        {isAuthenticated && (
+          <div className="mt-6 space-y-3">
+            {myOrders === undefined ? (
+              <div className="h-20 bg-paper border border-line rounded-2xl animate-pulse" />
+            ) : myOrders.length === 0 ? (
+              <div className="bg-paper border border-line rounded-2xl p-6 text-center text-sm text-ink/50">
+                No orders yet — orders you place while signed in will show up here.
+              </div>
+            ) : (
+              myOrders.map((order) => (
+                <div key={order._id} className="bg-paper border border-line rounded-2xl p-5 flex items-center justify-between gap-4 shadow-sm">
+                  <div>
+                    <p className="font-display font-bold text-sm text-ink">{order.orderNumber}</p>
+                    <p className="text-xs text-ink/50 mt-0.5">
+                      {new Date(order._creationTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · KES {order.total.toLocaleString()}
+                    </p>
+                  </div>
+                  <span className="bg-petrol/10 text-petrol text-xs font-semibold px-3 py-1.5 rounded-full uppercase tracking-wide flex-shrink-0">
+                    {STATUS_LABELS[order.status] ?? order.status}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {isAuthenticated && (
+          <p className="text-xs font-semibold uppercase tracking-wide text-petrol-300 mt-8 mb-1">Or track a guest order</p>
+        )}
+
+        <form onSubmit={handleSubmit} className={`${isAuthenticated ? 'mt-2' : 'mt-6'} bg-paper border border-line rounded-2xl p-5 space-y-4 shadow-sm`}>
           <div>
             <label className="block text-sm font-medium text-ink mb-1.5">Order number</label>
             <input
