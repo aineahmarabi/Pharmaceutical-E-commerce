@@ -92,13 +92,14 @@ function ProductDetailContent({ product }: { product: ReturnType<typeof toProduc
           className="grid md:grid-cols-[38fr_62fr] gap-8 bg-paper rounded-2xl border border-line p-6 sm:p-8"
         >
           <div>
-            <div className="max-w-[240px] mx-auto md:mx-0 border border-line rounded-xl p-4 bg-porcelain">
+            <div className="max-w-[320px] mx-auto md:mx-0 border border-line rounded-xl p-4 bg-porcelain">
               <ProductImagePlaceholder
                 aspectRatio="aspect-[4/3]"
                 className="rounded-lg"
                 size="sm"
                 name={product.name}
                 categorySlug={product.categorySlug}
+                imageUrl={product.imageUrl}
               />
             </div>
           </div>
@@ -236,7 +237,7 @@ function ProductDetailContent({ product }: { product: ReturnType<typeof toProduc
               {relatedFiltered.map((p) => (
                 <Link key={p.id} href={`/products/${p.slug}`} className="block">
                   <div className="bg-paper rounded-2xl border border-line overflow-hidden product-card-hover">
-                    <ProductImagePlaceholder aspectRatio="aspect-[4/3]" name={p.name} categorySlug={p.categorySlug} />
+                    <ProductImagePlaceholder aspectRatio="aspect-[4/3]" name={p.name} categorySlug={p.categorySlug} imageUrl={p.imageUrl} />
                     <div className="p-3">
                       <p className="text-xs text-petrol-300 truncate">{p.brand}</p>
                       <p className="text-sm font-medium text-ink line-clamp-2 leading-snug mt-0.5">{p.name}</p>

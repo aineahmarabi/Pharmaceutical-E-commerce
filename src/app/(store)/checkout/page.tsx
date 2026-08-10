@@ -263,7 +263,7 @@ export default function CheckoutPage() {
                     {items.map((item) => (
                       <div key={item.product.id} className="flex items-center gap-3">
                         <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0">
-                          <ProductImagePlaceholder className="w-14 h-14" size="sm" />
+                          <ProductImagePlaceholder className="w-14 h-14" size="sm" name={item.product.name} categorySlug={item.product.categorySlug} imageUrl={item.product.imageUrl} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-ink line-clamp-1">{item.product.name}</p>

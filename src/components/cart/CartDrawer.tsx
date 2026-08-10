@@ -77,7 +77,7 @@ export function CartDrawer() {
                         className="flex gap-3 border-b border-line/50 pb-3"
                       >
                         <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0">
-                          <ProductImagePlaceholder className="w-16 h-16" aspectRatio="" size="sm" name={item.product.name} categorySlug={item.product.categorySlug} />
+                          <ProductImagePlaceholder className="w-16 h-16" aspectRatio="" size="sm" name={item.product.name} categorySlug={item.product.categorySlug} imageUrl={item.product.imageUrl} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[11px] text-petrol-300 font-medium">{item.product.brand}</p>

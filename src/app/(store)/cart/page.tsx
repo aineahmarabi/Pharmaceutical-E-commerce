@@ -51,7 +51,7 @@ export default function CartPage() {
                     className="bg-paper rounded-2xl border border-line border-l-4 border-l-petrol p-4 flex gap-4"
                   >
                     <div className="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0">
-                      <ProductImagePlaceholder className="w-20 h-20" size="sm" name={item.product.name} categorySlug={item.product.categorySlug} />
+                      <ProductImagePlaceholder className="w-20 h-20" size="sm" name={item.product.name} categorySlug={item.product.categorySlug} imageUrl={item.product.imageUrl} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-petrol-300 font-medium">{item.product.brand}</p>
