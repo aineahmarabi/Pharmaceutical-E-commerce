@@ -29,17 +29,24 @@ export function Modal({
   secondaryAction?: ModalAction;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
     };
     document.addEventListener('keydown', handleKey);
     const firstFocusable = dialogRef.current?.querySelector<HTMLElement>('button, input, textarea, select, a[href]');
     firstFocusable?.focus();
     return () => document.removeEventListener('keydown', handleKey);
-  }, [open, onClose]);
+    // Intentionally excludes onClose: it's a fresh closure on every parent
+    // render, and re-running this on every keystroke would re-steal focus.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   if (typeof document === 'undefined') return null;
 
