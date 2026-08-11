@@ -14,6 +14,8 @@ import { useMutation, useQuery } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { useAdminName } from '@/hooks/useAdminName';
 import { useBranding } from '@/hooks/useBranding';
+import { useAdminSession } from '@/hooks/useAdminSession';
+import { canAccessRoute, ROLE_LABELS } from '@/lib/permissions';
 import { BrandName } from '@/components/ui/BrandName';
 
 interface NavLeaf {
@@ -89,6 +91,11 @@ function SidebarContent({ collapsed, onClose, showClose }: { collapsed: boolean;
   const [catalogOpen, setCatalogOpen] = useState(false);
   const logoutMutation = useMutation(api.adminAuth.logout);
   const { name: adminName, initials: adminInitials } = useAdminName();
+  const { role } = useAdminSession();
+  const visible = (href: string) => role !== null && canAccessRoute(role, href);
+  const visibleMainNav = mainNav.filter((i) => visible(i.href));
+  const visibleMainNavAfterProducts = mainNavAfterProducts.filter((i) => visible(i.href));
+  const visibleCatalogNav = catalogNav.filter((i) => visible(i.href));
   const orders = useQuery(api.orders.listOrders, { limit: 200 });
   const pendingOrderCount = orders?.filter((o) => o.status === 'placed' || o.status === 'confirmed').length;
   const messages = useQuery(api.messages.listMessages);
@@ -118,7 +125,7 @@ function SidebarContent({ collapsed, onClose, showClose }: { collapsed: boolean;
                 <p className="font-display font-bold text-white text-sm leading-none truncate">
                   <BrandName name={branding.name} accentClassName="text-[#5EEAD4]" />
                 </p>
-                <p className="text-[10px] text-white/40 font-mono leading-none mt-0.5">Admin</p>
+                <p className="text-[10px] text-white/40 font-mono leading-none mt-0.5">{role ? ROLE_LABELS[role] : 'Admin'}</p>
               </div>
             </div>
             {showClose && (
@@ -152,7 +159,7 @@ function SidebarContent({ collapsed, onClose, showClose }: { collapsed: boolean;
       )}
 
       <nav aria-label="Main navigation" className="flex-1 overflow-y-auto overscroll-contain py-3 px-2 space-y-1 scrollbar-hide">
-        {mainNav.map((item) => (
+        {visibleMainNav.map((item) => (
           <NavItem
             key={item.href}
             item={item.href === '/admin/orders' && pendingOrderCount ? { ...item, badge: pendingOrderCount } : item}
@@ -160,8 +167,8 @@ function SidebarContent({ collapsed, onClose, showClose }: { collapsed: boolean;
             onClick={onClose}
           />
         ))}
-        <NavItem item={productsChildNav} collapsed={collapsed} onClick={onClose} indent />
-        {mainNavAfterProducts.map((item) => (
+        {visible(productsChildNav.href) && <NavItem item={productsChildNav} collapsed={collapsed} onClick={onClose} indent />}
+        {visibleMainNavAfterProducts.map((item) => (
           <NavItem
             key={item.href}
             item={item.href === '/admin/messages' && unreadMessageCount ? { ...item, badge: unreadMessageCount } : item}
@@ -170,41 +177,45 @@ function SidebarContent({ collapsed, onClose, showClose }: { collapsed: boolean;
           />
         ))}
 
-        <div className="pt-1">
-          <button
-            onClick={() => setCatalogOpen((v) => !v)}
-            className={`flex items-center gap-2 rounded-lg text-sm font-medium transition-colors duration-150 text-[#D4D6D8] hover:bg-white/6
-              ${collapsed ? 'h-9 w-9 justify-center mx-auto' : 'h-8 px-3 w-full'}`}
-            title={collapsed ? 'Catalogue & Operations' : undefined}
-          >
-            <Monitor size={20} className="flex-shrink-0 text-[#A6ACB2]" />
-            {!collapsed && <span className="truncate leading-none flex-1 text-left">Catalogue &amp; Ops</span>}
-            {!collapsed && (
-              <motion.span animate={{ rotate: catalogOpen ? 90 : 0 }} transition={{ duration: 0.2 }}>
-                <ChevronRight size={14} />
-              </motion.span>
-            )}
-          </button>
-          <AnimatePresence initial={false}>
-            {catalogOpen && !collapsed && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden pl-5 space-y-1 mt-1"
-              >
-                {catalogNav.map((item) => (
-                  <NavItem key={item.href} item={item} collapsed={false} onClick={onClose} />
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+        {visibleCatalogNav.length > 0 && (
+          <div className="pt-1">
+            <button
+              onClick={() => setCatalogOpen((v) => !v)}
+              className={`flex items-center gap-2 rounded-lg text-sm font-medium transition-colors duration-150 text-[#D4D6D8] hover:bg-white/6
+                ${collapsed ? 'h-9 w-9 justify-center mx-auto' : 'h-8 px-3 w-full'}`}
+              title={collapsed ? 'Catalogue & Operations' : undefined}
+            >
+              <Monitor size={20} className="flex-shrink-0 text-[#A6ACB2]" />
+              {!collapsed && <span className="truncate leading-none flex-1 text-left">Catalogue &amp; Ops</span>}
+              {!collapsed && (
+                <motion.span animate={{ rotate: catalogOpen ? 90 : 0 }} transition={{ duration: 0.2 }}>
+                  <ChevronRight size={14} />
+                </motion.span>
+              )}
+            </button>
+            <AnimatePresence initial={false}>
+              {catalogOpen && !collapsed && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden pl-5 space-y-1 mt-1"
+                >
+                  {visibleCatalogNav.map((item) => (
+                    <NavItem key={item.href} item={item} collapsed={false} onClick={onClose} />
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
 
-        <div className="pt-1">
-          <NavItem item={settingsNav} collapsed={collapsed} onClick={onClose} />
-        </div>
+        {visible(settingsNav.href) && (
+          <div className="pt-1">
+            <NavItem item={settingsNav} collapsed={collapsed} onClick={onClose} />
+          </div>
+        )}
       </nav>
 
       <div className={`border-t border-white/10 pt-3 pb-4 flex-shrink-0 ${collapsed ? 'px-1' : 'px-2'}`}>

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useQuery } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
+import { canAccessRoute, ROLE_LANDING_PATH } from '@/lib/permissions';
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
@@ -17,6 +18,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   }, []);
 
   const isValid = useQuery(api.adminAuth.validateSession, token ? { token } : "skip");
+  const sessionInfo = useQuery(api.adminAuth.getSessionInfo, token ? { token } : "skip");
 
   useEffect(() => {
     // If the query returns false, or if we have no token at all, redirect to login
@@ -24,6 +26,13 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       router.push('/admin/login');
     }
   }, [isValid, token, pathname, router]);
+
+  useEffect(() => {
+    if (!sessionInfo || pathname === '/admin/login') return;
+    if (!canAccessRoute(sessionInfo.role, pathname)) {
+      router.replace(ROLE_LANDING_PATH[sessionInfo.role]);
+    }
+  }, [sessionInfo, pathname, router]);
 
   // If token hasn't loaded from localStorage yet
   if (token === null) {

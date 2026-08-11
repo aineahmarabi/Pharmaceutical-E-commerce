@@ -6,11 +6,13 @@ import { Plus, Pencil, Trash2, X } from 'lucide-react';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../../../convex/_generated/api';
 import { useToast } from '@/components/ui/Toast';
+import { useConfirm } from '@/components/admin/ui/ConfirmDialog';
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
 export default function AdminCategoriesPage() {
   const { toast } = useToast();
+  const confirm = useConfirm();
   const categories = useQuery(api.taxonomy.listCategories);
   const createCategory = useMutation(api.taxonomy.createCategory);
   const deleteCategory = useMutation(api.taxonomy.deleteCategory);
@@ -64,11 +66,18 @@ export default function AdminCategoriesPage() {
                 <p className="font-mono text-xs text-petrol-300 mt-1">{cat.productCount} products</p>
               </div>
               <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button 
-                  onClick={() => {
+                <button
+                  onClick={async () => {
+                    const ok = await confirm({
+                      title: 'Delete category',
+                      message: `Delete "${cat.name}"? ${cat.productCount} product(s) will lose this category. This can't be undone.`,
+                      confirmLabel: 'Delete',
+                      destructive: true,
+                    });
+                    if (!ok) return;
                     deleteCategory({ id: cat._id });
                     toast('Category deleted', 'info');
-                  }} 
+                  }}
                   className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center text-red-500 hover:bg-red-500 hover:text-white transition-colors"
                 >
                   <Trash2 size={14} />

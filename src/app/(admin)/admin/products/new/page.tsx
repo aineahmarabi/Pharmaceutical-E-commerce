@@ -7,6 +7,7 @@ import { api } from '../../../../../../convex/_generated/api';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, UploadCloud, X, Save } from 'lucide-react';
 import Link from 'next/link';
+import { Select } from '@/components/ui/Select';
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
@@ -191,21 +192,25 @@ export default function AddProductPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-ink mb-1.5">Classification</label>
-                <select name="classification" value={formData.classification} onChange={handleChange} className="w-full px-4 py-2 bg-white border border-line rounded-xl focus:outline-none focus:border-petrol">
-                  <option value="OTC">Over the Counter (OTC)</option>
-                  <option value="P">Pharmacy (P)</option>
-                  <option value="POM">Prescription Only (POM)</option>
-                </select>
+                <Select
+                  value={formData.classification}
+                  onChange={(v) => setFormData({ ...formData, classification: v as 'OTC' | 'P' | 'POM' })}
+                  buttonClassName="bg-white"
+                  options={[
+                    { value: 'OTC', label: 'Over the Counter (OTC)' },
+                    { value: 'P', label: 'Pharmacy (P)' },
+                    { value: 'POM', label: 'Prescription Only (POM)' },
+                  ]}
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-ink mb-1.5">Dosage Form</label>
-                <select name="form" value={formData.form} onChange={handleChange} className="w-full px-4 py-2 bg-white border border-line rounded-xl focus:outline-none focus:border-petrol">
-                  <option value="Tablet">Tablet</option>
-                  <option value="Capsule">Capsule</option>
-                  <option value="Syrup">Syrup</option>
-                  <option value="Cream">Cream</option>
-                  <option value="Drops">Drops</option>
-                </select>
+                <Select
+                  value={formData.form}
+                  onChange={(v) => setFormData({ ...formData, form: v })}
+                  buttonClassName="bg-white"
+                  options={['Tablet', 'Capsule', 'Syrup', 'Cream', 'Drops'].map((f) => ({ value: f, label: f }))}
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-ink mb-1.5">Strength</label>

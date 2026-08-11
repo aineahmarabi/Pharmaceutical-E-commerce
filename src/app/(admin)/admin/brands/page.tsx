@@ -6,11 +6,13 @@ import { Plus, Pencil, Trash2, X, Upload } from 'lucide-react';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../../../convex/_generated/api';
 import { useToast } from '@/components/ui/Toast';
+import { useConfirm } from '@/components/admin/ui/ConfirmDialog';
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
 export default function AdminBrandsPage() {
   const { toast } = useToast();
+  const confirm = useConfirm();
   const brands = useQuery(api.brands.list);
   const createBrand = useMutation(api.brands.create);
   const deleteBrand = useMutation(api.brands.remove);
@@ -90,11 +92,18 @@ export default function AdminBrandsPage() {
                 <p className="font-mono text-xs text-petrol-300 mt-1">{brand.productCount || 0} products</p>
               </div>
               <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button 
-                  onClick={() => {
+                <button
+                  onClick={async () => {
+                    const ok = await confirm({
+                      title: 'Delete brand',
+                      message: `Delete "${brand.name}"? ${brand.productCount || 0} product(s) will lose this brand. This can't be undone.`,
+                      confirmLabel: 'Delete',
+                      destructive: true,
+                    });
+                    if (!ok) return;
                     deleteBrand({ id: brand._id });
                     toast('Brand deleted', 'info');
-                  }} 
+                  }}
                   className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center text-red-500 hover:bg-red-500 hover:text-white transition-colors"
                 >
                   <Trash2 size={14} />

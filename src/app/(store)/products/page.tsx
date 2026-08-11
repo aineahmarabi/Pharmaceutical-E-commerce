@@ -8,6 +8,7 @@ import { api } from '../../../../convex/_generated/api';
 import { toProduct } from '@/lib/adapters/product';
 import { ProductGrid } from '@/components/product/ProductGrid';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { Select } from '@/components/ui/Select';
 import { useMounted } from '@/hooks/useMounted';
 
 const ease = [0.16, 1, 0.3, 1] as const;
@@ -128,9 +129,12 @@ function ProductsContent() {
                 <Filter size={14} />Filters
               </button>
               <div className="flex items-center gap-3 ml-auto">
-                <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} className="text-sm bg-paper border border-line rounded-xl px-3 py-2 text-ink focus:outline-none focus:border-petrol">
-                  {sortOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
+                <Select
+                  value={sort}
+                  onChange={(v) => setSort(v as typeof sort)}
+                  options={sortOptions as unknown as { value: string; label: string }[]}
+                  className="w-44"
+                />
                 <div className="flex items-center border border-line rounded-xl overflow-hidden">
                   <button onClick={() => setLayout('grid')} className={`p-2 transition-colors ${layout === 'grid' ? 'bg-petrol text-paper' : 'text-ink hover:bg-petrol-50'}`}><LayoutGrid size={14} /></button>
                   <button onClick={() => setLayout('list')} className={`p-2 transition-colors ${layout === 'list' ? 'bg-petrol text-paper' : 'text-ink hover:bg-petrol-50'}`}><LayoutList size={14} /></button>

@@ -25,6 +25,27 @@ export const validateSession = query({
   },
 });
 
+export const getSessionInfo = query({
+  args: { token: v.string() },
+  handler: async (ctx, { token }) => {
+    const session = await ctx.db
+      .query('adminSessions')
+      .withIndex('by_token', (q) => q.eq('token', token))
+      .first();
+
+    if (!session || session.expiresAt < Date.now()) return null;
+
+    if (!session.staffId) {
+      return { role: 'super_admin' as const, name: 'Owner', staffId: null };
+    }
+
+    const staff = await ctx.db.get(session.staffId);
+    if (!staff || !staff.active) return null;
+
+    return { role: staff.role, name: staff.name, staffId: staff._id };
+  },
+});
+
 export const login = mutation({
   args: { passcode: v.string() },
   handler: async (ctx, args) => {

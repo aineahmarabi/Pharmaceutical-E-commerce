@@ -9,6 +9,7 @@ import { UploadCloud, X } from 'lucide-react';
 import { PageHeader } from '@/components/admin/shared/PageHeader';
 import { Card } from '@/components/admin/ui/Card';
 import { Input, Textarea } from '@/components/admin/ui/Input';
+import { Select } from '@/components/admin/ui/Select';
 import { ContextualSaveBar } from '@/components/admin/ui/ContextualSaveBar';
 import { SkeletonLoader } from '@/components/admin/ui/SkeletonLoader';
 import { useAdminToast } from '@/components/admin/ui/Toast';
@@ -251,32 +252,22 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
             <div className="space-y-4">
               <div className="grid sm:grid-cols-2 gap-4">
                 <Input label="Generic name" name="genericName" value={formData.genericName} onChange={handleChange} placeholder="e.g. Paracetamol" />
-                <div>
-                  <label className="block text-sm font-medium text-p-text mb-1">Classification</label>
-                  <select
-                    name="classification"
-                    value={formData.classification}
-                    onChange={handleChange}
-                    className="h-9 w-full rounded px-3 text-sm bg-p-bg-surface border border-p-border-input focus:outline-none focus:border-p-focus"
-                  >
-                    <option value="OTC">Over the Counter (OTC)</option>
-                    <option value="P">Pharmacy (P)</option>
-                    <option value="POM">Prescription Only (POM)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-p-text mb-1">Dosage form</label>
-                  <select
-                    name="form"
-                    value={formData.form}
-                    onChange={handleChange}
-                    className="h-9 w-full rounded px-3 text-sm bg-p-bg-surface border border-p-border-input focus:outline-none focus:border-p-focus"
-                  >
-                    {['Tablet', 'Capsule', 'Syrup', 'Cream', 'Gel', 'Spray', 'Drops', 'Lozenge', 'Bar', 'Powder', 'Other'].map((f) => (
-                      <option key={f} value={f}>{f}</option>
-                    ))}
-                  </select>
-                </div>
+                <Select
+                  label="Classification"
+                  value={formData.classification}
+                  onChange={(v) => setFormData({ ...formData, classification: v as 'OTC' | 'P' | 'POM' })}
+                  options={[
+                    { value: 'OTC', label: 'Over the Counter (OTC)' },
+                    { value: 'P', label: 'Pharmacy (P)' },
+                    { value: 'POM', label: 'Prescription Only (POM)' },
+                  ]}
+                />
+                <Select
+                  label="Dosage form"
+                  value={formData.form}
+                  onChange={(v) => setFormData({ ...formData, form: v })}
+                  options={['Tablet', 'Capsule', 'Syrup', 'Cream', 'Gel', 'Spray', 'Drops', 'Lozenge', 'Bar', 'Powder', 'Other'].map((f) => ({ value: f, label: f }))}
+                />
                 <Input label="Strength" name="strength" value={formData.strength} onChange={handleChange} placeholder="e.g. 500mg" />
               </div>
               <Textarea label="Active ingredients" name="ingredients" value={formData.ingredients} onChange={handleChange} className="min-h-[70px]" />

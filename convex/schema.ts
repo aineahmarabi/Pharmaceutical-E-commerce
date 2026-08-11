@@ -344,9 +344,10 @@ export default defineSchema({
 
   staff: defineTable({
     name: v.string(),
-    role: v.union(v.literal('super_admin'), v.literal('admin'), v.literal('pharmacist'), v.literal('support')),
+    role: v.union(v.literal('super_admin'), v.literal('admin'), v.literal('pharmacist')),
     email: v.string(),
     phone: v.optional(v.string()),
+    pinHash: v.string(),
     active: v.boolean(),
     createdAt: v.number(),
   }),

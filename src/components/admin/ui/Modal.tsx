@@ -10,6 +10,7 @@ export interface ModalAction {
   label: string;
   onClick: () => void;
   destructive?: boolean;
+  loading?: boolean;
 }
 
 export function Modal({
@@ -83,6 +84,7 @@ export function Modal({
                   <Button
                     variant={primaryAction.destructive ? 'destructive' : 'primary'}
                     onClick={primaryAction.onClick}
+                    loading={primaryAction.loading}
                   >
                     {primaryAction.label}
                   </Button>

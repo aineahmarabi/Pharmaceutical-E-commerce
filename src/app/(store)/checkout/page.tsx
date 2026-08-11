@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronRight, Shield, CheckCircle } from 'lucide-react';
 import { ProductImagePlaceholder } from '@/components/ui/ProductImagePlaceholder';
+import { Select } from '@/components/ui/Select';
 import { useCartStore } from '@/store/cart';
 import { useToast } from '@/components/ui/Toast';
 import { branding } from '@/lib/config/branding';
@@ -182,16 +183,13 @@ export default function CheckoutPage() {
 
                     <div className="sm:col-span-2">
                       <label className="block text-xs font-medium text-petrol-300 mb-1.5">Delivery Area / Zone <span className="text-red-500">*</span></label>
-                      <select
+                      <Select
                         value={selectedZoneId}
-                        onChange={(e) => setSelectedZoneId(e.target.value)}
-                        className="w-full bg-porcelain border border-line rounded-xl px-3.5 py-2.5 text-sm text-ink focus:outline-none focus:border-petrol transition-colors"
-                      >
-                        <option value="" disabled>Select your delivery area</option>
-                        {zones?.map(z => (
-                          <option key={z._id} value={z._id}>{z.name} (KES {z.price})</option>
-                        ))}
-                      </select>
+                        onChange={setSelectedZoneId}
+                        placeholder="Select your delivery area"
+                        options={(zones ?? []).map((z) => ({ value: z._id, label: `${z.name} (KES ${z.price})` }))}
+                        buttonClassName="bg-porcelain"
+                      />
                     </div>
 
                     <div className="sm:col-span-2">
