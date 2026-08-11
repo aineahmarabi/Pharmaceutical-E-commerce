@@ -19,9 +19,18 @@ const labels: Record<ProductClass, string> = {
   POM: 'POM',
 };
 
+const titles: Record<ProductClass, string> = {
+  OTC: 'Over the Counter — no prescription needed',
+  P: 'Pharmacy Medicine — sold under pharmacist supervision',
+  POM: 'Prescription Only Medicine — requires a valid prescription',
+};
+
 export function ClassBadge({ classification, className }: ClassBadgeProps) {
   return (
-    <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full font-mono text-[10px] font-bold uppercase tracking-wide', styles[classification], className)}>
+    <span
+      title={titles[classification]}
+      className={cn('inline-flex items-center px-2 py-0.5 rounded-full font-mono text-[10px] font-bold uppercase tracking-wide', styles[classification], className)}
+    >
       {labels[classification]}
     </span>
   );
