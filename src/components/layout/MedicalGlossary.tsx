@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { BookOpen, X, Search } from 'lucide-react';
+import { Stethoscope, X, Search } from 'lucide-react';
 
 interface GlossaryTerm {
   term: string;
@@ -52,10 +52,10 @@ export function MedicalGlossary() {
         aria-label="Open medical terms glossary"
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="flex fixed top-1/2 -translate-y-1/2 left-0 z-40 items-center gap-2 pl-2.5 pr-3.5 py-3 sm:pl-3 sm:pr-4 sm:py-3.5 bg-petrol text-paper rounded-r-2xl shadow-lg hover:pl-3.5 sm:hover:pl-4 hover:bg-petrol-700 transition-all [writing-mode:vertical-rl] rotate-180"
+        className="flex fixed top-[75%] -translate-y-1/2 right-0 z-40 items-center gap-2 pl-3.5 pr-4 py-3 bg-petrol text-paper rounded-l-xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.25)] border border-petrol-700/40 hover:bg-petrol-700 hover:pr-5 transition-all"
       >
-        <BookOpen size={16} className="rotate-90" />
-        <span className="text-xs font-semibold tracking-wide">Medical terms</span>
+        <Stethoscope size={17} strokeWidth={2} />
+        <span className="text-[13px] font-semibold tracking-wide whitespace-nowrap">Medical Terms</span>
       </button>
 
       <AnimatePresence>
@@ -74,15 +74,15 @@ export function MedicalGlossary() {
               role="dialog"
               aria-modal="true"
               aria-labelledby="glossary-title"
-              initial={{ x: '-100%' }}
+              initial={{ x: '100%' }}
               animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
+              exit={{ x: '100%' }}
               transition={{ type: 'spring', stiffness: 340, damping: 34 }}
-              className="fixed inset-y-0 left-0 z-[60] w-full max-w-sm bg-paper shadow-2xl flex flex-col"
+              className="fixed inset-y-0 right-0 z-[60] w-full max-w-sm bg-paper shadow-2xl flex flex-col"
             >
               <div className="flex items-center justify-between px-5 h-16 border-b border-line flex-shrink-0">
                 <div className="flex items-center gap-2">
-                  <BookOpen size={18} className="text-petrol" />
+                  <Stethoscope size={18} className="text-petrol" />
                   <h2 id="glossary-title" className="font-display font-bold text-lg text-ink">Medical terms</h2>
                 </div>
                 <button onClick={() => setOpen(false)} aria-label="Close" className="w-9 h-9 rounded-xl hover:bg-petrol-50 flex items-center justify-center transition-colors">

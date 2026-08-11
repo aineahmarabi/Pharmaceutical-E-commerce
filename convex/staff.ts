@@ -107,6 +107,6 @@ export const loginWithPin = mutation({
       expiresAt: Date.now() + 24 * 60 * 60 * 1000,
     });
 
-    return { success: true, token };
+    return { success: true, token, role: staff.role };
   },
 });

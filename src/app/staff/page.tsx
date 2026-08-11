@@ -2,23 +2,24 @@
 
 import { useState } from 'react';
 import { useMutation } from 'convex/react';
-import { api } from '../../../../../convex/_generated/api';
-import { Lock, AlertCircle } from 'lucide-react';
+import { api } from '../../../convex/_generated/api';
+import { UserCircle, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBranding } from '@/hooks/useBranding';
 import { usePinEntry } from '@/hooks/usePinEntry';
 import { PinKeypad } from '@/components/admin/PinKeypad';
+import { ROLE_LANDING_PATH, type StaffRole } from '@/lib/permissions';
 
-export default function AdminLogin() {
+export default function StaffLogin() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const login = useMutation(api.adminAuth.login);
+  const loginWithPin = useMutation(api.staff.loginWithPin);
   const branding = useBranding();
-  const pin = usePinEntry(5);
+  const pin = usePinEntry(4);
 
   const handleSubmit = async () => {
     if (!pin.isComplete) {
-      setError('Please enter all 5 digits');
+      setError('Please enter all 4 digits');
       return;
     }
 
@@ -26,12 +27,12 @@ export default function AdminLogin() {
     setIsLoading(true);
 
     try {
-      const result = await login({ passcode: pin.code });
+      const result = await loginWithPin({ pin: pin.code });
       if (result.success && result.token) {
         localStorage.setItem('adminToken', result.token);
-        window.location.href = '/admin';
+        window.location.href = ROLE_LANDING_PATH[result.role as StaffRole] ?? '/admin';
       } else {
-        setError(result.error || 'Invalid passcode');
+        setError(result.error || 'Incorrect PIN');
         pin.reset();
       }
     } catch (err) {
@@ -57,15 +58,15 @@ export default function AdminLogin() {
             <img src={branding.logo} alt={branding.name} className="h-16 object-contain" />
           ) : (
             <div className="h-16 w-16 bg-gradient-to-br from-petrol to-[#0a3830] rounded-2xl flex items-center justify-center shadow-lg shadow-petrol/20">
-              <Lock className="h-8 w-8 text-paper" />
+              <UserCircle className="h-8 w-8 text-paper" />
             </div>
           )}
         </div>
         <h2 className="mt-8 text-center text-3xl font-display font-bold tracking-tight text-ink">
-          Admin Portal
+          Staff Portal
         </h2>
         <p className="mt-2 text-center text-sm text-petrol-300">
-          Enter your 5-digit secure passcode
+          Enter your 4-digit staff PIN
         </p>
       </motion.div>
 
@@ -105,7 +106,7 @@ export default function AdminLogin() {
                 {isLoading ? (
                   <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
-                  'Authenticate'
+                  'Sign in'
                 )}
               </button>
             </div>
