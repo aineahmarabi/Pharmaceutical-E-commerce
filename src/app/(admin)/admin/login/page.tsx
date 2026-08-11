@@ -42,7 +42,7 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="h-screen bg-porcelain flex flex-col items-center justify-center px-4 py-4 sm:px-6 relative overflow-y-auto overscroll-contain">
+    <div className="h-screen bg-porcelain flex flex-col items-center justify-center px-4 py-4 sm:px-6 relative overflow-hidden">
       <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-petrol/5 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-signal/5 rounded-full blur-3xl pointer-events-none" />
 
