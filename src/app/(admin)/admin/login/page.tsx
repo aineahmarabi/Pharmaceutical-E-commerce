@@ -42,7 +42,7 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-porcelain flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
+    <div className="h-screen bg-porcelain flex flex-col items-center justify-center px-4 py-4 sm:px-6 relative overflow-y-auto overscroll-contain">
       <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-petrol/5 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-signal/5 rounded-full blur-3xl pointer-events-none" />
 
@@ -50,21 +50,21 @@ export default function AdminLogin() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="sm:mx-auto sm:w-full sm:max-w-md relative z-10"
+        className="sm:mx-auto sm:w-full sm:max-w-md relative z-10 flex-shrink-0"
       >
         <div className="flex justify-center">
           {branding.logo ? (
-            <img src={branding.logo} alt={branding.name} className="h-16 object-contain" />
+            <img src={branding.logo} alt={branding.name} className="h-11 object-contain" />
           ) : (
-            <div className="h-16 w-16 bg-gradient-to-br from-petrol to-[#0a3830] rounded-2xl flex items-center justify-center shadow-lg shadow-petrol/20">
-              <Lock className="h-8 w-8 text-paper" />
+            <div className="h-11 w-11 bg-gradient-to-br from-petrol to-[#0a3830] rounded-2xl flex items-center justify-center shadow-lg shadow-petrol/20">
+              <Lock className="h-5 w-5 text-paper" />
             </div>
           )}
         </div>
-        <h2 className="mt-8 text-center text-3xl font-display font-bold tracking-tight text-ink">
+        <h2 className="mt-3 text-center text-2xl font-display font-bold tracking-tight text-ink">
           Admin Portal
         </h2>
-        <p className="mt-2 text-center text-sm text-petrol-300">
+        <p className="mt-1 text-center text-sm text-petrol-300">
           Enter your 5-digit secure passcode
         </p>
       </motion.div>
@@ -73,10 +73,10 @@ export default function AdminLogin() {
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.4, delay: 0.1 }}
-        className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10"
+        className="mt-5 sm:mx-auto sm:w-full sm:max-w-md relative z-10 flex-shrink-0"
       >
-        <div className="bg-paper py-10 px-6 shadow-xl sm:rounded-3xl sm:px-10 border border-line">
-          <form className="space-y-8" onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+        <div className="bg-paper py-6 px-6 shadow-xl sm:rounded-3xl sm:px-8 border border-line">
+          <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
             <PinKeypad pin={pin} onEnter={handleSubmit} />
 
             <AnimatePresence>
@@ -100,7 +100,7 @@ export default function AdminLogin() {
                 type="button"
                 onClick={handleSubmit}
                 disabled={isLoading || !pin.isComplete}
-                className="flex w-full justify-center items-center h-14 rounded-xl bg-petrol text-base font-semibold text-white shadow-md hover:bg-petrol/90 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-petrol/20 transition-all disabled:opacity-50 disabled:hover:shadow-md active:scale-[0.98]"
+                className="flex w-full justify-center items-center h-12 rounded-xl bg-petrol text-base font-semibold text-white shadow-md hover:bg-petrol/90 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-petrol/20 transition-all disabled:opacity-50 disabled:hover:shadow-md active:scale-[0.98]"
               >
                 {isLoading ? (
                   <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

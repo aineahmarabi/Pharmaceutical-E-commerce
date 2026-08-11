@@ -14,7 +14,7 @@ export function PinKeypad({
 
   return (
     <>
-      <div className="flex justify-center gap-3" onPaste={handlePaste}>
+      <div className="flex justify-center gap-2.5" onPaste={handlePaste}>
         {digits.map((digit, index) => (
           <input
             key={index}
@@ -25,19 +25,19 @@ export function PinKeypad({
             value={digit}
             onChange={(e) => handleChange(index, e.target.value)}
             onKeyDown={(e) => handleKeyDown(index, e, onEnter)}
-            className="w-12 h-14 sm:w-14 sm:h-16 text-center text-2xl font-bold font-mono text-petrol bg-porcelain border-2 border-line rounded-xl focus:border-petrol focus:bg-white focus:outline-none focus:ring-4 focus:ring-petrol/10 transition-all shadow-inner"
+            className="w-11 h-12 text-center text-xl font-bold font-mono text-petrol bg-porcelain border-2 border-line rounded-xl focus:border-petrol focus:bg-white focus:outline-none focus:ring-4 focus:ring-petrol/10 transition-all shadow-inner"
             maxLength={2}
           />
         ))}
       </div>
 
-      <div className="grid grid-cols-3 gap-3 max-w-[280px] mx-auto">
+      <div className="grid grid-cols-3 gap-2 max-w-[250px] mx-auto">
         {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => (
           <button
             key={d}
             type="button"
             onClick={() => appendDigit(d)}
-            className="h-14 rounded-xl bg-porcelain border border-line text-xl font-semibold font-mono text-ink hover:bg-petrol-50 hover:border-petrol/40 active:scale-[0.96] transition-all"
+            className="h-11 rounded-xl bg-porcelain border border-line text-lg font-semibold font-mono text-ink hover:bg-petrol-50 hover:border-petrol/40 active:scale-[0.96] transition-all"
           >
             {d}
           </button>
@@ -46,7 +46,7 @@ export function PinKeypad({
         <button
           type="button"
           onClick={() => appendDigit('0')}
-          className="h-14 rounded-xl bg-porcelain border border-line text-xl font-semibold font-mono text-ink hover:bg-petrol-50 hover:border-petrol/40 active:scale-[0.96] transition-all"
+          className="h-11 rounded-xl bg-porcelain border border-line text-lg font-semibold font-mono text-ink hover:bg-petrol-50 hover:border-petrol/40 active:scale-[0.96] transition-all"
         >
           0
         </button>
@@ -54,9 +54,9 @@ export function PinKeypad({
           type="button"
           onClick={backspaceDigit}
           aria-label="Delete digit"
-          className="h-14 rounded-xl bg-porcelain border border-line flex items-center justify-center text-petrol-300 hover:bg-petrol-50 hover:border-petrol/40 active:scale-[0.96] transition-all"
+          className="h-11 rounded-xl bg-porcelain border border-line flex items-center justify-center text-petrol-300 hover:bg-petrol-50 hover:border-petrol/40 active:scale-[0.96] transition-all"
         >
-          <Delete size={18} />
+          <Delete size={16} />
         </button>
       </div>
     </>

@@ -52,10 +52,12 @@ export function MedicalGlossary() {
         aria-label="Open medical terms glossary"
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="flex fixed top-[75%] -translate-y-1/2 right-0 z-40 items-center gap-2 pl-3.5 pr-4 py-3 bg-petrol text-paper rounded-l-xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.25)] border border-petrol-700/40 hover:bg-petrol-700 hover:pr-5 transition-all"
+        className="group flex fixed top-[75%] -translate-y-1/2 right-0 z-40 items-center py-3.5 pl-3.5 pr-3.5 bg-petrol text-paper rounded-l-xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.25)] border border-petrol-700/40 hover:bg-petrol-700 transition-colors duration-500 overflow-hidden"
       >
-        <Stethoscope size={17} strokeWidth={2} />
-        <span className="text-[13px] font-semibold tracking-wide whitespace-nowrap">Medical Terms</span>
+        <Stethoscope size={17} strokeWidth={2} className="flex-shrink-0" />
+        <span className="max-w-0 opacity-0 group-hover:max-w-[130px] group-hover:opacity-100 group-hover:ml-2 overflow-hidden whitespace-nowrap text-[13px] font-semibold tracking-wide transition-[max-width,opacity,margin-left] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] delay-75">
+          Medical Terms
+        </span>
       </button>
 
       <AnimatePresence>
