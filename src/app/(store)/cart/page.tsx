@@ -8,7 +8,6 @@ import { ProductImagePlaceholder } from '@/components/ui/ProductImagePlaceholder
 import { QuantityStepper } from '@/components/ui/QuantityStepper';
 import { useCartStore } from '@/store/cart';
 import { useToast } from '@/components/ui/Toast';
-import { branding } from '@/lib/config/branding';
 import { formatPrice } from '@/lib/utils';
 
 export default function CartPage() {
@@ -16,8 +15,6 @@ export default function CartPage() {
   const { toast } = useToast();
   const [coupon, setCoupon] = useState('');
   const subtotal = items.reduce((s, i) => s + i.product.price * i.quantity, 0);
-  const deliveryFee = subtotal >= branding.deliveryThreshold ? 0 : 200;
-  const total = subtotal + deliveryFee;
 
   return (
     <div className="min-h-screen bg-porcelain py-8 px-4 sm:px-6 lg:px-8">
@@ -107,16 +104,14 @@ export default function CartPage() {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-petrol-300">Delivery</span>
-                  <span className={`font-mono font-semibold ${deliveryFee === 0 ? 'text-success' : 'text-ink'}`}>
-                    {deliveryFee === 0 ? 'FREE' : formatPrice(deliveryFee)}
-                  </span>
+                  <span className="font-mono text-petrol-300">Calculated at checkout</span>
                 </div>
               </div>
 
               <hr className="border-line my-3" />
               <div className="flex justify-between items-baseline mb-5">
-                <span className="font-semibold text-ink">Total</span>
-                <span className="font-mono font-bold text-2xl text-ink">{formatPrice(total)}</span>
+                <span className="font-semibold text-ink">Subtotal</span>
+                <span className="font-mono font-bold text-2xl text-ink">{formatPrice(subtotal)}</span>
               </div>
 
               <Link href="/checkout" className="block w-full text-center bg-signal hover:bg-signal/90 text-paper font-semibold py-3.5 rounded-xl transition-all hover:-translate-y-0.5 active:scale-[0.98]">

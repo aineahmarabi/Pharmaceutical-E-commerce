@@ -247,6 +247,12 @@ export default defineSchema({
     createdAt: v.number(),
   }).index('by_read', ['read']),
 
+  newsletterSubscribers: defineTable({
+    email: v.string(),
+    subscribed: v.boolean(),
+    createdAt: v.number(),
+  }).index('by_email', ['email']),
+
   adminSecurity: defineTable({
     passcodeHash: v.string(),
     failedAttempts: v.number(),
@@ -353,7 +359,7 @@ export default defineSchema({
   }),
 
   notifications: defineTable({
-    type: v.union(v.literal('new_order'), v.literal('low_stock'), v.literal('prescription_approval'), v.literal('refund_processed'), v.literal('new_message')),
+    type: v.union(v.literal('new_order'), v.literal('low_stock'), v.literal('prescription_approval'), v.literal('refund_processed'), v.literal('new_message'), v.literal('new_subscriber')),
     title: v.string(),
     message: v.string(),
     targetId: v.optional(v.string()),

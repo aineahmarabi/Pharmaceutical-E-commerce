@@ -18,6 +18,7 @@ const ROLE_ALLOWED_ROOTS: Record<StaffRole, string[]> = {
     '/admin/analytics',
     '/admin/discounts',
     '/admin/messages',
+    '/admin/newsletter',
     '/admin/categories',
     '/admin/conditions',
     '/admin/brands',

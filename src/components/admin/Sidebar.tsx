@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Home, ShoppingCart, Package, Users, BarChart3, Percent, Monitor,
   Settings, ChevronRight, ChevronDown, Boxes, Activity, UserCircle,
-  Store, LogOut, X, Pill, Mail,
+  Store, LogOut, X, Pill, Mail, Send,
 } from 'lucide-react';
 import { branding } from '@/lib/config/branding';
 import { useMutation, useQuery } from 'convex/react';
@@ -39,6 +39,7 @@ const mainNavAfterProducts: NavLeaf[] = [
   { href: '/admin/analytics', icon: BarChart3, label: 'Analytics' },
   { href: '/admin/discounts', icon: Percent, label: 'Discounts' },
   { href: '/admin/messages', icon: Mail, label: 'Messages' },
+  { href: '/admin/newsletter', icon: Send, label: 'Newsletter' },
 ];
 
 const catalogNav: NavLeaf[] = [

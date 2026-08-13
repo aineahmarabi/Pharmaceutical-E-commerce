@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Phone, Mail, MapPin, MessageCircle } from 'lucide-react';
+import { Phone, Mail, MessageCircle, Navigation } from 'lucide-react';
 import { useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { useToast } from '@/components/ui/Toast';
@@ -38,8 +38,15 @@ export default function ContactPage() {
     Phone: `tel:${branding.phone.replace(/\s+/g, '')}`,
     WhatsApp: `https://wa.me/${waDigits}`,
     Email: 'mailto:info@pharmacare.co.ke',
-    'Head office': 'https://maps.google.com/?q=14+Waiyaki+Way,+Westlands,+Nairobi',
   };
+  // Google's unauthenticated embed trick: appending output=embed to a maps.google.com
+  // URL (share link, place link, or plain ?q= search) makes it iframe-able with no API key.
+  const mapEmbedSrc = branding.mapLink
+    ? `${branding.mapLink}${branding.mapLink.includes('?') ? '&' : '?'}output=embed`
+    : `https://maps.google.com/?q=${encodeURIComponent(branding.address)}&output=embed`;
+  // No origin param — Google Maps resolves it to the visitor's current location
+  // and starts turn-by-turn directions straight to the store.
+  const directionsFromMeHref = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(branding.address)}`;
 
   return (
     <div className="min-h-screen bg-porcelain py-8 px-4 sm:px-6 lg:px-8">
@@ -49,20 +56,17 @@ export default function ContactPage() {
           <h1 className="font-display font-bold text-2xl text-ink tracking-tight">Contact us</h1>
         </motion.div>
 
-        <div className="mt-8 lg:grid lg:grid-cols-[2fr_3fr] lg:gap-10">
+        <div className="mt-8 lg:grid lg:grid-cols-[2fr_3fr] lg:gap-10 lg:items-start">
           {/* Contact info */}
           <div className="space-y-4 mb-8 lg:mb-0">
             {[
               { icon: Phone, label: 'Phone', value: branding.phone, sub: 'Mon–Sat 7am–9pm' },
               { icon: MessageCircle, label: 'WhatsApp', value: branding.whatsapp, sub: 'Quick replies during business hours' },
               { icon: Mail, label: 'Email', value: 'info@pharmacare.co.ke', sub: 'Reply within 24 hours' },
-              { icon: MapPin, label: 'Head office', value: '14 Waiyaki Way, Westlands', sub: 'Nairobi, Kenya' },
             ].map(({ icon: Icon, label, value, sub }) => (
               <a
                 key={label}
                 href={contactHref[label]}
-                target={label === 'Head office' ? '_blank' : undefined}
-                rel={label === 'Head office' ? 'noopener noreferrer' : undefined}
                 className="flex items-start gap-3 bg-paper rounded-2xl border border-line p-4 hover:border-petrol/50 hover:shadow-sm transition-all cursor-pointer"
               >
                 <div className="w-10 h-10 rounded-xl bg-petrol flex items-center justify-center flex-shrink-0">
@@ -75,6 +79,28 @@ export default function ContactPage() {
                 </div>
               </a>
             ))}
+
+            {/* Tap to start turn-by-turn directions from wherever the visitor is */}
+            <a
+              href={directionsFromMeHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Get directions to our store at ${branding.address}`}
+              className="group relative block aspect-square rounded-2xl border border-line overflow-hidden hover:border-petrol/50 hover:shadow-sm transition-all"
+            >
+              <iframe
+                src={mapEmbedSrc}
+                className="w-full h-full border-0 pointer-events-none"
+                loading="lazy"
+                tabIndex={-1}
+                title="Store location preview"
+              />
+              <div className="absolute inset-0 bg-ink/0 group-hover:bg-ink/10 transition-colors" />
+              <div className="absolute bottom-3 left-3 right-3 flex items-center gap-1.5 bg-paper/95 text-ink text-xs font-semibold px-2.5 py-2 rounded-xl shadow-sm">
+                <Navigation size={13} className="text-petrol flex-shrink-0" />
+                Get directions from here
+              </div>
+            </a>
           </div>
 
           {/* Form */}

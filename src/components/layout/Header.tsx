@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,6 +17,7 @@ import { useBranding } from '@/hooks/useBranding';
 import { categories } from '@/lib/fixtures/categories';
 import { brands } from '@/lib/fixtures/categories';
 import { useCartStore, useWishlistStore } from '@/store/cart';
+import { useDeliveryZoneStore } from '@/store/delivery';
 import { SearchOverlay } from '@/components/search/SearchOverlay';
 import { BrandName } from '@/components/ui/BrandName';
 import { useQuery } from 'convex/react';
@@ -65,7 +68,7 @@ function CategoriesMega() {
   const groupNames = Object.keys(CATEGORY_GROUPS);
 
   return (
-    <div className="max-w-7xl mx-auto px-8 py-7 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_240px] gap-8">
+    <div className="max-w-7xl mx-auto px-8 py-7 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_240px] gap-8">
       <div className="min-w-0">
         {groupNames.slice(0, 1).map((group) => (
           <React.Fragment key={group}>
@@ -156,13 +159,15 @@ function CategoriesMega() {
           })}
         </ul>
       </div>
-      <div className="bg-gradient-to-br from-[#0E4D45] to-[#0a3830] rounded-2xl p-5 flex flex-col justify-between flex-shrink-0 w-[240px]">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-widest text-petrol-300/80 mb-2">Featured</p>
+      <div className="relative overflow-hidden rounded-2xl p-5 flex flex-col justify-between flex-shrink-0 w-[240px]">
+        <Image src="/images/promo/vitamins.jpg" alt="" fill sizes="240px" className="object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0a3830]/90 via-[#0E4D45]/45 to-[#0E4D45]/10" />
+        <div className="relative z-10 [text-shadow:0_1px_4px_rgba(0,0,0,0.55)]">
+          <p className="font-mono text-[10px] uppercase tracking-widest text-petrol-300 mb-2">Featured</p>
           <p className="font-display font-bold text-xl text-paper leading-tight mb-2">Vitamins &amp; Supplements</p>
-          <p className="text-xs text-porcelain/60 leading-relaxed">Immune support, omega-3, multivitamins and daily wellness — all in one place.</p>
+          <p className="text-xs text-porcelain/90 leading-relaxed">Immune support, omega-3, multivitamins and daily wellness — all in one place.</p>
         </div>
-        <Link href="/category/vitamins-supplements" className="mt-5 flex items-center gap-1.5 text-sm font-semibold text-petrol-300 hover:text-paper transition-colors">
+        <Link href="/category/vitamins-supplements" className="relative z-10 mt-5 flex items-center gap-1.5 text-sm font-semibold text-paper hover:text-petrol-300 transition-colors [text-shadow:0_1px_4px_rgba(0,0,0,0.55)]">
           Shop vitamins <ArrowRight size={14} />
         </Link>
       </div>
@@ -207,13 +212,15 @@ function BrandsMega() {
           View all brands <ArrowRight size={12} />
         </Link>
       </div>
-      <div className="bg-gradient-to-br from-petrol to-[#0a3830] rounded-2xl p-5 flex flex-col justify-between">
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-widest text-petrol-300/80 mb-2">Trusted names</p>
+      <div className="relative overflow-hidden rounded-2xl p-5 flex flex-col justify-between">
+        <Image src="/images/promo/brands.jpg" alt="" fill sizes="240px" className="object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0a3830]/90 via-petrol/45 to-petrol/10" />
+        <div className="relative z-10 [text-shadow:0_1px_4px_rgba(0,0,0,0.55)]">
+          <p className="font-mono text-[10px] uppercase tracking-widest text-petrol-300 mb-2">Trusted names</p>
           <p className="font-display font-bold text-xl text-paper leading-tight mb-2">Genuine branded medicine</p>
-          <p className="text-xs text-porcelain/60 leading-relaxed">Every product is sourced directly from licensed distributors — no substitutes.</p>
+          <p className="text-xs text-porcelain/90 leading-relaxed">Every product is sourced directly from licensed distributors — no substitutes.</p>
         </div>
-        <Link href="/products" className="mt-5 flex items-center gap-1.5 text-sm font-semibold text-petrol-300 hover:text-paper transition-colors">
+        <Link href="/products" className="relative z-10 mt-5 flex items-center gap-1.5 text-sm font-semibold text-paper hover:text-petrol-300 transition-colors [text-shadow:0_1px_4px_rgba(0,0,0,0.55)]">
           Shop now <ArrowRight size={14} />
         </Link>
       </div>
@@ -232,7 +239,11 @@ export function Header() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeMega, setActiveMega] = useState<string | null>(null);
+  const [zonePickerOpen, setZonePickerOpen] = useState(false);
+  const [zonePickerPos, setZonePickerPos] = useState<{ top: number; left: number } | null>(null);
   const megaTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const zonePickerRef = useRef<HTMLDivElement>(null);
+  const zoneTriggerRef = useRef<HTMLButtonElement>(null);
   const pathname = usePathname();
   const { items, toggleCart } = useCartStore();
   const { ids } = useWishlistStore();
@@ -241,11 +252,30 @@ export function Header() {
   const branding = useBranding();
   const liveCategories = useQuery(api.taxonomy.listCategories, {});
   const mobileCategories = liveCategories && liveCategories.length > 0 ? liveCategories : categories;
+  const deliveryZones = useQuery(api.delivery.listZones);
+  const { zoneId: selectedZoneId, zoneName: selectedZoneName, setZone, clearZone } = useDeliveryZoneStore();
+  const [zoneShowcaseIdx, setZoneShowcaseIdx] = useState(0);
 
   useEffect(() => {
     const t = setInterval(() => setPromoIdx((i) => (i + 1) % promos.length), 4200);
     return () => clearInterval(t);
   }, []);
+
+  // A remembered zone can go stale — the admin may delete it, rename the store's
+  // zones, or wipe all of them. Once the live list has loaded, drop any selection
+  // that no longer exists rather than keep showing a deleted area forever.
+  useEffect(() => {
+    if (!deliveryZones || !selectedZoneId) return;
+    if (!deliveryZones.some((z) => z._id === selectedZoneId)) clearZone();
+  }, [deliveryZones, selectedZoneId, clearZone]);
+
+  // Until the customer picks a delivery area, rotate the trigger through the
+  // areas we actually deliver to — a quick "look what we cover" showcase.
+  useEffect(() => {
+    if (selectedZoneName || !deliveryZones || deliveryZones.length < 2) return;
+    const t = setInterval(() => setZoneShowcaseIdx((i) => (i + 1) % deliveryZones.length), 3000);
+    return () => clearInterval(t);
+  }, [selectedZoneName, deliveryZones]);
 
   useEffect(() => {
     let ticking = false;
@@ -268,6 +298,32 @@ export function Header() {
     setMobileMenuOpen(false);
     setActiveMega(null);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!zonePickerOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (zonePickerRef.current?.contains(target)) return;
+      if (zoneTriggerRef.current?.contains(target)) return;
+      setZonePickerOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [zonePickerOpen]);
+
+  // The utility bar clips overflow for its scroll-collapse animation, so a
+  // dropdown positioned inside it gets cut off — close it if that bar hides.
+  useEffect(() => {
+    if (scrolled) setZonePickerOpen(false);
+  }, [scrolled]);
+
+  const toggleZonePicker = () => {
+    if (!zonePickerOpen && zoneTriggerRef.current) {
+      const rect = zoneTriggerRef.current.getBoundingClientRect();
+      setZonePickerPos({ top: rect.bottom + 8, left: rect.left });
+    }
+    setZonePickerOpen((v) => !v);
+  };
 
   const openMega = (key: string) => {
     clearTimeout(megaTimerRef.current);
@@ -301,8 +357,67 @@ export function Header() {
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-9 flex items-center justify-between">
                 <div className="hidden sm:flex items-center gap-1.5 text-xs text-porcelain/60">
                   <MapPin size={11} className="text-petrol-300" />
-                  <span>Deliver to: <button className="text-porcelain/90 font-semibold underline-offset-2 hover:underline">Nairobi</button></span>
+                  <span className="flex items-center gap-1">
+                    Deliver to:{' '}
+                    <button
+                      ref={zoneTriggerRef}
+                      type="button"
+                      onClick={toggleZonePicker}
+                      className="relative overflow-hidden text-porcelain/90 font-semibold underline-offset-2 hover:underline"
+                    >
+                      <AnimatePresence mode="wait">
+                        <motion.span
+                          key={selectedZoneName ?? `showcase-${zoneShowcaseIdx}`}
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -6 }}
+                          transition={{ duration: 0.25 }}
+                          className="inline-block"
+                        >
+                          {selectedZoneName ?? deliveryZones?.[zoneShowcaseIdx % (deliveryZones.length || 1)]?.name ?? 'Select area'}
+                        </motion.span>
+                      </AnimatePresence>
+                    </button>
+                  </span>
                 </div>
+
+                {typeof document !== 'undefined' && createPortal(
+                  <AnimatePresence>
+                    {zonePickerOpen && zonePickerPos && (
+                      <motion.div
+                        ref={zonePickerRef}
+                        initial={{ opacity: 0, y: -6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.15 }}
+                        style={{ position: 'fixed', top: zonePickerPos.top, left: zonePickerPos.left }}
+                        className="w-56 bg-paper border border-line rounded-xl shadow-xl py-1.5 z-50"
+                      >
+                        {deliveryZones === undefined ? (
+                          <p className="px-3.5 py-2 text-xs text-petrol-300">Loading areas…</p>
+                        ) : deliveryZones.length === 0 ? (
+                          <p className="px-3.5 py-2 text-xs text-petrol-300">No delivery areas set up yet.</p>
+                        ) : (
+                          deliveryZones.map((z) => (
+                            <button
+                              key={z._id}
+                              type="button"
+                              onClick={() => { setZone(z._id, z.name); setZonePickerOpen(false); }}
+                              className={cn(
+                                'w-full flex items-center justify-between gap-2 text-left px-3.5 py-2 text-sm hover:bg-petrol-50 transition-colors',
+                                z._id === selectedZoneId ? 'text-ink font-medium' : 'text-ink/70'
+                              )}
+                            >
+                              <span>{z.name}</span>
+                              <span className="font-mono text-xs text-petrol-300">KES {z.price}</span>
+                            </button>
+                          ))
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>,
+                  document.body
+                )}
                 <div className="flex-1 flex justify-center">
                   <AnimatePresence mode="wait">
                     <motion.p
@@ -383,8 +498,8 @@ export function Header() {
         </div>
 
         {/* Row 3 — Nav + Mega */}
-        <div className="hidden md:block border-b border-line/40 bg-paper relative">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-11 flex items-center gap-0.5">
+        <div className="hidden md:block border-b border-line/40 bg-paper">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-11 flex items-center gap-0.5 relative">
             {navItems.map((item) => {
               const isMega = 'key' in item;
               const isActive = 'href' in item && item.href ? pathname.startsWith(item.href) : false;
@@ -426,28 +541,29 @@ export function Header() {
             <Link href="/products" className="ml-auto flex items-center gap-1.5 text-xs font-medium text-petrol-300 hover:text-petrol transition-colors">
               All products <ArrowRight size={11} />
             </Link>
-          </div>
 
-          {/* Mega dropdown */}
-          <AnimatePresence>
-            {activeMega && megaComponents[activeMega as keyof typeof megaComponents] && (() => {
-              const MegaComponent = megaComponents[activeMega as keyof typeof megaComponents];
-              return (
-                <motion.div
-                  key={activeMega}
-                  initial={{ opacity: 0, y: -8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-                  className="absolute left-0 right-0 top-full bg-paper border-t border-line/60 shadow-2xl z-50"
-                  onMouseEnter={() => clearTimeout(megaTimerRef.current)}
-                  onMouseLeave={closeMegaDelayed}
-                >
-                  <MegaComponent />
-                </motion.div>
-              );
-            })()}
-          </AnimatePresence>
+            {/* Mega dropdown — anchored to the left edge of the nav row, so it always
+                starts under "Categories" regardless of which item triggered it. */}
+            <AnimatePresence>
+              {activeMega && megaComponents[activeMega as keyof typeof megaComponents] && (() => {
+                const MegaComponent = megaComponents[activeMega as keyof typeof megaComponents];
+                return (
+                  <motion.div
+                    key={activeMega}
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                    className="absolute left-0 top-full w-3/4 bg-paper border border-t-0 border-line/60 rounded-b-2xl shadow-2xl z-50"
+                    onMouseEnter={() => clearTimeout(megaTimerRef.current)}
+                    onMouseLeave={closeMegaDelayed}
+                  >
+                    <MegaComponent />
+                  </motion.div>
+                );
+              })()}
+            </AnimatePresence>
+          </div>
         </div>
       </header>
 

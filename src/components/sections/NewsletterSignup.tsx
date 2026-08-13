@@ -3,19 +3,31 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Mail } from 'lucide-react';
+import { useMutation } from 'convex/react';
+import { api } from '../../../convex/_generated/api';
 import { useToast } from '@/components/ui/Toast';
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
 export function NewsletterSignup() {
   const [email, setEmail] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
+  const subscribe = useMutation(api.newsletter.subscribe);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) return;
-    toast("You're subscribed — watch your inbox for deals.", 'success');
-    setEmail('');
+    if (!email.trim() || submitting) return;
+    setSubmitting(true);
+    try {
+      await subscribe({ email: email.trim() });
+      toast("You're subscribed — watch your inbox for deals.", 'success');
+      setEmail('');
+    } catch (err: any) {
+      toast(err?.message ?? 'Failed to subscribe. Please try again.', 'error');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -45,9 +57,10 @@ export function NewsletterSignup() {
             />
             <button
               type="submit"
-              className="bg-signal hover:bg-signal/90 text-paper text-sm font-semibold px-6 py-3 rounded-xl transition-all active:scale-[0.98]"
+              disabled={submitting}
+              className="bg-signal hover:bg-signal/90 disabled:opacity-60 text-paper text-sm font-semibold px-6 py-3 rounded-xl transition-all active:scale-[0.98]"
             >
-              Subscribe
+              {submitting ? 'Subscribing...' : 'Subscribe'}
             </button>
           </form>
         </motion.div>

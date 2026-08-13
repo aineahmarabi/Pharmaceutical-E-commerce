@@ -24,7 +24,7 @@ export default function StoreDetailsPage() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [removingLogo, setRemovingLogo] = useState(false);
 
-  const [formData, setFormData] = useState({ name: '', email: '', phone: '', whatsapp: '', address: '' });
+  const [formData, setFormData] = useState({ name: '', email: '', phone: '', whatsapp: '', address: '', mapLink: '' });
   const [saving, setSaving] = useState(false);
 
   const [socialLinks, setSocialLinks] = useState({ twitter: '', instagram: '', facebook: '' });
@@ -45,8 +45,9 @@ export default function StoreDetailsPage() {
       phone: branding.phone,
       whatsapp: branding.whatsapp,
       address: branding.address,
+      mapLink: branding.mapLink,
     });
-  }, [branding.name, branding.email, branding.phone, branding.whatsapp, branding.address]);
+  }, [branding.name, branding.email, branding.phone, branding.whatsapp, branding.address, branding.mapLink]);
 
   useEffect(() => {
     setSocialLinks({
@@ -214,7 +215,16 @@ export default function StoreDetailsPage() {
       </Card>
 
       <Card title="Store address">
-        <Input label="Address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} />
+        <div className="grid sm:grid-cols-2 gap-4">
+          <Input label="Address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} />
+          <Input
+            label="Google Maps pin or link"
+            placeholder="https://maps.google.com/?q=..."
+            helpText="Paste a Google Maps share link, or a place/pin URL. Shown on the Contact page and used for pickup directions at checkout."
+            value={formData.mapLink}
+            onChange={(e) => setFormData({ ...formData, mapLink: e.target.value })}
+          />
+        </div>
       </Card>
 
       <Button variant="primary" onClick={handleSave} loading={saving}>Save</Button>

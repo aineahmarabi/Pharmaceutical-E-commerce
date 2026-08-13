@@ -72,9 +72,18 @@ function ProductsContent() {
     limit: 60,
   });
 
+  const hasActiveFilters = activeCat !== 'all' || activeBrand !== 'all';
+
   const sidebar = (
     <div className="space-y-0 bg-paper rounded-2xl border border-line/50 p-5 divide-y divide-line/40">
-      <div className="pb-4">
+      <div className="pb-4 flex items-center gap-2">
+        <button
+          onClick={() => { setActiveCat('all'); setActiveBrand('all'); }}
+          disabled={!hasActiveFilters}
+          className="text-xs font-medium text-petrol hover:underline disabled:text-petrol-300 disabled:no-underline disabled:cursor-default transition-colors"
+        >
+          Clear
+        </button>
         <p className="font-mono text-xs uppercase tracking-widest text-petrol-300">Filters</p>
       </div>
       <Accordion title="Category">

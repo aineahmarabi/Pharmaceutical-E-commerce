@@ -4,12 +4,14 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, Shield, CheckCircle } from 'lucide-react';
+import { ChevronRight, Shield, CheckCircle, Truck, Store } from 'lucide-react';
 import { ProductImagePlaceholder } from '@/components/ui/ProductImagePlaceholder';
 import { Select } from '@/components/ui/Select';
 import { useCartStore } from '@/store/cart';
+import { useDeliveryZoneStore } from '@/store/delivery';
 import { useToast } from '@/components/ui/Toast';
 import { branding } from '@/lib/config/branding';
+import { useBranding } from '@/hooks/useBranding';
 import { useCustomerAuth } from '@/lib/auth/customerAuth';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
@@ -18,25 +20,52 @@ const ease = [0.16, 1, 0.3, 1] as const;
 
 const steps = ['Delivery', 'Payment', 'Review'] as const;
 type Step = typeof steps[number];
+type Fulfillment = 'delivery' | 'pickup';
 
 export default function CheckoutPage() {
   const router = useRouter();
   const { items, clearCart } = useCartStore();
   const { toast } = useToast();
   const { customer } = useCustomerAuth();
+  const storeBranding = useBranding();
   const zones = useQuery(api.delivery.listZones);
   const createOrder = useMutation(api.orders.createOrder);
+  const { zoneId: rememberedZoneId, setZone: rememberZone } = useDeliveryZoneStore();
 
   const [step, setStep] = useState<Step>('Delivery');
   const [placing, setPlacing] = useState(false);
+  const [fulfillment, setFulfillment] = useState<Fulfillment>('delivery');
   const [selectedZoneId, setSelectedZoneId] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'card' | 'cod'>('mpesa');
 
+  // Pick up whatever delivery area the customer already chose from the header —
+  // re-validated against the live zone list so a deleted/renamed zone can't stick.
+  useEffect(() => {
+    if (!zones || selectedZoneId || !rememberedZoneId) return;
+    if (zones.some((z) => z._id === rememberedZoneId)) {
+      setSelectedZoneId(rememberedZoneId);
+    }
+  }, [zones, rememberedZoneId, selectedZoneId]);
+
+  const handleZoneChange = (id: string) => {
+    setSelectedZoneId(id);
+    const zone = zones?.find((z) => z._id === id);
+    if (zone) rememberZone(zone._id, zone.name);
+  };
+
   const subtotal = items.reduce((s, i) => s + i.product.price * i.quantity, 0);
   const selectedZone = zones?.find(z => z._id === selectedZoneId);
-  const baseDeliveryFee = selectedZone ? selectedZone.price : 0;
-  const deliveryFee = subtotal >= branding.deliveryThreshold ? 0 : baseDeliveryFee;
-  const total = subtotal + deliveryFee;
+  // "Zone price is 0" and "waived because the order hit the free-delivery threshold"
+  // are different things — a zone priced at 0 isn't a promo, it's just what it costs.
+  const qualifiesForFreeThreshold = fulfillment === 'delivery' && subtotal >= branding.deliveryThreshold && !!selectedZone && selectedZone.price > 0;
+  // Delivery cost is only known once a zone is picked — showing a fee (or "FREE") before
+  // that point implies a real quote when there isn't one yet.
+  const deliveryFee = fulfillment === 'pickup'
+    ? 0
+    : selectedZone
+      ? (qualifiesForFreeThreshold ? 0 : selectedZone.price)
+      : undefined;
+  const total = subtotal + (deliveryFee ?? 0);
 
   const [form, setForm] = useState({ name: '', phone: '', email: '', address: '', city: '', notes: '' });
   const update = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setForm(prev => ({ ...prev, [k]: e.target.value }));
@@ -61,9 +90,11 @@ export default function CheckoutPage() {
   else if (!PHONE_RE.test(form.phone.trim())) deliveryErrors.push('Enter a valid phone number.');
   if (!form.email.trim()) deliveryErrors.push('Email address is required.');
   else if (!EMAIL_RE.test(form.email.trim())) deliveryErrors.push('Enter a valid email address.');
-  if (!form.address.trim()) deliveryErrors.push('Street address is required.');
-  if (!form.city.trim()) deliveryErrors.push('City / town is required.');
-  if (!selectedZoneId) deliveryErrors.push('Select a delivery area.');
+  if (fulfillment === 'delivery') {
+    if (!form.address.trim()) deliveryErrors.push('Street address is required.');
+    if (!form.city.trim()) deliveryErrors.push('City / town is required.');
+    if (!selectedZoneId) deliveryErrors.push('Select a delivery area.');
+  }
   const isDeliveryValid = deliveryErrors.length === 0;
 
   const handleContinueToPayment = () => {
@@ -75,7 +106,7 @@ export default function CheckoutPage() {
   };
 
   const handlePlace = async () => {
-    if (!isDeliveryValid || !selectedZone) {
+    if (!isDeliveryValid || (fulfillment === 'delivery' && !selectedZone)) {
       toast('Please complete your delivery details', 'error');
       setStep('Delivery');
       return;
@@ -98,9 +129,13 @@ export default function CheckoutPage() {
           qty: i.quantity,
           price: i.product.price
         })),
-        deliveryZoneId: selectedZone._id,
+        ...(fulfillment === 'delivery'
+          ? { deliveryZoneId: selectedZone!._id }
+          : { deliveryFee: 0 }),
         paymentMethod,
-        deliveryAddress: `${form.address.trim()}, ${form.city.trim()}, ${selectedZone.name}`,
+        deliveryAddress: fulfillment === 'delivery'
+          ? `${form.address.trim()}, ${form.city.trim()}, ${selectedZone!.name}`
+          : `Pickup from store — ${storeBranding.address}`,
         notes: form.notes.trim() || undefined,
         channel: 'storefront',
       });
@@ -161,13 +196,37 @@ export default function CheckoutPage() {
                   className="bg-paper rounded-2xl border border-line p-6"
                 >
                   <h2 className="font-display font-bold text-lg text-ink mb-5">Delivery details</h2>
+
+                  {/* Fulfillment method */}
+                  <div className="grid grid-cols-2 gap-3 mb-5">
+                    {([
+                      { id: 'delivery', label: 'Deliver to me', sub: 'Choose a delivery area', icon: Truck },
+                      { id: 'pickup', label: 'Pickup from store', sub: 'Collect your order, no delivery fee', icon: Store },
+                    ] as const).map(({ id, label, sub, icon: Icon }) => (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => setFulfillment(id)}
+                        className={`flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-colors ${fulfillment === id ? 'border-petrol bg-petrol-50' : 'border-line hover:border-petrol/50'}`}
+                      >
+                        <Icon size={18} className={fulfillment === id ? 'text-petrol' : 'text-petrol-300'} />
+                        <div>
+                          <p className="font-semibold text-sm text-ink">{label}</p>
+                          <p className="text-xs text-petrol-300 mt-0.5">{sub}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
                   <div className="grid sm:grid-cols-2 gap-4">
                     {[
                       { key: 'name', label: 'Full name', type: 'text', placeholder: 'Jane Mwangi', span: 2 },
                       { key: 'phone', label: 'Phone number', type: 'tel', placeholder: '0712 345 678', span: 1 },
                       { key: 'email', label: 'Email address', type: 'email', placeholder: 'jane@example.com', span: 1 },
-                      { key: 'address', label: 'Street address', type: 'text', placeholder: '14 Ngong Road', span: 2 },
-                      { key: 'city', label: 'City / Town', type: 'text', placeholder: 'Nairobi', span: 1 },
+                      ...(fulfillment === 'delivery' ? [
+                        { key: 'address', label: 'Street address', type: 'text', placeholder: '14 Ngong Road', span: 2 },
+                        { key: 'city', label: 'City / Town', type: 'text', placeholder: 'Nairobi', span: 1 },
+                      ] : []),
                     ].map(({ key, label, type, placeholder, span }) => (
                       <div key={key} className={span === 2 ? 'sm:col-span-2' : ''}>
                         <label className="block text-xs font-medium text-petrol-300 mb-1.5">{label}</label>
@@ -181,16 +240,31 @@ export default function CheckoutPage() {
                       </div>
                     ))}
 
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-petrol-300 mb-1.5">Delivery Area / Zone <span className="text-red-500">*</span></label>
-                      <Select
-                        value={selectedZoneId}
-                        onChange={setSelectedZoneId}
-                        placeholder="Select your delivery area"
-                        options={(zones ?? []).map((z) => ({ value: z._id, label: `${z.name} (KES ${z.price})` }))}
-                        buttonClassName="bg-porcelain"
-                      />
-                    </div>
+                    {fulfillment === 'delivery' ? (
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-medium text-petrol-300 mb-1.5">Delivery Area / Zone <span className="text-red-500">*</span></label>
+                        <Select
+                          value={selectedZoneId}
+                          onChange={handleZoneChange}
+                          placeholder="Select your delivery area"
+                          options={(zones ?? []).map((z) => ({ value: z._id, label: `${z.name} (KES ${z.price})` }))}
+                          buttonClassName="bg-porcelain"
+                        />
+                      </div>
+                    ) : (
+                      <div className="sm:col-span-2 flex items-start gap-3 bg-petrol-50 border border-line rounded-xl p-4">
+                        <Store size={18} className="text-petrol flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-semibold text-sm text-ink">Pickup location</p>
+                          <p className="text-sm text-petrol-300 mt-0.5">{storeBranding.address}</p>
+                          {storeBranding.mapLink && (
+                            <a href={storeBranding.mapLink} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-petrol hover:underline mt-1 inline-block">
+                              Get directions
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     <div className="sm:col-span-2">
                       <label className="block text-xs font-medium text-petrol-300 mb-1.5">Order notes (optional)</label>
@@ -273,7 +347,11 @@ export default function CheckoutPage() {
                   </div>
                   <div className="p-4 bg-petrol-50 rounded-xl text-sm space-y-1 mb-5">
                     <p className="font-medium text-ink">{form.name || 'No name'}</p>
-                    <p className="text-petrol-300">{form.address}{selectedZone ? `, ${selectedZone.name}` : ''}</p>
+                    <p className="text-petrol-300">
+                      {fulfillment === 'delivery'
+                        ? `${form.address}${selectedZone ? `, ${selectedZone.name}` : ''}`
+                        : `Pickup — ${storeBranding.address}`}
+                    </p>
                     <p className="text-petrol-300">{form.phone}</p>
                   </div>
                   <button
@@ -315,8 +393,14 @@ export default function CheckoutPage() {
                   <span className="font-mono font-medium text-ink">KES {subtotal.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-petrol-300">Delivery</span>
-                  <span className={`font-mono font-medium ${deliveryFee === 0 ? 'text-success' : 'text-ink'}`}>{deliveryFee === 0 ? 'FREE' : `KES ${deliveryFee}`}</span>
+                  <span className="text-petrol-300">{fulfillment === 'pickup' ? 'Pickup' : 'Delivery'}</span>
+                  {deliveryFee === undefined ? (
+                    <span className="font-mono font-medium text-petrol-300">Select an area</span>
+                  ) : (
+                    <span className={`font-mono font-medium ${deliveryFee === 0 ? 'text-success' : 'text-ink'}`}>
+                      {fulfillment === 'pickup' || qualifiesForFreeThreshold ? 'FREE' : `KES ${deliveryFee}`}
+                    </span>
+                  )}
                 </div>
               </div>
               <hr className="border-line my-3" />

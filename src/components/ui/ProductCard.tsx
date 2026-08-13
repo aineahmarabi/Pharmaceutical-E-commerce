@@ -29,7 +29,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
 
   const handleAdd = (e: React.MouseEvent) => {
     e.preventDefault();
-    if (product.classification === 'POM' || !product.inStock || justAdded) return;
+    if (!product.inStock || justAdded) return;
     addItem(product);
     setJustAdded(true);
     setTimeout(() => setJustAdded(false), 800);
@@ -123,7 +123,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
               type="button"
               onClick={handleAdd}
               disabled={justAdded}
-              className="relative flex-1 flex items-center justify-center gap-1.5 bg-petrol hover:bg-petrol-700 active:bg-petrol-700 text-paper text-xs font-semibold py-2.5 md:py-3 transition-colors disabled:opacity-100 overflow-hidden"
+              className="relative flex-1 flex items-center justify-center gap-1.5 bg-petrol hover:bg-petrol-700 active:bg-petrol-700 active:scale-[0.96] text-paper text-xs font-semibold py-2.5 md:py-3 transition-all touch-manipulation disabled:opacity-100 overflow-hidden"
             >
               <AnimatePresence mode="wait" initial={false}>
                 {justAdded ? (
@@ -161,7 +161,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
             <button
               type="button"
               onClick={handleBuyNow}
-              className="flex-1 flex items-center justify-center gap-1.5 bg-signal hover:bg-signal/90 active:bg-signal/90 text-paper text-xs font-semibold py-2.5 md:py-3 transition-colors border-l border-paper/20"
+              className="flex-1 flex items-center justify-center gap-1.5 bg-signal hover:bg-signal/90 active:bg-signal/90 active:scale-[0.96] text-paper text-xs font-semibold py-2.5 md:py-3 transition-all touch-manipulation border-l border-paper/20"
             >
               <Zap size={14} />
               <span className="hidden sm:inline">Buy now</span>

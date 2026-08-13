@@ -7,6 +7,7 @@ export const branding = {
 
   whatsapp: '+254700000000',
   address: 'Nairobi, Kenya',
+  mapLink: '' as string,
   socialLinks: {
     twitter: '',
     instagram: '',

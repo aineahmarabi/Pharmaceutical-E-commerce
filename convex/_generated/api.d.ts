@@ -22,6 +22,7 @@ import type * as discounts from "../discounts.js";
 import type * as files from "../files.js";
 import type * as inventory from "../inventory.js";
 import type * as messages from "../messages.js";
+import type * as newsletter from "../newsletter.js";
 import type * as notifications from "../notifications.js";
 import type * as orders from "../orders.js";
 import type * as products from "../products.js";
@@ -51,6 +52,7 @@ declare const fullApi: ApiFromModules<{
   files: typeof files;
   inventory: typeof inventory;
   messages: typeof messages;
+  newsletter: typeof newsletter;
   notifications: typeof notifications;
   orders: typeof orders;
   products: typeof products;
