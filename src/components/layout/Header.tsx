@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -17,7 +16,6 @@ import { useBranding } from '@/hooks/useBranding';
 import { categories } from '@/lib/fixtures/categories';
 import { brands } from '@/lib/fixtures/categories';
 import { useCartStore, useWishlistStore } from '@/store/cart';
-import { useDeliveryZoneStore } from '@/store/delivery';
 import { SearchOverlay } from '@/components/search/SearchOverlay';
 import { BrandName } from '@/components/ui/BrandName';
 import { useQuery } from 'convex/react';
@@ -239,11 +237,7 @@ export function Header() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeMega, setActiveMega] = useState<string | null>(null);
-  const [zonePickerOpen, setZonePickerOpen] = useState(false);
-  const [zonePickerPos, setZonePickerPos] = useState<{ top: number; left: number } | null>(null);
   const megaTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const zonePickerRef = useRef<HTMLDivElement>(null);
-  const zoneTriggerRef = useRef<HTMLButtonElement>(null);
   const pathname = usePathname();
   const { items, toggleCart } = useCartStore();
   const { ids } = useWishlistStore();
@@ -253,7 +247,6 @@ export function Header() {
   const liveCategories = useQuery(api.taxonomy.listCategories, {});
   const mobileCategories = liveCategories && liveCategories.length > 0 ? liveCategories : categories;
   const deliveryZones = useQuery(api.delivery.listZones);
-  const { zoneId: selectedZoneId, zoneName: selectedZoneName, setZone, clearZone } = useDeliveryZoneStore();
   const [zoneShowcaseIdx, setZoneShowcaseIdx] = useState(0);
 
   useEffect(() => {
@@ -261,21 +254,13 @@ export function Header() {
     return () => clearInterval(t);
   }, []);
 
-  // A remembered zone can go stale — the admin may delete it, rename the store's
-  // zones, or wipe all of them. Once the live list has loaded, drop any selection
-  // that no longer exists rather than keep showing a deleted area forever.
+  // Purely decorative — keeps cycling through the areas we deliver to for as
+  // long as the header is on screen. Actual zone selection happens at checkout.
   useEffect(() => {
-    if (!deliveryZones || !selectedZoneId) return;
-    if (!deliveryZones.some((z) => z._id === selectedZoneId)) clearZone();
-  }, [deliveryZones, selectedZoneId, clearZone]);
-
-  // Until the customer picks a delivery area, rotate the trigger through the
-  // areas we actually deliver to — a quick "look what we cover" showcase.
-  useEffect(() => {
-    if (selectedZoneName || !deliveryZones || deliveryZones.length < 2) return;
+    if (!deliveryZones || deliveryZones.length < 2) return;
     const t = setInterval(() => setZoneShowcaseIdx((i) => (i + 1) % deliveryZones.length), 3000);
     return () => clearInterval(t);
-  }, [selectedZoneName, deliveryZones]);
+  }, [deliveryZones]);
 
   useEffect(() => {
     let ticking = false;
@@ -298,32 +283,6 @@ export function Header() {
     setMobileMenuOpen(false);
     setActiveMega(null);
   }, [pathname]);
-
-  useEffect(() => {
-    if (!zonePickerOpen) return;
-    const handleClick = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (zonePickerRef.current?.contains(target)) return;
-      if (zoneTriggerRef.current?.contains(target)) return;
-      setZonePickerOpen(false);
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [zonePickerOpen]);
-
-  // The utility bar clips overflow for its scroll-collapse animation, so a
-  // dropdown positioned inside it gets cut off — close it if that bar hides.
-  useEffect(() => {
-    if (scrolled) setZonePickerOpen(false);
-  }, [scrolled]);
-
-  const toggleZonePicker = () => {
-    if (!zonePickerOpen && zoneTriggerRef.current) {
-      const rect = zoneTriggerRef.current.getBoundingClientRect();
-      setZonePickerPos({ top: rect.bottom + 8, left: rect.left });
-    }
-    setZonePickerOpen((v) => !v);
-  };
 
   const openMega = (key: string) => {
     clearTimeout(megaTimerRef.current);
@@ -359,65 +318,23 @@ export function Header() {
                   <MapPin size={11} className="text-petrol-300" />
                   <span className="flex items-center gap-1">
                     Deliver to:{' '}
-                    <button
-                      ref={zoneTriggerRef}
-                      type="button"
-                      onClick={toggleZonePicker}
-                      className="relative overflow-hidden text-porcelain/90 font-semibold underline-offset-2 hover:underline"
-                    >
+                    <span className="relative overflow-hidden text-porcelain/90 font-semibold">
                       <AnimatePresence mode="wait">
                         <motion.span
-                          key={selectedZoneName ?? `showcase-${zoneShowcaseIdx}`}
+                          key={`showcase-${zoneShowcaseIdx}`}
                           initial={{ opacity: 0, y: 6 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -6 }}
                           transition={{ duration: 0.25 }}
                           className="inline-block"
                         >
-                          {selectedZoneName ?? deliveryZones?.[zoneShowcaseIdx % (deliveryZones.length || 1)]?.name ?? 'Select area'}
+                          {deliveryZones?.[zoneShowcaseIdx % (deliveryZones.length || 1)]?.name ?? 'Nationwide'}
                         </motion.span>
                       </AnimatePresence>
-                    </button>
+                    </span>
                   </span>
                 </div>
 
-                {typeof document !== 'undefined' && createPortal(
-                  <AnimatePresence>
-                    {zonePickerOpen && zonePickerPos && (
-                      <motion.div
-                        ref={zonePickerRef}
-                        initial={{ opacity: 0, y: -6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -6 }}
-                        transition={{ duration: 0.15 }}
-                        style={{ position: 'fixed', top: zonePickerPos.top, left: zonePickerPos.left }}
-                        className="w-56 bg-paper border border-line rounded-xl shadow-xl py-1.5 z-50"
-                      >
-                        {deliveryZones === undefined ? (
-                          <p className="px-3.5 py-2 text-xs text-petrol-300">Loading areas…</p>
-                        ) : deliveryZones.length === 0 ? (
-                          <p className="px-3.5 py-2 text-xs text-petrol-300">No delivery areas set up yet.</p>
-                        ) : (
-                          deliveryZones.map((z) => (
-                            <button
-                              key={z._id}
-                              type="button"
-                              onClick={() => { setZone(z._id, z.name); setZonePickerOpen(false); }}
-                              className={cn(
-                                'w-full flex items-center justify-between gap-2 text-left px-3.5 py-2 text-sm hover:bg-petrol-50 transition-colors',
-                                z._id === selectedZoneId ? 'text-ink font-medium' : 'text-ink/70'
-                              )}
-                            >
-                              <span>{z.name}</span>
-                              <span className="font-mono text-xs text-petrol-300">KES {z.price}</span>
-                            </button>
-                          ))
-                        )}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>,
-                  document.body
-                )}
                 <div className="flex-1 flex justify-center">
                   <AnimatePresence mode="wait">
                     <motion.p
