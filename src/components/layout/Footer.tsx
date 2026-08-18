@@ -53,7 +53,7 @@ export function Footer() {
           <div>
             <div className="flex items-center gap-2.5 mb-3">
               {branding.logo ? (
-                <img src={branding.logo} alt={branding.name} className="h-8 w-8 object-contain flex-shrink-0" />
+                <img src={branding.logo} alt={branding.name} className="h-9 sm:h-11 w-auto max-w-[160px] object-contain flex-shrink-0" />
               ) : (
                 <svg width="32" height="32" viewBox="0 0 48 48" fill="none">
                   <rect x="8" y="18" width="32" height="12" rx="6" fill="#5FA89C" />
