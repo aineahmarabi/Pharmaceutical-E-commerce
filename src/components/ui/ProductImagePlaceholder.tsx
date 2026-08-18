@@ -51,11 +51,11 @@ export function ProductImagePlaceholder({
 
   if (imageUrl) {
     return (
-      <div className={cn('w-full', className)}>
+      <div className={cn('relative overflow-hidden bg-porcelain', aspectRatio, className)}>
         <img
           src={imageUrl}
           alt={name ?? ''}
-          className="ghost-float-hover w-full h-auto"
+          className="ghost-float-hover absolute inset-0 w-full h-full object-contain"
         />
       </div>
     );
