@@ -1,50 +1,42 @@
 'use client';
 
 import React, { Suspense } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { Search } from 'lucide-react';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { toProduct } from '@/lib/adapters/product';
-import { ProductGrid } from '@/components/product/ProductGrid';
-
-const ease = [0.16, 1, 0.3, 1] as const;
+import { ListingView } from '@/components/product/ListingView';
 
 function SearchContent() {
   const params = useSearchParams();
   const query = params.get('q') ?? '';
+  const trimmed = query.trim();
   const products = useQuery(api.products.searchProducts, { term: query, limit: 48 });
+  const suggestion = useQuery(api.products.searchSuggestion, trimmed ? { term: query } : 'skip');
+
+  const hasResults = !!products && products.length > 0;
+  const suggestionLink = suggestion ? (
+    <Link href={`/search?q=${encodeURIComponent(suggestion)}`} className="font-semibold text-petrol hover:underline underline-offset-2">
+      {suggestion}
+    </Link>
+  ) : null;
 
   return (
-    <div className="min-h-screen bg-porcelain">
-      <div className="bg-ink py-10 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease }}>
-            <div className="flex items-center gap-3 mb-2">
-              <Search size={20} className="text-petrol-300" />
-              <h1 className="font-display font-bold text-2xl text-paper tracking-tight">
-                {query ? <>Results for <span className="text-signal">&ldquo;{query}&rdquo;</span></> : 'Search'}
-              </h1>
-            </div>
-            {products && (
-              <p className="text-paper/50 text-sm">{products.length} product{products.length === 1 ? '' : 's'} found</p>
-            )}
-          </motion.div>
+    <>
+      {suggestion && products !== undefined && (
+        <div className="mx-auto max-w-7xl px-4 pt-4 text-sm text-ink sm:px-6 lg:px-8" role="status">
+          {hasResults ? <>Showing results for {suggestionLink}</> : <>Did you mean {suggestionLink}?</>}
         </div>
-      </div>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {query ? (
-          <ProductGrid
-            products={products?.map(toProduct)}
-            emptyTitle={`No products found for "${query}"`}
-            emptyDescription="Try a different search term or browse our categories."
-          />
-        ) : (
-          <ProductGrid products={[]} emptyTitle="Search for a product" emptyDescription="Try a medicine name, brand, or generic name." />
-        )}
-      </div>
-    </div>
+      )}
+      <ListingView
+        breadcrumb={[{ label: 'Home', href: '/' }, { label: 'Search' }]}
+        title={query ? `Results for “${query}”` : 'Search'}
+        products={query ? products?.map(toProduct) : []}
+        emptyTitle={query ? `No products found for “${query}”` : 'Search for a product'}
+        emptyDescription={query ? 'Check the spelling.' : 'Type a medicine or brand.'}
+      />
+    </>
   );
 }
 

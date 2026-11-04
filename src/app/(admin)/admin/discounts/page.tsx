@@ -2,8 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useMutation, useQuery } from 'convex/react';
-import { Percent } from 'lucide-react';
+import { useAdminQuery, useAdminMutation } from '@/hooks/useAdminApi';
 import { api } from '../../../../../convex/_generated/api';
 import type { Id } from '../../../../../convex/_generated/dataModel';
 import { PageHeader } from '@/components/admin/shared/PageHeader';
@@ -23,7 +22,7 @@ function typeLabel(type: string) {
   return 'Buy X get Y';
 }
 
-function valueLabel(d: any) {
+function valueLabel(d: { type: string; value: number }) {
   if (d.type === 'percentage') return `${d.value}%`;
   if (d.type === 'fixed') return `KES ${d.value}`;
   if (d.type === 'freeShipping') return 'Free shipping';
@@ -35,8 +34,8 @@ export default function AdminDiscountsPage() {
   const { toast } = useAdminToast();
   const confirm = useConfirm();
   const [tab, setTab] = useState('all');
-  const discounts = useQuery(api.discounts.listDiscounts);
-  const deactivate = useMutation(api.discounts.deactivateDiscount);
+  const discounts = useAdminQuery(api.discounts.listDiscounts, {});
+  const deactivate = useAdminMutation(api.discounts.deactivateDiscount);
 
   const filtered = useMemo(() => {
     if (!discounts) return undefined;
@@ -44,20 +43,20 @@ export default function AdminDiscountsPage() {
     return discounts.filter((d) => d.status === tab);
   }, [discounts, tab]);
 
-  const columns: DataTableColumn<any>[] = [
-    { key: 'code', label: 'Discount', render: (row) => <span className="font-semibold text-p-focus">{row.code}</span> },
+  const columns: DataTableColumn<NonNullable<typeof filtered>[number] & { id: string }>[] = [
+    { key: 'code', label: 'Discount', render: (row) => <span className="font-semibold text-p-text">{row.code}</span> },
     {
       key: 'status',
       label: 'Status',
       render: (row) => (
         <Badge status={row.status === 'active' ? 'success' : row.status === 'scheduled' ? 'info' : 'default'}>
-          {row.status}
+          {row.status.charAt(0).toUpperCase() + row.status.slice(1)}
         </Badge>
       ),
     },
     { key: 'type', label: 'Type', render: (row) => typeLabel(row.type) },
     { key: 'value', label: 'Value', render: (row) => valueLabel(row) },
-    { key: 'usedCount', label: 'Used', align: 'right', render: (row) => `${row.usedCount}×` },
+    { key: 'usedCount', label: 'Times used', align: 'right', render: (row) => <span className="tabular-nums">{row.usedCount}</span> },
     {
       key: 'actions',
       label: '',
@@ -77,7 +76,7 @@ export default function AdminDiscountsPage() {
               await deactivate({ id: row._id as Id<'discounts'> });
               toast('Discount deactivated');
             }}
-            className="text-p-critical text-sm hover:underline"
+            className="text-p-critical text-sm font-medium hover:underline"
           >
             Deactivate
           </button>
@@ -112,10 +111,9 @@ export default function AdminDiscountsPage() {
             onRowClick={(row) => router.push(`/admin/discounts/${row._id}`)}
             emptyState={
               <EmptyState
-                icon={Percent}
-                heading="Manage discounts and promotions"
-                body="Create discount codes that apply at checkout."
-                action={{ label: 'Create discount', onClick: () => router.push('/admin/discounts/new') }}
+                heading={tab === 'all' ? 'No discount codes yet' : `No ${tab} discounts`}
+                body={tab === 'all' ? 'Create a code customers can enter at checkout.' : 'Discounts with this status will appear here.'}
+                action={tab === 'all' ? { label: 'Create discount', onClick: () => router.push('/admin/discounts/new') } : undefined}
               />
             }
           />

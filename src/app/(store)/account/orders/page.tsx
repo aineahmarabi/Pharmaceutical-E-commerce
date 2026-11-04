@@ -1,14 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
-import Link from 'next/link';
-import { motion } from 'framer-motion';
-import { useQuery } from 'convex/react';
-import { Search, Package, MapPin } from 'lucide-react';
+import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../../../convex/_generated/api';
 import { useCustomerAuth } from '@/lib/auth/customerAuth';
-
-const ease = [0.16, 1, 0.3, 1] as const;
+import Link from 'next/link';
+import { BuyAgainButton } from '@/components/account/BuyAgainButton';
+import { RefillReminderButton } from '@/components/account/RefillReminder';
+import { AccountFrame, accountField, primaryBtn } from '../AccountFrame';
 
 const STATUS_LABELS: Record<string, string> = {
   placed: 'Order placed',
@@ -19,156 +18,164 @@ const STATUS_LABELS: Record<string, string> = {
   cancelled: 'Cancelled',
 };
 
+const STEPS = ['placed', 'confirmed', 'packed', 'delivering', 'completed'] as const;
+
+function StatusChip({ status }: { status: string }) {
+  const cancelled = status === 'cancelled';
+  return (
+    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border flex-shrink-0 ${cancelled ? 'border-signal text-signal' : 'border-line bg-porcelain text-ink'}`}>
+      {STATUS_LABELS[status] ?? status}
+    </span>
+  );
+}
+
+function StatusTimeline({ status }: { status: string }) {
+  if (status === 'cancelled') return <p className="text-sm text-signal">This order was cancelled.</p>;
+  const idx = STEPS.indexOf(status as (typeof STEPS)[number]);
+  return (
+    <ol className="grid grid-cols-5 gap-1" aria-label="Order progress">
+      {STEPS.map((s, i) => {
+        const done = i <= idx;
+        return (
+          <li key={s} className="flex flex-col gap-2" aria-current={i === idx ? 'step' : undefined}>
+            <span className={`h-1 rounded-full ${done ? 'bg-ink' : 'bg-line'}`} />
+            <span className={`text-xs leading-tight ${done ? 'text-ink font-medium' : 'text-muted-fg'}`}>{STATUS_LABELS[s]}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+const fmtDate = (t: number) => new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
 export default function OrdersPage() {
   const { isAuthenticated, token } = useCustomerAuth();
   const myOrders = useQuery(api.orders.listMyOrders, token ? { token } : 'skip');
 
   const [orderNumber, setOrderNumber] = useState('');
   const [contact, setContact] = useState('');
+  type TrackResult = Awaited<ReturnType<typeof trackOrder>>;
+  const trackOrder = useMutation(api.orders.trackOrder);
   const [submitted, setSubmitted] = useState<{ orderNumber: string; contact: string } | null>(null);
-
-  const result = useQuery(
-    api.orders.trackOrder,
-    submitted ? { orderNumber: submitted.orderNumber, contact: submitted.contact } : 'skip'
-  );
+  const [result, setResult] = useState<TrackResult | undefined>(undefined);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!orderNumber.trim() || !contact.trim()) return;
-    setSubmitted({ orderNumber, contact });
+    const next = { orderNumber, contact };
+    setSubmitted(next);
+    setResult(undefined);
+    trackOrder(next)
+      .then(setResult)
+      .catch(() => setResult({ found: false as const, error: 'Something went wrong. Please try again.' }));
   };
 
   return (
-    <div className="min-h-screen bg-porcelain py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-2xl mx-auto">
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease }}>
-          <nav className="text-xs text-petrol-300 mb-3 flex gap-2">
-            <Link href="/account" className="hover:text-petrol">Account</Link><span>/</span><span className="text-ink/70">Track order</span>
-          </nav>
-          <h1 className="font-display font-bold text-2xl text-ink tracking-tight">{isAuthenticated ? 'My orders' : 'Track your order'}</h1>
-          <p className="text-sm text-ink/60 mt-1">
-            {isAuthenticated
-              ? 'Your order history, saved to your account.'
-              : 'Enter your order number and the phone number or email you used at checkout.'}
-          </p>
-        </motion.div>
-
-        {isAuthenticated && (
-          <div className="mt-6 space-y-3">
-            {myOrders === undefined ? (
-              <div className="h-20 bg-paper border border-line rounded-2xl animate-pulse" />
-            ) : myOrders.length === 0 ? (
-              <div className="bg-paper border border-line rounded-2xl p-6 text-center text-sm text-ink/50">
-                No orders yet — orders you place while signed in will show up here.
-              </div>
-            ) : (
-              myOrders.map((order) => (
-                <div key={order._id} className="bg-paper border border-line rounded-2xl p-5 flex items-center justify-between gap-4 shadow-sm">
+    <AccountFrame
+      title={isAuthenticated ? 'Orders' : 'Track your order'}
+    >
+      {isAuthenticated && (
+        <div className="space-y-4">
+          {myOrders === undefined ? (
+            <div className="h-24 bg-paper border border-line rounded-xl animate-pulse" />
+          ) : myOrders.length === 0 ? (
+            <div className="bg-paper border border-line rounded-xl p-6 sm:p-8">
+              <p className="font-semibold text-ink">No orders</p>
+            </div>
+          ) : (
+            myOrders.map((order) => (
+              <div key={order._id} className="bg-paper border border-line rounded-xl p-4 sm:p-6 space-y-4">
+                <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="font-display font-bold text-sm text-ink">{order.orderNumber}</p>
-                    <p className="text-xs text-ink/50 mt-0.5">
-                      {new Date(order._creationTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · KES {order.total.toLocaleString()}
+                    <p className="font-semibold text-ink">{order.orderNumber}</p>
+                    <p className="text-sm text-muted-fg mt-0.5">
+                      {fmtDate(order._creationTime)} · <span className="tabular-nums">KES {order.total.toLocaleString()}</span>
                     </p>
                   </div>
-                  <span className="bg-petrol/10 text-petrol text-xs font-semibold px-3 py-1.5 rounded-full uppercase tracking-wide flex-shrink-0">
-                    {STATUS_LABELS[order.status] ?? order.status}
-                  </span>
+                  <StatusChip status={order.status} />
                 </div>
-              ))
-            )}
-          </div>
-        )}
-
-        {isAuthenticated && (
-          <p className="text-xs font-semibold uppercase tracking-wide text-petrol-300 mt-8 mb-1">Or track a guest order</p>
-        )}
-
-        <form onSubmit={handleSubmit} className={`${isAuthenticated ? 'mt-2' : 'mt-6'} bg-paper border border-line rounded-2xl p-5 space-y-4 shadow-sm`}>
-          <div>
-            <label className="block text-sm font-medium text-ink mb-1.5">Order number</label>
-            <input
-              value={orderNumber}
-              onChange={(e) => setOrderNumber(e.target.value)}
-              placeholder="e.g. #PHR1042"
-              className="w-full px-4 py-2.5 bg-white border border-line rounded-xl focus:outline-none focus:border-petrol text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-ink mb-1.5">Phone number or email</label>
-            <input
-              value={contact}
-              onChange={(e) => setContact(e.target.value)}
-              placeholder="Used at checkout"
-              className="w-full px-4 py-2.5 bg-white border border-line rounded-xl focus:outline-none focus:border-petrol text-sm"
-            />
-          </div>
-          <button
-            type="submit"
-            className="w-full flex items-center justify-center gap-2 bg-petrol text-paper font-semibold py-2.5 rounded-xl hover:bg-petrol/90 transition-colors"
-          >
-            <Search size={16} /> Track order
-          </button>
-        </form>
-
-        {submitted && (
-          <div className="mt-6">
-            {result === undefined ? (
-              <p className="text-sm text-ink/50 text-center py-8">Looking up your order...</p>
-            ) : !result.found ? (
-              <div className="bg-danger/5 border border-danger/20 rounded-2xl p-5 text-center">
-                <p className="text-sm text-danger font-medium">{result.error}</p>
+                <StatusTimeline status={order.status} />
+                <div className="flex flex-wrap items-center gap-3 border-t border-line pt-4">
+                  <BuyAgainButton items={order.items} />
+                  <RefillReminderButton orderId={order._id} />
+                  <Link href={`/account/orders/${order._id}`} className="text-sm font-medium text-petrol hover:underline">Details</Link>
+                </div>
               </div>
-            ) : (
-              <div className="bg-paper border border-line rounded-2xl p-5 space-y-4 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-display font-bold text-lg text-ink">{result.order.orderNumber}</p>
-                    <p className="text-xs text-ink/50 mt-0.5">
-                      Placed {new Date(result.order._creationTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                    </p>
+            ))
+          )}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="bg-paper border border-line rounded-xl p-4 sm:p-6 max-w-xl space-y-4">
+        <h2 className="text-lg font-semibold tracking-tight text-ink">{isAuthenticated ? 'Track a guest order' : 'Track order'}</h2>
+        <div>
+          <label htmlFor="trk-no" className="block text-sm font-medium text-ink mb-1.5">Order number</label>
+          <input id="trk-no" value={orderNumber} onChange={(e) => setOrderNumber(e.target.value)} placeholder="e.g. #PHR1042" className={accountField} />
+        </div>
+        <div>
+          <label htmlFor="trk-contact" className="block text-sm font-medium text-ink mb-1.5">Phone number or email</label>
+          <input id="trk-contact" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="Used at checkout" className={accountField} />
+        </div>
+        <button type="submit" className={`${primaryBtn} w-full`}>Track order</button>
+      </form>
+
+      {submitted && (
+        <div>
+          {result === undefined ? (
+            <p className="text-sm text-muted-fg py-6">Looking up your order…</p>
+          ) : !result.found ? (
+            <div role="alert" className="bg-paper border border-signal rounded-xl p-4">
+              <p className="text-sm text-signal font-medium">{result.error}</p>
+            </div>
+          ) : (
+            <div className="bg-paper border border-line rounded-xl p-4 sm:p-6 space-y-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-lg font-semibold text-ink">{result.order.orderNumber}</p>
+                  <p className="text-sm text-muted-fg mt-0.5">Placed {fmtDate(result.order._creationTime)}</p>
+                </div>
+                <StatusChip status={result.order.status} />
+              </div>
+
+              <StatusTimeline status={result.order.status} />
+
+              <div className="border-t border-line pt-4 space-y-2">
+                {result.order.items.map((item, i) => (
+                  <div key={i} className="flex justify-between gap-4 text-sm">
+                    <span className="text-ink">{item.name} × {item.qty}</span>
+                    <span className="text-ink tabular-nums">KES {(item.price * item.qty).toLocaleString()}</span>
                   </div>
-                  <span className="bg-petrol/10 text-petrol text-xs font-semibold px-3 py-1.5 rounded-full uppercase tracking-wide">
-                    {STATUS_LABELS[result.order.status] ?? result.order.status}
-                  </span>
+                ))}
+                <div className="flex justify-between text-sm font-semibold border-t border-line pt-2 mt-2 text-ink">
+                  <span>Total</span>
+                  <span className="tabular-nums">KES {result.order.total.toLocaleString()}</span>
                 </div>
+              </div>
 
-                <div className="border-t border-line pt-4 space-y-2">
-                  {result.order.items.map((item: any, i: number) => (
-                    <div key={i} className="flex justify-between text-sm">
-                      <span className="text-ink">{item.name} × {item.qty}</span>
-                      <span className="text-ink/70">KES {(item.price * item.qty).toLocaleString()}</span>
-                    </div>
-                  ))}
-                  <div className="flex justify-between text-sm font-semibold border-t border-line pt-2 mt-2">
-                    <span>Total</span>
-                    <span>KES {result.order.total.toLocaleString()}</span>
-                  </div>
-                </div>
+              <div className="border-t border-line pt-4">
+                <p className="text-xs font-medium text-muted-fg mb-1">Delivery address</p>
+                <p className="text-sm text-ink">{result.order.deliveryAddress}</p>
+              </div>
 
-                <div className="border-t border-line pt-4 flex items-start gap-2">
-                  <MapPin size={14} className="text-petrol-300 mt-0.5 flex-shrink-0" />
-                  <p className="text-sm text-ink/70">{result.order.deliveryAddress}</p>
-                </div>
-
-                {result.timeline && result.timeline.length > 0 && (
-                  <div className="border-t border-line pt-4 space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-petrol-300">Timeline</p>
-                    {result.timeline.map((event: any) => (
-                      <div key={event._id} className="flex gap-2 text-sm">
-                        <Package size={13} className="text-petrol-300 mt-0.5 flex-shrink-0" />
-                        <div>
-                          <p className="text-ink">{event.action.replace(/_/g, ' ').toLowerCase()}</p>
-                          <p className="text-xs text-ink/50">{new Date(event.createdAt).toLocaleString()}</p>
-                        </div>
-                      </div>
+              {result.timeline && result.timeline.length > 0 && (
+                <div className="border-t border-line pt-4">
+                  <p className="text-xs font-medium text-muted-fg mb-3">Activity</p>
+                  <ol className="space-y-3 border-l border-line ml-1">
+                    {result.timeline.map((event) => (
+                      <li key={event._id} className="pl-4 relative">
+                        <span className="absolute -left-[3px] top-1.5 w-1.5 h-1.5 rounded-full bg-ink" aria-hidden />
+                        <p className="text-sm text-ink capitalize">{event.action.replace(/_/g, ' ').toLowerCase()}</p>
+                        <p className="text-xs text-muted-fg">{new Date(event.createdAt).toLocaleString()}</p>
+                      </li>
                     ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+                  </ol>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </AccountFrame>
   );
 }

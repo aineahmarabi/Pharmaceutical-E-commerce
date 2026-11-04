@@ -8,6 +8,7 @@ function splitBrandName(name: string): [string, string] {
   return [name.slice(0, splitAt), name.slice(splitAt)];
 }
 
+// Two-tone wordmark: second word picks up the single brand accent.
 export function BrandName({ name, className, accentClassName }: { name: string; className?: string; accentClassName?: string }) {
   const [first, second] = splitBrandName(name);
   if (!second) return <span className={className}>{name}</span>;

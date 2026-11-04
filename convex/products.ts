@@ -1,5 +1,7 @@
-import { query, mutation } from './_generated/server';
+import { query, internalQuery, internalMutation } from './_generated/server';
 import { v } from 'convex/values';
+import type { QueryCtx } from './_generated/server';
+import type { Doc } from './_generated/dataModel';
 
 // ─── Helper: resolve image URL from storage or fallback ────────────────────
 async function resolveImageUrl(
@@ -231,27 +233,135 @@ export const listHeroFeatured = query({
   },
 });
 
-/** Full-text search — excludes out-of-stock */
+// ─── SEARCH ────────────────────────────────────────────────────────────────
+
+function tokenize(text: string): string[] {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+}
+
+/** Optimal-string-alignment edit distance (insert/delete/substitute/transpose), bails out above `max`. */
+function editDistance(a: string, b: string, max: number): number {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  const prev2: number[] = [];
+  let prev: number[] = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur: number[] = [i];
+    let rowMin = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      let d = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        d = Math.min(d, prev2[j - 2] + 1);
+      }
+      cur[j] = d;
+      if (d < rowMin) rowMin = d;
+    }
+    if (rowMin > max) return max + 1;
+    for (let j = 0; j <= b.length; j++) prev2[j] = prev[j];
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+function maxTypos(len: number): number {
+  if (len <= 3) return 0;
+  if (len <= 5) return 1;
+  return 2;
+}
+
+/** Score one query token against one field's tokens (0 = no match). */
+function scoreToken(q: string, fieldTokens: string[]): number {
+  let best = 0;
+  for (const t of fieldTokens) {
+    let s = 0;
+    if (t === q) s = 1;
+    else if (q.length >= 2 && t.startsWith(q)) s = 0.85;
+    else if (q.length >= 3 && t.includes(q)) s = 0.55;
+    else {
+      const allowed = maxTypos(q.length);
+      if (allowed > 0) {
+        // compare against the same-length prefix too so "amoxcil" still finds "amoxicillin"
+        const d = Math.min(
+          editDistance(q, t, allowed),
+          t.length > q.length ? editDistance(q, t.slice(0, q.length), allowed) + 1 : allowed + 1
+        );
+        if (d <= allowed) s = 0.6 - 0.15 * d;
+      }
+    }
+    if (s > best) best = s;
+  }
+  return best;
+}
+
+type SearchableProduct = {
+  name: string[];
+  brand: string[];
+  generic: string[];
+  category: string[];
+  conditions: string[];
+};
+
+const FIELD_WEIGHT = { name: 5, brand: 3, generic: 4, category: 2, conditions: 2 } as const;
+
+function scoreProduct(qTokens: string[], f: SearchableProduct, fullQuery: string, nameFull: string): number {
+  let total = 0;
+  for (const q of qTokens) {
+    let best = 0;
+    for (const key of Object.keys(FIELD_WEIGHT) as (keyof typeof FIELD_WEIGHT)[]) {
+      const s = scoreToken(q, f[key]) * FIELD_WEIGHT[key];
+      if (s > best) best = s;
+    }
+    if (best === 0) return 0; // every typed word has to match something
+    total += best;
+  }
+  if (nameFull === fullQuery) total += 10;
+  else if (nameFull.startsWith(fullQuery)) total += 5;
+  else if (nameFull.includes(fullQuery)) total += 2;
+  return total;
+}
+
+async function loadSearchData(ctx: { db: QueryCtx['db'] }) {
+  const [products, conditions] = await Promise.all([
+    ctx.db.query('products').collect() as Promise<Doc<'products'>[]>,
+    ctx.db.query('conditions').collect() as Promise<Doc<'conditions'>[]>,
+  ]);
+  const conditionName = new Map<string, string>(conditions.map((c) => [c.slug, c.name]));
+  const indexed = products.map((p) => ({
+    product: p,
+    nameFull: tokenize(p.name).join(' '),
+    fields: {
+      name: tokenize(p.name),
+      brand: tokenize(p.brand),
+      generic: tokenize(p.genericName),
+      category: tokenize(p.category),
+      conditions: tokenize(p.conditions.map((s) => conditionName.get(s) ?? s.replace(/-/g, ' ')).join(' ')),
+    } as SearchableProduct,
+  }));
+  return indexed;
+}
+
+/** Ranked search across name, brand, generic name, category and conditions.
+ *  Tolerates typos and partial words; excludes out-of-stock products. */
 export const searchProducts = query({
   args: { term: v.string(), limit: v.optional(v.number()) },
   handler: async (ctx, { term, limit = 20 }) => {
-    if (!term.trim()) return [];
-    const all = await ctx.db
-      .query('products')
-      .filter((q) => q.eq(q.field('inStock'), true))
-      .collect();
-    const lower = term.toLowerCase();
-    const filtered = all
-      .filter(
-        (p) =>
-          p.name.toLowerCase().includes(lower) ||
-          p.genericName.toLowerCase().includes(lower) ||
-          p.brand.toLowerCase().includes(lower) ||
-          p.category.toLowerCase().includes(lower)
-      )
+    const qTokens = tokenize(term);
+    if (qTokens.length === 0) return [];
+    const fullQuery = qTokens.join(' ');
+    const indexed = await loadSearchData(ctx);
+    const ranked = indexed
+      .filter((i) => i.product.inStock)
+      .map((i) => ({ p: i.product, score: scoreProduct(qTokens, i.fields, fullQuery, i.nameFull) }))
+      .filter((r) => r.score > 0)
+      .sort((a, b) => b.score - a.score || a.p.name.localeCompare(b.p.name))
       .slice(0, limit);
     return Promise.all(
-      filtered.map(async (p) => ({
+      ranked.map(async ({ p }) => ({
         ...p,
         imageUrl: await resolveImageUrl(ctx, p.imageStorageId, p.imageUrl),
       }))
@@ -259,10 +369,49 @@ export const searchProducts = query({
   },
 });
 
+/** "Did you mean" — a corrected query when a typed word isn't a known word, otherwise null. */
+export const searchSuggestion = query({
+  args: { term: v.string() },
+  handler: async (ctx, { term }) => {
+    const qTokens = tokenize(term);
+    if (qTokens.length === 0) return null;
+    const indexed = await loadSearchData(ctx);
+    const freq = new Map<string, number>();
+    for (const i of indexed) {
+      for (const key of ['name', 'brand', 'generic', 'category', 'conditions'] as const) {
+        for (const t of i.fields[key]) if (t.length >= 3) freq.set(t, (freq.get(t) ?? 0) + 1);
+      }
+    }
+    const vocab = [...freq.keys()];
+    let changed = false;
+    const corrected = qTokens.map((q) => {
+      if (q.length < 4) return q;
+      // known word or a prefix of one: leave as typed
+      if (vocab.some((t) => t === q || t.startsWith(q))) return q;
+      const allowed = maxTypos(q.length);
+      let best: string | null = null;
+      let bestD = allowed + 1;
+      for (const t of vocab) {
+        const d = editDistance(q, t, allowed);
+        if (d < bestD || (d === bestD && best !== null && (freq.get(t) ?? 0) > (freq.get(best) ?? 0))) {
+          best = t;
+          bestD = d;
+        }
+      }
+      if (best && bestD <= allowed) {
+        changed = true;
+        return best;
+      }
+      return q;
+    });
+    return changed ? corrected.join(' ') : null;
+  },
+});
+
 // ─── MUTATIONS ─────────────────────────────────────────────────────────────
 
 /** Generate a Convex upload URL for product images */
-export const generateUploadUrl = mutation({
+export const generateUploadUrl = internalMutation({
   args: {},
   handler: async (ctx) => {
     return await ctx.storage.generateUploadUrl();
@@ -270,7 +419,7 @@ export const generateUploadUrl = mutation({
 });
 
 /** Save product */
-export const upsertProduct = mutation({
+export const upsertProduct = internalMutation({
   args: {
     slug: v.string(),
     name: v.string(),
@@ -317,7 +466,7 @@ export const upsertProduct = mutation({
 });
 
 /** One-off cleanup: remove fabricated rating/reviewCount placeholder data */
-export const clearFakeRatings = mutation({
+export const clearFakeRatings = internalMutation({
   args: {},
   handler: async (ctx) => {
     const all = await ctx.db.query('products').collect();
@@ -333,7 +482,7 @@ export const clearFakeRatings = mutation({
 });
 
 /** Update product stock */
-export const updateStock = mutation({
+export const updateStock = internalMutation({
   args: { slug: v.string(), stockQty: v.number(), inStock: v.boolean() },
   handler: async (ctx, { slug, stockQty, inStock }) => {
     const product = await ctx.db
@@ -347,7 +496,7 @@ export const updateStock = mutation({
 
 // ─── ADMIN QUERIES & MUTATIONS ─────────────────────────────────────────────
 
-export const adminListProducts = query({
+export const adminListProducts = internalQuery({
   args: {
     category: v.optional(v.string()),
     stockStatus: v.optional(v.string()), // 'in_stock' | 'out_of_stock'
@@ -355,7 +504,7 @@ export const adminListProducts = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    let q = ctx.db.query('products').order('desc');
+    const q = ctx.db.query('products').order('desc');
     let results = await q.collect();
 
     if (args.category) {
@@ -374,14 +523,14 @@ export const adminListProducts = query({
   },
 });
 
-export const adminGetProductById = query({
+export const adminGetProductById = internalQuery({
   args: { id: v.id('products') },
   handler: async (ctx, { id }) => {
     return await ctx.db.get(id);
   },
 });
 
-export const adminCreateProduct = mutation({
+export const adminCreateProduct = internalMutation({
   args: {
     slug: v.string(),
     name: v.string(),
@@ -418,7 +567,7 @@ export const adminCreateProduct = mutation({
   },
 });
 
-export const adminUpdateProduct = mutation({
+export const adminUpdateProduct = internalMutation({
   args: {
     id: v.id('products'),
     updates: v.any(), // Record of updates matching schema
@@ -434,7 +583,7 @@ export const adminUpdateProduct = mutation({
   },
 });
 
-export const adminDeleteProduct = mutation({
+export const adminDeleteProduct = internalMutation({
   args: { id: v.id('products') },
   handler: async (ctx, { id }) => {
     // Instead of active=false, we set inStock=false to soft-hide it from clients since we can't change schema
@@ -448,7 +597,7 @@ export const adminDeleteProduct = mutation({
   },
 });
 
-export const bulkExportCsv = query({
+export const bulkExportCsv = internalQuery({
   args: {},
   handler: async (ctx) => {
     return await ctx.db.query('products').collect();

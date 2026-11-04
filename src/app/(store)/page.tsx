@@ -1,23 +1,30 @@
-import { Hero } from '@/components/sections/Hero';
 import { CategorySection } from '@/components/sections/CategorySection';
-import { TrustBar } from '@/components/sections/TrustBar';
-import { TrendingSection } from '@/components/sections/TrendingSection';
-import { SpecialOffers } from '@/components/sections/SpecialOffers';
-import { HowItWorks } from '@/components/sections/HowItWorks';
-import { BrandsRail } from '@/components/sections/BrandsRail';
-import { NewsletterSignup } from '@/components/sections/NewsletterSignup';
+import { Hero } from '@/components/sections/Hero';
+import { BuyAgain } from '@/components/sections/BuyAgain';
+import { RefillDueCard } from '@/components/account/RefillReminder';
+import { NeedTiles } from '@/components/sections/NeedTiles';
+import { NeedShelf } from '@/components/sections/NeedShelf';
+import { Faq } from '@/components/sections/Faq';
 
 export default function HomePage() {
   return (
     <>
+      <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+        <CategorySection />
+      </div>
+
+      {/* Full-width opening banner: fills the first screen and scrolls away with the page. */}
       <Hero />
-      <TrustBar />
-      <CategorySection />
-      <TrendingSection />
-      <SpecialOffers />
-      <HowItWorks />
-      <BrandsRail />
-      <NewsletterSignup />
+
+      <div className="mx-auto max-w-7xl space-y-10 px-4 py-10 sm:px-6 lg:px-8">
+        <RefillDueCard />
+        <BuyAgain />
+        <NeedTiles />
+        <NeedShelf title="Pain relief" slug="pain-relief" />
+        <NeedShelf title="Cold & flu" slug="cough-cold" />
+        <NeedShelf title="Vitamins" slug="vitamins-supplements" />
+        <Faq />
+      </div>
     </>
   );
 }

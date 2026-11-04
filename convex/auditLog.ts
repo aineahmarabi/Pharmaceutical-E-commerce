@@ -1,8 +1,10 @@
-import { query, mutation } from './_generated/server';
+import { query, internalMutation } from './_generated/server';
 import { v } from 'convex/values';
+import { requireStaff, MANAGERS } from './adminGuard';
 
 export const listAuditLogs = query({
   args: {
+    token: v.string(),
     actorId: v.optional(v.id('staff')),
     action: v.optional(v.string()),
     targetType: v.optional(v.string()),
@@ -10,6 +12,7 @@ export const listAuditLogs = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
     let q = ctx.db.query('auditLog').order('desc');
 
     if (args.actorId) {
@@ -36,7 +39,7 @@ export const listAuditLogs = query({
   },
 });
 
-export const writeAuditLog = mutation({
+export const writeAuditLog = internalMutation({
   args: {
     actorId: v.optional(v.id('staff')),
     action: v.string(),

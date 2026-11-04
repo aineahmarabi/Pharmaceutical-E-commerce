@@ -25,6 +25,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return () => document.removeEventListener('keydown', handleKey);
   }, []);
 
+  // Close the drawer after navigating.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- close drawer on route change
+    setMobileOpen(false);
+  }, [pathname]);
+
   // If on login page, don't show sidebar/topbar
   if (pathname === '/admin/login') {
     return <AuthGuard>{children}</AuthGuard>;
@@ -36,16 +42,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <ConfirmProvider>
           <a
             href="#main-content"
-            className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[999] focus:bg-white focus:px-4 focus:py-2 focus:rounded focus:shadow-p-modal"
+            className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[999] focus:bg-p-bg-surface focus:text-p-text focus:px-4 focus:py-2 focus:rounded-lg focus:shadow-p-modal focus:ring-2 focus:ring-p-focus"
           >
             Skip to content
           </a>
-          <div className="flex h-screen bg-p-bg overflow-hidden font-p-sans text-[14px] leading-[20px]">
+          <div className="flex h-screen bg-p-bg overflow-hidden font-p-sans text-sm leading-5 text-p-text">
             <AdminSidebar mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
               <AdminTopBar onMenuClick={() => setMobileOpen(true)} onSearchClick={() => setPaletteOpen(true)} />
-              <main id="main-content" className="flex-1 overflow-y-auto admin-scroll">
-                <div className="page-enter px-4 sm:px-8">{children}</div>
+              <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto admin-scroll focus:outline-none">
+                <div className="page-enter px-4 sm:px-6 lg:px-8 pb-10 max-w-[1400px] mx-auto w-full">{children}</div>
               </main>
             </div>
           </div>

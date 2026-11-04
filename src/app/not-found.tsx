@@ -1,78 +1,74 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
-import { Search, Home, Pill } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Search } from 'lucide-react';
+import { Logo } from '@/components/layout/Logo';
 
-const ease = [0.16, 1, 0.3, 1] as const;
-
-const floatingPills = [
-  { top: '14%', left: '10%', rotate: -18, delay: 0, duration: 5.5 },
-  { top: '72%', left: '14%', rotate: 24, delay: 0.6, duration: 6.5 },
-  { top: '20%', left: '86%', rotate: 12, delay: 0.3, duration: 6 },
-  { top: '78%', left: '84%', rotate: -22, delay: 0.9, duration: 5 },
+const helpful = [
+  { label: 'All products', href: '/products' },
+  { label: 'Offers', href: '/offers' },
+  { label: 'Best sellers', href: '/best-sellers' },
+  { label: 'Track an order', href: '/account/orders' },
+  { label: 'Contact a pharmacist', href: '/contact' },
 ];
 
 export default function NotFound() {
+  const router = useRouter();
+  const [q, setQ] = useState('');
+
   return (
-    <div className="relative min-h-screen bg-porcelain flex items-center justify-center px-4 overflow-hidden">
-      {floatingPills.map((p, i) => (
-        <motion.div
-          key={i}
-          className="hidden sm:block absolute w-10 h-5 rounded-full bg-petrol/10 border border-petrol/10"
-          style={{ top: p.top, left: p.left, rotate: p.rotate }}
-          animate={{ y: [0, -14, 0] }}
-          transition={{ duration: p.duration, repeat: Infinity, ease: 'easeInOut', delay: p.delay }}
-        />
-      ))}
-
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease }}
-        className="relative max-w-md w-full text-center bg-paper border border-line rounded-3xl shadow-sm px-8 pt-9 pb-8"
-      >
-        <div
-          className="absolute -top-px left-6 right-6 h-px"
-          style={{ backgroundImage: 'repeating-linear-gradient(90deg, var(--color-line) 0 6px, transparent 6px 12px)' }}
-        />
-
-        <p className="font-mono text-[11px] tracking-widest text-petrol-300 uppercase mb-5">Rx · Pharmacare</p>
-
-        <div className="relative mx-auto w-24 h-24 mb-6">
-          <motion.div
-            animate={{ y: [0, -8, 0] }}
-            transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
-            className="w-24 h-24 rounded-3xl bg-petrol/10 flex items-center justify-center"
-          >
-            <Pill size={40} className="text-petrol" strokeWidth={1.5} />
-          </motion.div>
-          <div className="absolute -top-1 -right-1 w-8 h-8 rounded-full bg-signal text-paper flex items-center justify-center font-mono font-bold text-xs shadow-md">
-            404
-          </div>
-        </div>
-
-        <h1 className="font-display font-bold text-2xl text-ink tracking-tight">Prescription not found</h1>
-        <p className="text-sm text-ink/60 mt-2 leading-relaxed">
-          We looked everywhere on the shelf, but this page doesn't exist. It may have expired, moved, or the link was mistyped.
+    <div className="min-h-screen bg-porcelain flex items-center justify-center px-4 py-12">
+      <div className="max-w-xl w-full bg-paper border border-line rounded-xl p-6 sm:p-8">
+        <Logo size="md" />
+        <p className="mt-8 text-sm text-muted-fg tabular-nums">Error 404</p>
+        <h1 className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight text-ink">We could not find that page</h1>
+        <p className="mt-2 text-base leading-relaxed text-muted-fg">
+          The link may be mistyped or the page may have moved. Search for a medicine, or try one of these.
         </p>
 
-        <div className="flex flex-col sm:flex-row gap-3 mt-7 justify-center">
-          <Link
-            href="/"
-            className="inline-flex items-center justify-center gap-2 bg-petrol hover:bg-petrol-700 text-paper font-semibold px-5 py-3 rounded-xl transition-colors"
-          >
-            <Home size={16} /> Back to home
-          </Link>
-          <Link
-            href="/products"
-            className="inline-flex items-center justify-center gap-2 bg-paper border border-line hover:border-petrol/50 text-ink font-semibold px-5 py-3 rounded-xl transition-colors"
-          >
-            <Search size={16} /> Browse products
-          </Link>
-        </div>
-      </motion.div>
+        <form
+          role="search"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const t = q.trim();
+            if (t) router.push(`/search?q=${encodeURIComponent(t)}`);
+          }}
+          className="mt-6 relative"
+        >
+          <label htmlFor="nf-search" className="sr-only">Search products</label>
+          <Search size={16} aria-hidden="true" className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-fg" />
+          <input
+            id="nf-search"
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search medicines, brands, conditions"
+            className="w-full bg-porcelain border border-line rounded-full pl-10 pr-4 py-2.5 text-sm text-ink placeholder:text-muted-fg focus:outline-none focus:border-petrol focus:ring-2 focus:ring-petrol/40"
+          />
+        </form>
+
+        <ul className="mt-5 flex flex-wrap gap-2">
+          {helpful.map((l) => (
+            <li key={l.href}>
+              <Link
+                href={l.href}
+                className="inline-block rounded-full border border-line bg-porcelain px-3.5 py-1.5 text-sm text-ink hover:border-petrol/50 transition-colors"
+              >
+                {l.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+
+        <Link
+          href="/"
+          className="mt-6 inline-flex items-center justify-center rounded-lg bg-petrol hover:bg-petrol-700 text-white text-sm font-semibold px-5 py-2.5 transition-transform duration-100 active:scale-[0.97]"
+        >
+          Back to home
+        </Link>
+      </div>
     </div>
   );
 }

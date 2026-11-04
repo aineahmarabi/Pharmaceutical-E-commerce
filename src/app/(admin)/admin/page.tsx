@@ -2,11 +2,13 @@
 
 import React, { useMemo } from 'react';
 import Link from 'next/link';
-import { useQuery } from 'convex/react';
-import { TrendingUp, TrendingDown, Package, Sun, Sunrise, Sunset, Moon } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useAdminSession } from '@/hooks/useAdminSession';
+import { useAdminQuery } from '@/hooks/useAdminApi';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { api } from '../../../../convex/_generated/api';
 import { Card } from '@/components/admin/ui/Card';
+import { Badge } from '@/components/admin/ui/Badge';
 import { DataTable } from '@/components/admin/ui/DataTable';
 import { SkeletonLoader } from '@/components/admin/ui/SkeletonLoader';
 import { EmptyState } from '@/components/admin/ui/EmptyState';
@@ -18,58 +20,90 @@ function formatKES(n: number) {
 }
 
 function getGreeting(hour: number) {
-  if (hour < 5) return { text: 'Good night', icon: Moon };
-  if (hour < 12) return { text: 'Good morning', icon: Sunrise };
-  if (hour < 17) return { text: 'Good afternoon', icon: Sun };
-  if (hour < 21) return { text: 'Good evening', icon: Sunset };
-  return { text: 'Good night', icon: Moon };
+  if (hour < 5) return 'Good night';
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  if (hour < 21) return 'Good evening';
+  return 'Good night';
 }
 
 function GreetingHeader() {
   const { name } = useAdminName();
   const now = new Date();
-  const { text, icon: Icon } = getGreeting(now.getHours());
-
   return (
     <div className="py-5 mb-1">
-      <div className="flex items-center gap-2">
-        <Icon size={22} className="text-p-primary" />
-        <h1 className="text-xl font-semibold text-p-text">{text}, {name}</h1>
-      </div>
+      <h1 className="text-xl font-semibold tracking-tight text-p-text">
+        {getGreeting(now.getHours())}, {name}
+      </h1>
       <p className="text-sm text-p-text-subdued mt-1">
-        {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} · {now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+        {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
       </p>
     </div>
   );
 }
 
-function KpiCard({ label, value, delta, deltaFormat = 'percent', trend }: { label: string; value: string; delta?: number; deltaFormat?: 'percent' | 'currency'; trend?: number[] }) {
+function KpiCard({
+  label,
+  value,
+  delta,
+  trend,
+  href,
+}: {
+  label: string;
+  value: string;
+  delta?: number;
+  trend?: number[];
+  href?: string;
+}) {
   const hasDelta = delta !== undefined && Number.isFinite(delta);
   const positive = (delta ?? 0) >= 0;
-  return (
-    <Card padding="compact">
-      <p className="text-[12px] text-p-text-subdued mb-0.5">{label}</p>
-      <p className="text-lg font-semibold text-p-text">{value}</p>
-      {hasDelta && (
-        <p className={`text-[12px] mt-0.5 flex items-center gap-1 ${positive ? 'text-p-primary' : 'text-p-critical'}`}>
-          {positive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-          {deltaFormat === 'percent'
-            ? `${Math.abs(delta!).toFixed(1)}%`
-            : formatKES(Math.abs(delta!))}
-        </p>
-      )}
+  const body = (
+    <Card padding="compact" className="h-full">
+      <p className="text-xs text-p-text-subdued">{label}</p>
+      <div className="flex items-baseline gap-2 mt-1">
+        <p className="text-xl font-semibold tracking-tight tabular-nums text-p-text">{value}</p>
+        {hasDelta && (
+          <span className={`text-xs font-medium tabular-nums ${positive ? 'text-p-primary' : 'text-p-critical'}`}>
+            {positive ? '+' : '-'}
+            {Math.abs(delta!).toFixed(1)}%
+          </span>
+        )}
+      </div>
       {trend && <Sparkline data={trend} positive={positive} />}
     </Card>
   );
+  return href ? (
+    <Link href={href} className="block">
+      {body}
+    </Link>
+  ) : (
+    body
+  );
+}
+
+function paymentBadge(status: string | undefined) {
+  if (status === 'paid' || status === 'collected') return <Badge status="success">Paid</Badge>;
+  if (status === 'pending') return <Badge status="warning">Pending</Badge>;
+  if (status === 'refunded' || status === 'partially_refunded') return <Badge>Refunded</Badge>;
+  return <Badge>{status}</Badge>;
+}
+
+function statusBadge(status: string) {
+  if (status === 'completed') return <Badge status="success">Fulfilled</Badge>;
+  if (status === 'cancelled') return <Badge status="critical">Cancelled</Badge>;
+  if (status === 'packed' || status === 'delivering') return <Badge status="info">In progress</Badge>;
+  return <Badge status="warning">Unfulfilled</Badge>;
 }
 
 export default function AdminDashboard() {
-  const revenueSummary = useQuery(api.analytics.getRevenueSummary);
-  const salesTrend = useQuery(api.analytics.getSalesTrend, { days: 7 });
-  const topProducts = useQuery(api.analytics.getTopProducts, { by: 'revenue', limit: 5 });
-  const recentOrders = useQuery(api.orders.listOrders, { limit: 200 });
-  const products = useQuery(api.adminProducts.adminListProducts, { limit: 100 });
-  const customers = useQuery(api.customers.listCustomers, {});
+  const router = useRouter();
+  const revenueSummary = useAdminQuery(api.analytics.getRevenueSummary, {});
+  const salesTrend = useAdminQuery(api.analytics.getSalesTrend, { days: 7 });
+  const topProducts = useAdminQuery(api.analytics.getTopProducts, { by: 'revenue', limit: 5 });
+  const recentOrders = useAdminQuery(api.orders.listOrders, { limit: 200 });
+  const products = useAdminQuery(api.adminProducts.adminListProducts, { limit: 100 });
+  const { role } = useAdminSession();
+  const customers = useAdminQuery(api.customers.listCustomers, role === 'super_admin' || role === 'admin' ? {} : 'skip');
 
   const ordersToday = useMemo(() => {
     if (!recentOrders) return undefined;
@@ -87,124 +121,88 @@ export default function AdminDashboard() {
     };
   }, [recentOrders]);
 
-  const lowStockProducts = products?.filter((p) => p.stockQty < 10).slice(0, 5);
+  const lowStockProducts = products?.filter((p) => p.stockQty < 10).slice(0, 6);
 
   const chartData = salesTrend?.map((d) => ({
     date: new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     sales: d.revenue,
   }));
 
+  const kpisLoading = !revenueSummary || ordersToday === undefined || !customers;
+  const trend = salesTrend?.map((d) => d.revenue);
+
   return (
     <div className="pb-16">
       <GreetingHeader />
 
-      <div className="space-y-5 max-w-[998px] mx-auto">
-        {/* Today's activity — individual KPI cards */}
+      <div className="space-y-4 max-w-6xl mx-auto">
+        {/* KPI row */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {!revenueSummary || ordersToday === undefined || !customers ? (
+          {kpisLoading ? (
             Array.from({ length: 4 }).map((_, i) => (
-              <Card key={i}>
+              <Card key={i} padding="compact">
                 <SkeletonLoader type="text" count={2} />
               </Card>
             ))
           ) : (
             <>
-              <KpiCard label="Orders today" value={String(ordersToday)} />
-              <KpiCard label="Revenue today" value={formatKES(revenueSummary.today.revenue)} delta={revenueSummary.today.change} trend={salesTrend?.map((d) => d.revenue)} />
-              <KpiCard label="7-day revenue" value={formatKES(revenueSummary.sevenDay.revenue)} delta={revenueSummary.sevenDay.change} trend={salesTrend?.map((d) => d.revenue)} />
-              <KpiCard label="Active customers" value={String(customers.length)} />
+              <KpiCard label="Revenue today" value={formatKES(revenueSummary.today.revenue)} delta={revenueSummary.today.change} trend={trend} />
+              <KpiCard label="Revenue, 7 days" value={formatKES(revenueSummary.sevenDay.revenue)} delta={revenueSummary.sevenDay.change} trend={trend} />
+              <KpiCard label="Orders today" value={String(ordersToday)} href="/admin/orders" />
+              <KpiCard label="Customers" value={String(customers.length)} href="/admin/customers" />
             </>
           )}
         </div>
 
-        {/* Sales chart */}
-        <Card
-          title="Total sales"
-          headerAction={<Link href="/admin/analytics" className="hover:underline">View report</Link>}
-        >
-          {!chartData ? (
-            <SkeletonLoader type="card" />
-          ) : chartData.length === 0 ? (
-            <EmptyState heading="No sales yet" body="Sales data will appear here once orders come in." />
-          ) : (
-            <div style={{ height: 200 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="salesFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#0D9488" stopOpacity={0.08} />
-                      <stop offset="100%" stopColor="#0D9488" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid stroke="#E1E3E5" vertical={false} />
-                  <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#6D7175' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12, fill: '#6D7175' }} axisLine={false} tickLine={false} tickFormatter={(v) => `KES ${v}`} width={70} />
-                  <Tooltip
-                    formatter={(value) => [formatKES(Number(value)), 'Sales']}
-                    contentStyle={{ borderRadius: 8, border: '1px solid #E1E3E5', fontSize: 13 }}
-                  />
-                  <Area type="monotone" dataKey="sales" stroke="#0D9488" strokeWidth={2} fill="url(#salesFill)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </Card>
-
-        <div className="grid md:grid-cols-[2fr_1fr] gap-5 items-start">
-          {/* Top products */}
-          <Card
-            title="Top products"
-            headerAction={<Link href="/admin/analytics" className="hover:underline">View report</Link>}
-          >
-            {!topProducts ? (
-              <SkeletonLoader type="text" count={5} />
+        <div className="grid lg:grid-cols-[2fr_1fr] gap-4 items-start">
+          {/* Sales chart */}
+          <Card title="Sales, last 7 days" headerAction={<Link href="/admin/analytics" className="hover:underline">View report</Link>}>
+            {!chartData ? (
+              <SkeletonLoader type="card" />
+            ) : chartData.length === 0 ? (
+              <EmptyState heading="No sales yet" body="Sales data will appear here once orders come in." />
             ) : (
-              <DataTable
-                columns={[
-                  {
-                    key: 'name',
-                    label: 'Product',
-                    render: (row) => (
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded bg-p-bg border border-p-border-subdued flex items-center justify-center flex-shrink-0">
-                          <Package size={16} className="text-p-icon-subdued" />
-                        </div>
-                        <span className="font-medium text-p-focus truncate">{row.name}</span>
-                      </div>
-                    ),
-                  },
-                  { key: 'units', label: 'Units sold', align: 'right' },
-                  {
-                    key: 'revenue',
-                    label: 'Net sales',
-                    align: 'right',
-                    render: (row) => formatKES(row.revenue),
-                  },
-                ]}
-                rows={topProducts.map((p, i) => ({ id: String(i), ...p }))}
-                emptyState={<EmptyState heading="No sales data yet" body="Top-selling products will show up here." />}
-              />
+              <div className="h-56">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+                    <CartesianGrid stroke="var(--color-p-border-subdued)" vertical={false} />
+                    <XAxis dataKey="date" tick={{ fontSize: 12, fill: 'var(--color-p-text-subdued)' }} axisLine={false} tickLine={false} />
+                    <YAxis
+                      tick={{ fontSize: 12, fill: 'var(--color-p-text-subdued)' }}
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={(v) => (v >= 1000 ? `${v / 1000}k` : String(v))}
+                      width={44}
+                    />
+                    <Tooltip
+                      formatter={(value) => [formatKES(Number(value)), 'Sales']}
+                      contentStyle={{ borderRadius: 8, border: '1px solid var(--color-p-border-subdued)', fontSize: 13 }}
+                    />
+                    <Area type="monotone" dataKey="sales" stroke="var(--color-p-primary)" strokeWidth={2} fill="var(--color-p-primary)" fillOpacity={0.06} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
             )}
           </Card>
 
-          {/* Orders to fulfill */}
-          <Card title="Orders">
+          {/* Order queue */}
+          <Card title="Order queue">
             {!fulfillmentCounts ? (
               <SkeletonLoader type="text" count={3} />
             ) : (
-              <div>
+              <div className="-my-1">
                 {[
                   { label: 'To fulfill', value: fulfillmentCounts.toFulfill, tab: 'to-fulfill' },
                   { label: 'Awaiting payment', value: fulfillmentCounts.awaitingPayment, tab: 'awaiting-payment' },
-                  { label: 'Packed / delivering', value: fulfillmentCounts.awaitingShipment, tab: 'packed-delivering' },
+                  { label: 'Packed or delivering', value: fulfillmentCounts.awaitingShipment, tab: 'packed-delivering' },
                 ].map((row, i, arr) => (
                   <Link
                     key={row.label}
                     href={`/admin/orders?tab=${row.tab}`}
-                    className={`flex items-center justify-between py-3 ${i < arr.length - 1 ? 'border-b border-p-border-subdued' : ''}`}
+                    className={`flex items-center justify-between py-3 hover:bg-p-bg-surface-hover rounded ${i < arr.length - 1 ? 'border-b border-p-border-subdued' : ''}`}
                   >
                     <span className="text-sm text-p-text">{row.label}</span>
-                    <span className="text-sm font-semibold text-p-focus">{row.value}</span>
+                    <span className="text-sm font-semibold tabular-nums text-p-text">{row.value}</span>
                   </Link>
                 ))}
               </div>
@@ -212,30 +210,74 @@ export default function AdminDashboard() {
           </Card>
         </div>
 
-        {/* Low stock alerts */}
-        <Card
-          title="Low stock alerts"
-          headerAction={<Link href="/admin/inventory" className="hover:underline">View inventory</Link>}
-        >
-          {lowStockProducts === undefined ? (
-            <SkeletonLoader type="text" count={3} />
+        {/* Recent orders */}
+        <Card title="Recent orders" headerAction={<Link href="/admin/orders" className="hover:underline">View all</Link>}>
+          {!recentOrders ? (
+            <SkeletonLoader type="text" count={5} />
           ) : (
             <DataTable
               columns={[
-                { key: 'name', label: 'Product', render: (row) => <span className="font-medium">{row.name}</span> },
-                { key: 'brand', label: 'Brand' },
+                { key: 'orderNumber', label: 'Order', render: (r) => <span className="font-medium text-p-text">{r.orderNumber}</span> },
                 {
-                  key: 'stockQty',
-                  label: 'Stock',
-                  align: 'right',
-                  render: (row) => <span className="font-semibold text-p-critical">{row.stockQty} left</span>,
+                  key: '_creationTime',
+                  label: 'Date',
+                  hideOnMobile: true,
+                  render: (r) => new Date(r._creationTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
                 },
+                { key: 'customerName', label: 'Customer' },
+                { key: 'total', label: 'Total', align: 'right', render: (r) => <span className="tabular-nums">{formatKES(r.total)}</span> },
+                { key: 'paymentStatus', label: 'Payment', render: (r) => paymentBadge(r.paymentStatus) },
+                { key: 'status', label: 'Fulfillment', render: (r) => statusBadge(r.status) },
               ]}
-              rows={lowStockProducts.map((p) => ({ id: p._id, ...p }))}
-              emptyState={<EmptyState heading="All products are well stocked" />}
+              rows={recentOrders.slice(0, 8).map((o) => ({ ...o, id: o._id }))}
+              onRowClick={(r) => router.push(`/admin/orders/${r._id}`)}
+              emptyState={<EmptyState heading="No orders yet" body="New orders will show up here." />}
             />
           )}
         </Card>
+
+        <div className="grid lg:grid-cols-2 gap-4 items-start">
+          <Card title="Top products" headerAction={<Link href="/admin/analytics" className="hover:underline">View report</Link>}>
+            {!topProducts ? (
+              <SkeletonLoader type="text" count={5} />
+            ) : (
+              <DataTable
+                columns={[
+                  { key: 'name', label: 'Product', render: (row) => <span className="font-medium text-p-text">{row.name}</span> },
+                  { key: 'units', label: 'Units', align: 'right' },
+                  { key: 'revenue', label: 'Net sales', align: 'right', render: (row) => <span className="tabular-nums">{formatKES(row.revenue)}</span> },
+                ]}
+                rows={topProducts.map((p, i) => ({ id: String(i), ...p }))}
+                emptyState={<EmptyState heading="No sales data yet" body="Top-selling products will show up here." />}
+              />
+            )}
+          </Card>
+
+          <Card title="Low stock" headerAction={<Link href="/admin/inventory" className="hover:underline">View inventory</Link>}>
+            {lowStockProducts === undefined ? (
+              <SkeletonLoader type="text" count={3} />
+            ) : (
+              <DataTable
+                columns={[
+                  { key: 'name', label: 'Product', render: (row) => <span className="font-medium text-p-text">{row.name}</span> },
+                  { key: 'brand', label: 'Brand', hideOnMobile: true },
+                  {
+                    key: 'stockQty',
+                    label: 'Stock',
+                    align: 'right',
+                    render: (row) => (
+                      <Badge status={row.stockQty === 0 ? 'critical' : 'warning'}>
+                        {row.stockQty === 0 ? 'Out of stock' : `${row.stockQty} left`}
+                      </Badge>
+                    ),
+                  },
+                ]}
+                rows={lowStockProducts.map((p) => ({ id: p._id, ...p }))}
+                emptyState={<EmptyState heading="All products are well stocked" />}
+              />
+            )}
+          </Card>
+        </div>
       </div>
     </div>
   );

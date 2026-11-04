@@ -1,3 +1,4 @@
+import { requireStaff, MANAGERS } from './adminGuard';
 import { query, mutation } from './_generated/server';
 import { v } from 'convex/values';
 
@@ -12,30 +13,34 @@ export const listZones = query({
 });
 
 export const adminListZones = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
     return await ctx.db.query('deliveryZones').collect();
   },
 });
 
 export const createZone = mutation({
-  args: { name: v.string(), price: v.number(), isActive: v.boolean() },
+  args: { token: v.string(), name: v.string(), price: v.number(), isActive: v.boolean() },
   handler: async (ctx, args) => {
-    await ctx.db.insert('deliveryZones', args);
+    await requireStaff(ctx, args.token, MANAGERS);
+    await ctx.db.insert('deliveryZones', { name: args.name, price: args.price, isActive: args.isActive });
   },
 });
 
 export const updateZone = mutation({
-  args: { id: v.id('deliveryZones'), name: v.string(), price: v.number(), isActive: v.boolean() },
+  args: { token: v.string(), id: v.id('deliveryZones'), name: v.string(), price: v.number(), isActive: v.boolean() },
   handler: async (ctx, args) => {
-    const { id, ...rest } = args;
+    await requireStaff(ctx, args.token, MANAGERS);
+    const { id, token: _token, ...rest } = args;
     await ctx.db.patch(id, rest);
   },
 });
 
 export const deleteZone = mutation({
-  args: { id: v.id('deliveryZones') },
+  args: { token: v.string(), id: v.id('deliveryZones') },
   handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
     await ctx.db.delete(args.id);
   },
 });

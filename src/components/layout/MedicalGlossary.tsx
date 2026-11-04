@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Stethoscope, X, Search } from 'lucide-react';
+import { X, Search } from 'lucide-react';
 
 interface GlossaryTerm {
   term: string;
@@ -52,12 +52,9 @@ export function MedicalGlossary() {
         aria-label="Open medical terms glossary"
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="group flex fixed top-[75%] -translate-y-1/2 right-0 z-40 items-center py-3.5 pl-3.5 pr-3.5 bg-petrol text-paper rounded-l-xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.25)] border border-petrol-700/40 hover:bg-petrol-700 transition-colors duration-500 overflow-hidden"
+        className="flex fixed bottom-28 lg:bottom-24 right-0 z-40 items-center bg-paper text-ink text-xs font-semibold px-3 py-3 rounded-l-lg border border-r-0 border-line shadow-sm hover:bg-porcelain transition-colors [writing-mode:vertical-rl] rotate-180 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-petrol/40"
       >
-        <Stethoscope size={17} strokeWidth={2} className="flex-shrink-0" />
-        <span className="max-w-0 opacity-0 group-hover:max-w-[130px] group-hover:opacity-100 group-hover:ml-2 overflow-hidden whitespace-nowrap text-[13px] font-semibold tracking-wide transition-[max-width,opacity,margin-left] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] delay-75">
-          Medical Terms
-        </span>
+        Medical terms
       </button>
 
       <AnimatePresence>
@@ -68,7 +65,7 @@ export function MedicalGlossary() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm"
+              className="fixed inset-0 z-[60] bg-deep/50"
               onClick={() => setOpen(false)}
             />
             <motion.div
@@ -79,44 +76,41 @@ export function MedicalGlossary() {
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
-              transition={{ type: 'spring', stiffness: 340, damping: 34 }}
-              className="fixed inset-y-0 right-0 z-[60] w-full max-w-sm bg-paper shadow-2xl flex flex-col"
+              transition={{ type: 'spring', bounce: 0, duration: 0.35 }}
+              className="fixed inset-y-0 right-0 z-[60] w-full max-w-sm bg-paper border-l border-line shadow-lg flex flex-col"
             >
               <div className="flex items-center justify-between px-5 h-16 border-b border-line flex-shrink-0">
-                <div className="flex items-center gap-2">
-                  <Stethoscope size={18} className="text-petrol" />
-                  <h2 id="glossary-title" className="font-display font-bold text-lg text-ink">Medical terms</h2>
-                </div>
-                <button onClick={() => setOpen(false)} aria-label="Close" className="w-9 h-9 rounded-xl hover:bg-petrol-50 flex items-center justify-center transition-colors">
+                <h2 id="glossary-title" className="text-lg font-semibold tracking-tight text-ink">Medical terms</h2>
+                <button onClick={() => setOpen(false)} aria-label="Close" className="w-9 h-9 rounded-lg hover:bg-porcelain flex items-center justify-center transition-colors">
                   <X size={18} className="text-ink" />
                 </button>
               </div>
 
               <div className="px-5 py-4 border-b border-line flex-shrink-0">
-                <p className="text-sm text-ink/60 leading-relaxed mb-3">
+                <p className="text-sm text-muted-fg leading-relaxed mb-3">
                   Not sure what a label or term on the site means? Search or browse explanations below.
                 </p>
                 <div className="relative">
-                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-petrol-300" />
+                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-fg" />
                   <input
                     type="text"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search terms, e.g. &quot;POM&quot;"
-                    className="w-full bg-porcelain border border-line rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:outline-none focus:border-petrol transition-colors"
+                    className="w-full bg-porcelain border border-line rounded-lg pl-9 pr-3.5 py-2.5 text-sm text-ink placeholder:text-muted-fg focus:outline-none focus:border-petrol focus:ring-2 focus:ring-petrol/40"
                   />
                 </div>
               </div>
 
               <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4">
                 {filtered.length === 0 ? (
-                  <p className="text-sm text-ink/50 text-center py-8">No terms match "{search}".</p>
+                  <p className="text-sm text-muted-fg text-center py-8">No terms match &quot;{search}&quot;.</p>
                 ) : (
                   <ul className="space-y-4">
                     {filtered.map((t) => (
-                      <li key={t.term} className="pb-4 border-b border-line/60 last:border-b-0 last:pb-0">
+                      <li key={t.term} className="pb-4 border-b border-line last:border-b-0 last:pb-0">
                         <p className="font-semibold text-sm text-ink">{t.term}</p>
-                        <p className="text-sm text-ink/60 leading-relaxed mt-1">{t.definition}</p>
+                        <p className="text-sm text-muted-fg leading-relaxed mt-1">{t.definition}</p>
                       </li>
                     ))}
                   </ul>

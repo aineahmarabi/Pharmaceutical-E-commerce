@@ -7,9 +7,9 @@ import { CartDrawer } from '@/components/cart/CartDrawer';
 
 export default function StoreLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div data-theme="storefront" className="flex flex-col min-h-full">
+    <div data-theme="storefront" className="flex flex-col min-h-full bg-porcelain text-ink">
       <Header />
-      <main className="flex-1 pb-16 md:pb-0">{children}</main>
+      <main id="main-content" tabIndex={-1} className="flex-1 pb-16 focus:outline-none md:pb-0">{children}</main>
       <Footer />
       <WhatsAppButton />
       <MedicalGlossary />

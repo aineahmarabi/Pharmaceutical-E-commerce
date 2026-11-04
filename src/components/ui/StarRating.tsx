@@ -14,8 +14,8 @@ export function StarRating({ rating, reviewCount, size = 12, className }: StarRa
   const rounded = Math.round(rating * 2) / 2;
 
   return (
-    <div className={cn('flex items-center gap-1', className)}>
-      <div className="flex items-center gap-0.5">
+    <div className={cn('flex items-center gap-1', className)} aria-label={`Rated ${rating.toFixed(1)} out of 5`}>
+      <div className="flex items-center gap-0.5" aria-hidden="true">
         {Array.from({ length: 5 }).map((_, i) => {
           const filled = i + 1 <= rounded;
           const half = !filled && i + 0.5 === rounded;
@@ -23,14 +23,14 @@ export function StarRating({ rating, reviewCount, size = 12, className }: StarRa
             <Star
               key={i}
               size={size}
-              className={cn(filled || half ? 'text-signal' : 'text-line')}
+              className={cn(filled || half ? 'text-ink' : 'text-line')}
               fill={filled ? 'currentColor' : 'none'}
               strokeWidth={1.75}
             />
           );
         })}
       </div>
-      <span className="font-mono text-[11px] text-petrol-300">
+      <span className="text-xs text-muted-fg tabular-nums">
         {rating.toFixed(1)}
         {typeof reviewCount === 'number' && ` (${reviewCount})`}
       </span>

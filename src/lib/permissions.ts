@@ -18,6 +18,7 @@ const ROLE_ALLOWED_ROOTS: Record<StaffRole, string[]> = {
     '/admin/analytics',
     '/admin/discounts',
     '/admin/messages',
+    '/admin/prescriptions',
     '/admin/newsletter',
     '/admin/categories',
     '/admin/conditions',
@@ -25,7 +26,7 @@ const ROLE_ALLOWED_ROOTS: Record<StaffRole, string[]> = {
     '/admin/pos',
     '/admin/settings',
   ],
-  pharmacist: ['/admin', '/admin/pos', '/admin/orders', '/admin/inventory'],
+  pharmacist: ['/admin', '/admin/pos', '/admin/orders', '/admin/inventory', '/admin/prescriptions'],
 };
 
 export const ROLE_LANDING_PATH: Record<StaffRole, string> = {

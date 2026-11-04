@@ -1,16 +1,15 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useMutation, useQuery } from 'convex/react';
-import { UserCircle, KeyRound } from 'lucide-react';
+import { useAdminQuery, useAdminMutation } from '@/hooks/useAdminApi';
 import { api } from '../../../../../convex/_generated/api';
 import type { Id } from '../../../../../convex/_generated/dataModel';
 import { PageHeader } from '@/components/admin/shared/PageHeader';
 import { Card } from '@/components/admin/ui/Card';
+import { Button } from '@/components/admin/ui/Button';
 import { Badge } from '@/components/admin/ui/Badge';
 import { Modal } from '@/components/admin/ui/Modal';
 import { Input } from '@/components/admin/ui/Input';
-import { EmptyState } from '@/components/admin/ui/EmptyState';
 import { SkeletonLoader } from '@/components/admin/ui/SkeletonLoader';
 import { Select } from '@/components/admin/ui/Select';
 import { useAdminToast } from '@/components/admin/ui/Toast';
@@ -22,11 +21,11 @@ const roleOptions = (Object.keys(ROLE_LABELS) as StaffRole[]).map((r) => ({ valu
 export default function AdminStaffPage() {
   const { toast } = useAdminToast();
   const confirm = useConfirm();
-  const staff = useQuery(api.staff.listStaff);
-  const addStaffMember = useMutation(api.staff.addStaffMember);
-  const updateStaffRole = useMutation(api.staff.updateStaffRole);
-  const deactivateStaff = useMutation(api.staff.deactivateStaff);
-  const resetStaffPin = useMutation(api.staff.resetStaffPin);
+  const staff = useAdminQuery(api.staff.listStaff, {});
+  const addStaffMember = useAdminMutation(api.staff.addStaffMember);
+  const updateStaffRole = useAdminMutation(api.staff.updateStaffRole);
+  const deactivateStaff = useAdminMutation(api.staff.deactivateStaff);
+  const resetStaffPin = useAdminMutation(api.staff.resetStaffPin);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [name, setName] = useState('');
@@ -80,18 +79,22 @@ export default function AdminStaffPage() {
 
   return (
     <div className="pb-16">
-      <PageHeader title="Users and permissions" backUrl="/admin/settings" primaryAction={{ label: 'Add staff', onClick: () => setModalOpen(true) }} />
+      <PageHeader title="Users and permissions" subtitle={staff ? `${staff.filter((s) => s.active).length} active of ${staff.length}` : undefined} backUrl="/admin/settings" primaryAction={{ label: 'Add staff', onClick: () => setModalOpen(true) }} />
 
       <Card title="Staff">
         {staff === undefined ? (
           <SkeletonLoader type="text" count={4} />
         ) : staff.length === 0 ? (
-          <EmptyState icon={UserCircle} heading="No staff members yet" body="Add your team so they can help manage the store." action={{ label: 'Add staff', onClick: () => setModalOpen(true) }} />
+          <div className="py-10 text-center">
+            <h3 className="text-base font-semibold text-p-text">No staff members yet</h3>
+            <p className="text-sm text-p-text-subdued mt-1 mb-4">Add your team so they can help manage the store.</p>
+            <Button variant="primary" onClick={() => setModalOpen(true)}>Add staff</Button>
+          </div>
         ) : (
           <div className="-mx-5 overflow-x-auto">
-            <table className="w-full min-w-[560px]">
+            <table className="w-full min-w-[640px]">
               <thead>
-                <tr className="bg-p-bg h-11 text-[13px] font-semibold text-p-text-subdued uppercase tracking-wide">
+                <tr className="bg-p-bg h-10 text-xs font-semibold text-p-text-subdued border-y border-p-border-subdued">
                   <th className="text-left px-4">Name</th>
                   <th className="text-left px-4">Email</th>
                   <th className="text-left px-4">Role</th>
@@ -102,7 +105,7 @@ export default function AdminStaffPage() {
               <tbody>
                 {staff.map((s) => (
                   <tr key={s._id} className="h-[52px] border-b border-p-border-subdued text-sm">
-                    <td className="px-4 font-medium text-p-text">{s.name}</td>
+                    <td className="px-4 font-medium text-p-text whitespace-nowrap">{s.name}</td>
                     <td className="px-4 text-p-text-subdued">{s.email}</td>
                     <td className="px-4">
                       <Select
@@ -127,9 +130,9 @@ export default function AdminStaffPage() {
                         <>
                           <button
                             onClick={() => { setPinResetFor({ id: s._id, name: s.name }); setNewPin(''); }}
-                            className="inline-flex items-center gap-1 text-p-text-subdued text-sm hover:text-p-text hover:underline mr-4"
+                            className="text-p-focus text-sm hover:underline mr-4"
                           >
-                            <KeyRound size={13} /> Reset PIN
+                            Reset PIN
                           </button>
                           <button
                             onClick={async () => {

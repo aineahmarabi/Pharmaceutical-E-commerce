@@ -1,15 +1,16 @@
 'use client';
 
 import React, { useState, useRef, useEffect, use } from 'react';
-import { useMutation, useQuery } from 'convex/react';
+import { useAdminQuery, useAdminMutation } from '@/hooks/useAdminApi';
 import { api } from '../../../../../../../convex/_generated/api';
 import type { Id } from '../../../../../../../convex/_generated/dataModel';
 import { useRouter } from 'next/navigation';
-import { UploadCloud, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { PageHeader } from '@/components/admin/shared/PageHeader';
 import { Card } from '@/components/admin/ui/Card';
 import { Input, Textarea } from '@/components/admin/ui/Input';
 import { Select } from '@/components/admin/ui/Select';
+import { Badge } from '@/components/admin/ui/Badge';
 import { ContextualSaveBar } from '@/components/admin/ui/ContextualSaveBar';
 import { SkeletonLoader } from '@/components/admin/ui/SkeletonLoader';
 import { useAdminToast } from '@/components/admin/ui/Toast';
@@ -30,6 +31,8 @@ const emptyForm = {
   warnings: '',
   ingredients: '',
   stockQty: '0',
+  sku: '',
+  barcode: '',
   isNew: false,
   isTrending: false,
   isBestSeller: false,
@@ -42,10 +45,10 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
   const productId = id as Id<'products'>;
   const router = useRouter();
   const { toast } = useAdminToast();
-  const product = useQuery(api.adminProducts.adminGetProduct, { id: productId });
-  const generateUploadUrl = useMutation(api.products.generateUploadUrl);
-  const updateProduct = useMutation(api.adminProducts.updateProduct);
-  const duplicateProduct = useMutation(api.adminProducts.duplicateProduct);
+  const product = useAdminQuery(api.adminProducts.adminGetProduct, { id: productId });
+  const generateUploadUrl = useAdminMutation(api.files.generateUploadUrl);
+  const updateProduct = useAdminMutation(api.adminProducts.updateProduct);
+  const duplicateProduct = useAdminMutation(api.adminProducts.duplicateProduct);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [file, setFile] = useState<File | null>(null);
@@ -73,12 +76,15 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
         warnings: product.warnings ?? '',
         ingredients: product.ingredients ?? '',
         stockQty: product.stockQty?.toString() ?? '0',
+        sku: product.sku ?? '',
+        barcode: product.barcode ?? '',
         isNew: product.isNew ?? false,
         isTrending: product.isTrending ?? false,
         isBestSeller: product.isBestSeller ?? false,
         isOffer: product.isOffer ?? false,
         offerEndsAt: product.offerEndsAt ? new Date(product.offerEndsAt - new Date(product.offerEndsAt).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '',
       };
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initialise form once product loads
       setFormData(next);
       setInitialData(next);
       if (product.imageUrl) setPreview(product.imageUrl);
@@ -125,7 +131,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
     try {
       let imageStorageId: string | undefined;
       if (file) {
-        const postUrl = await generateUploadUrl();
+        const postUrl = await generateUploadUrl({});
         const result = await fetch(postUrl, { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
         const { storageId } = await result.json();
         imageStorageId = storageId;
@@ -140,6 +146,8 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
           brandSlug: slugify(formData.brand),
           price: Number(formData.price),
           compareAtPrice: formData.compareAtPrice ? Number(formData.compareAtPrice) : undefined,
+          sku: formData.sku.trim() || undefined,
+          barcode: formData.barcode.trim() || undefined,
           stockQty: Number(formData.stockQty),
           inStock: Number(formData.stockQty) > 0,
           isNew: formData.isNew,
@@ -169,7 +177,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
 
   if (product === undefined) {
     return (
-      <div className="pb-16 max-w-[998px] mx-auto">
+      <div className="pb-16 max-w-5xl mx-auto">
         <PageHeader title="Loading..." backUrl="/admin/products" />
         <SkeletonLoader type="card" />
       </div>
@@ -178,90 +186,116 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
 
   if (product === null) {
     return (
-      <div className="pb-16 max-w-[998px] mx-auto">
+      <div className="pb-16 max-w-5xl mx-auto">
         <PageHeader title="Product not found" backUrl="/admin/products" />
       </div>
     );
   }
 
+  const qty = Number(formData.stockQty) || 0;
+  const checkClass = 'h-4 w-4 rounded accent-p-primary';
+
   return (
     <div className="pb-16">
       <ContextualSaveBar isDirty={isDirty} onSave={handleSave} onDiscard={handleDiscard} saving={isSubmitting} />
-      <PageHeader
-        title={product.name}
-        backUrl="/admin/products"
-        secondaryActions={[
-          {
-            label: 'Duplicate',
-            onClick: async () => {
-              const newId = await duplicateProduct({ id: productId });
-              toast('Product duplicated');
-              router.push(`/admin/products/${newId}/edit`);
+      <div className="max-w-5xl mx-auto">
+        <PageHeader
+          title={product.name}
+          backUrl="/admin/products"
+          secondaryActions={[
+            {
+              label: 'Duplicate',
+              onClick: async () => {
+                const newId = await duplicateProduct({ id: productId });
+                toast('Product duplicated');
+                router.push(`/admin/products/${newId}/edit`);
+              },
             },
-          },
-        ]}
-        primaryAction={{ label: 'Save', onClick: handleSave }}
-      />
+          ]}
+        />
 
-      <div className="grid lg:grid-cols-[2fr_1fr] gap-5 items-start max-w-[998px] mx-auto">
-        <div className="space-y-5 min-w-0">
-          <Card title="Title & description">
-            <div className="space-y-4">
-              <Input label="Title" name="name" value={formData.name} onChange={handleChange} required />
-              <Textarea
-                label="Description"
-                name="description"
-                value={formData.description}
-                onChange={handleChange}
-                className="min-h-[160px]"
-                required
-              />
-            </div>
-          </Card>
-
-          <Card title="Media">
-            <div
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-p-border rounded-lg p-10 flex flex-col items-center justify-center text-center cursor-pointer hover:border-p-primary hover:bg-p-success-subdued transition-colors"
-            >
-              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
-              <UploadCloud size={24} className="text-p-text-subdued mb-2" />
-              <p className="text-sm text-p-text-subdued">Add files or drop image to upload</p>
-            </div>
-            {preview && (
-              <div className="mt-4 flex gap-3">
-                <div className="relative w-20 h-20 rounded-lg overflow-hidden border border-p-border-subdued flex-shrink-0">
-                  <img src={preview} alt="Preview" className="w-full h-full object-cover" />
-                  {file && (
-                    <button
-                      type="button"
-                      onClick={removeFile}
-                      className="absolute top-1 right-1 p-1 bg-white/90 text-p-critical rounded shadow-sm"
-                    >
-                      <X size={12} />
-                    </button>
-                  )}
-                </div>
+        <div className="grid lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4 items-start">
+          <div className="space-y-4 min-w-0">
+            <Card title="Title and description">
+              <div className="space-y-4">
+                <Input label="Title" name="name" value={formData.name} onChange={handleChange} required />
+                <Textarea
+                  label="Description"
+                  name="description"
+                  value={formData.description}
+                  onChange={handleChange}
+                  className="min-h-[160px]"
+                  required
+                />
               </div>
-            )}
-          </Card>
+            </Card>
 
-          <Card title="Clinical information">
-            <div className="space-y-4">
+            <Card title="Media">
+              <div onDragOver={(e) => e.preventDefault()} onDrop={handleDrop} className="flex flex-wrap items-center gap-4">
+                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
+                {preview && (
+                  <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-p-border-subdued flex-shrink-0 bg-p-bg">
+                    <img src={preview} alt="Product" className="w-full h-full object-cover" />
+                    {file && (
+                      <button
+                        type="button"
+                        onClick={removeFile}
+                        aria-label="Remove new image"
+                        className="absolute top-1 right-1 p-1 bg-p-bg-surface text-p-critical rounded border border-p-border-subdued"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex-1 min-w-[200px] h-24 rounded-lg border border-dashed border-p-border-input text-sm text-p-text-subdued hover:border-p-primary hover:text-p-text transition-colors"
+                >
+                  {preview ? 'Replace image' : 'Add image'}
+                  <span className="block text-xs mt-0.5">or drop a file here</span>
+                </button>
+              </div>
+            </Card>
+
+            <Card title="Pricing">
               <div className="grid sm:grid-cols-2 gap-4">
-                <Input label="Generic name" name="genericName" value={formData.genericName} onChange={handleChange} placeholder="e.g. Paracetamol" />
+                <Input label="Price (KES)" type="number" name="price" value={formData.price} onChange={handleChange} required />
+                <Input
+                  label="Compare-at price (KES)"
+                  type="number"
+                  name="compareAtPrice"
+                  value={formData.compareAtPrice}
+                  onChange={handleChange}
+                  helpText="To show a reduced price, move the original price here."
+                />
+              </div>
+            </Card>
+
+            <Card title="Inventory">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Input label="Stock quantity" type="number" name="stockQty" value={formData.stockQty} onChange={handleChange} required />
+                <Input label="Pack size" name="packSize" value={formData.packSize} onChange={handleChange} placeholder="e.g. 2x10 tablets" />
+                <Input label="SKU" name="sku" value={formData.sku} onChange={handleChange} />
+                <Input label="Barcode" name="barcode" value={formData.barcode} onChange={handleChange} helpText="Scan or type. Used at the point of sale." />
+              </div>
+            </Card>
+
+            <Card title="Classification">
+              <div className="grid sm:grid-cols-2 gap-4">
                 <Select
-                  label="Classification"
+                  label="Medicine class"
                   value={formData.classification}
                   onChange={(v) => setFormData({ ...formData, classification: v as 'OTC' | 'P' | 'POM' })}
                   options={[
-                    { value: 'OTC', label: 'Over the Counter (OTC)' },
-                    { value: 'P', label: 'Pharmacy (P)' },
-                    { value: 'POM', label: 'Prescription Only (POM)' },
+                    { value: 'OTC', label: 'Over the counter (OTC)' },
+                    { value: 'P', label: 'Pharmacy only (P)' },
+                    { value: 'POM', label: 'Prescription only (POM)' },
                   ]}
+                  helpText={formData.classification === 'POM' ? 'Customers are told a prescription is needed.' : undefined}
                 />
+                <Input label="Generic name" name="genericName" value={formData.genericName} onChange={handleChange} placeholder="e.g. Paracetamol" />
                 <Select
                   label="Dosage form"
                   value={formData.form}
@@ -270,72 +304,66 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
                 />
                 <Input label="Strength" name="strength" value={formData.strength} onChange={handleChange} placeholder="e.g. 500mg" />
               </div>
-              <Textarea label="Active ingredients" name="ingredients" value={formData.ingredients} onChange={handleChange} className="min-h-[70px]" />
-              <Textarea label="Directions for use" name="directions" value={formData.directions} onChange={handleChange} className="min-h-[70px]" />
-              <Textarea label="Warnings & precautions" name="warnings" value={formData.warnings} onChange={handleChange} className="min-h-[70px]" />
-            </div>
-          </Card>
-        </div>
+            </Card>
 
-        <div className="space-y-5 min-w-0">
-          <Card title="Pricing">
-            <div className="space-y-4">
-              <Input label="Price (KES)" type="number" name="price" value={formData.price} onChange={handleChange} required />
-              <Input
-                label="Compare-at price"
-                type="number"
-                name="compareAtPrice"
-                value={formData.compareAtPrice}
-                onChange={handleChange}
-                helpText="To show a reduced price, move the original price here."
-              />
-            </div>
-          </Card>
+            <Card title="Clinical information">
+              <div className="space-y-4">
+                <Textarea label="Active ingredients" name="ingredients" value={formData.ingredients} onChange={handleChange} className="min-h-[70px]" />
+                <Textarea label="Directions for use" name="directions" value={formData.directions} onChange={handleChange} className="min-h-[70px]" />
+                <Textarea label="Warnings and precautions" name="warnings" value={formData.warnings} onChange={handleChange} className="min-h-[70px]" />
+              </div>
+            </Card>
+          </div>
 
-          <Card title="Inventory">
-            <div className="space-y-4">
-              <Input label="Stock quantity" type="number" name="stockQty" value={formData.stockQty} onChange={handleChange} required />
-              <Input label="Pack size" name="packSize" value={formData.packSize} onChange={handleChange} placeholder="e.g. 2x10 tablets" />
-            </div>
-          </Card>
+          <div className="space-y-4 min-w-0">
+            <Card title="Status">
+              <div className="space-y-2">
+                {qty === 0 ? (
+                  <Badge status="critical">Out of stock</Badge>
+                ) : qty < 10 ? (
+                  <Badge status="warning">Low stock</Badge>
+                ) : (
+                  <Badge status="success">Active</Badge>
+                )}
+                <p className="text-sm text-p-text-subdued">
+                  Status follows the stock quantity. {qty} unit{qty === 1 ? '' : 's'} available.
+                </p>
+              </div>
+            </Card>
 
-          <Card title="Organization">
-            <div className="space-y-4">
-              <Input label="Category" name="category" value={formData.category} onChange={handleChange} required />
-              <Input label="Vendor" name="brand" value={formData.brand} onChange={handleChange} required />
-            </div>
-          </Card>
+            <Card title="Organisation">
+              <div className="space-y-4">
+                <Input label="Category" name="category" value={formData.category} onChange={handleChange} required />
+                <Input label="Brand" name="brand" value={formData.brand} onChange={handleChange} required />
+              </div>
+            </Card>
 
-          <Card title="Merchandising">
-            <div className="space-y-3">
-              <label className="flex items-center gap-2 text-sm text-p-text">
-                <input type="checkbox" checked={formData.isNew} onChange={handleCheckbox('isNew')} className="accent-[#0D9488]" />
-                Feature as New Arrival
-              </label>
-              <label className="flex items-center gap-2 text-sm text-p-text">
-                <input type="checkbox" checked={formData.isTrending} onChange={handleCheckbox('isTrending')} className="accent-[#0D9488]" />
-                Feature as Trending
-              </label>
-              <label className="flex items-center gap-2 text-sm text-p-text">
-                <input type="checkbox" checked={formData.isBestSeller} onChange={handleCheckbox('isBestSeller')} className="accent-[#0D9488]" />
-                Feature as Best Seller
-              </label>
-              <label className="flex items-center gap-2 text-sm text-p-text">
-                <input type="checkbox" checked={formData.isOffer} onChange={handleCheckbox('isOffer')} className="accent-[#0D9488]" />
-                Feature as Special Offer
-              </label>
-              {formData.isOffer && (
-                <Input
-                  label="Offer ends"
-                  type="datetime-local"
-                  name="offerEndsAt"
-                  value={formData.offerEndsAt}
-                  onChange={handleChange}
-                  helpText="The Special Offers countdown on the storefront ends at this time."
-                />
-              )}
-            </div>
-          </Card>
+            <Card title="Merchandising">
+              <div className="space-y-3">
+                {([
+                  ['isNew', 'New arrival'],
+                  ['isTrending', 'Trending'],
+                  ['isBestSeller', 'Best seller'],
+                  ['isOffer', 'Special offer'],
+                ] as const).map(([key, label]) => (
+                  <label key={key} className="flex items-center gap-2 text-sm text-p-text">
+                    <input type="checkbox" checked={formData[key]} onChange={handleCheckbox(key)} className={checkClass} />
+                    {label}
+                  </label>
+                ))}
+                {formData.isOffer && (
+                  <Input
+                    label="Offer ends"
+                    type="datetime-local"
+                    name="offerEndsAt"
+                    value={formData.offerEndsAt}
+                    onChange={handleChange}
+                    helpText="The Special Offers countdown on the storefront ends at this time."
+                  />
+                )}
+              </div>
+            </Card>
+          </div>
         </div>
       </div>
     </div>

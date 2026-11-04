@@ -8,30 +8,28 @@ interface ClassBadgeProps {
 }
 
 const styles: Record<ProductClass, string> = {
-  OTC: 'bg-petrol-50 text-petrol border border-petrol/20',
-  P: 'bg-amber/10 text-amber border border-amber/20',
-  POM: 'bg-signal/10 text-signal border border-signal/20',
-};
-
-const labels: Record<ProductClass, string> = {
-  OTC: 'OTC',
-  P: 'P',
-  POM: 'POM',
+  OTC: 'bg-porcelain text-muted-fg border-line',
+  P: 'bg-porcelain text-ink border-line',
+  POM: 'bg-porcelain text-ink border-ink/50',
 };
 
 const titles: Record<ProductClass, string> = {
-  OTC: 'Over the Counter — no prescription needed',
-  P: 'Pharmacy Medicine — sold under pharmacist supervision',
-  POM: 'Prescription Only Medicine — requires a valid prescription',
+  OTC: 'Over the Counter: no prescription needed',
+  P: 'Pharmacy Medicine: sold under pharmacist supervision',
+  POM: 'Prescription Only Medicine: requires a valid prescription',
 };
 
 export function ClassBadge({ classification, className }: ClassBadgeProps) {
   return (
     <span
       title={titles[classification]}
-      className={cn('inline-flex items-center px-2 py-0.5 rounded-full font-mono text-[10px] font-bold uppercase tracking-wide', styles[classification], className)}
+      className={cn(
+        'inline-flex items-center px-1.5 py-0.5 rounded-md border text-xs font-semibold leading-none',
+        styles[classification],
+        className
+      )}
     >
-      {labels[classification]}
+      {classification}
     </span>
   );
 }

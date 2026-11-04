@@ -1,12 +1,16 @@
-import { query, mutation, internalMutation } from './_generated/server';
+import { query, mutation, internalMutation, type MutationCtx } from './_generated/server';
 import { v } from 'convex/values';
-import { Id } from './_generated/dataModel';
+import type { Id, Doc } from './_generated/dataModel';
 import { requireCustomerId } from './customerAuth';
+import { requireStaff, ANY_STAFF, MANAGERS } from './adminGuard';
+import { lockedForMs, recordFailure } from './throttle';
+import { syncLowStockNotification } from './inventory';
 
 // ─── QUERIES ─────────────────────────────────────────────────────────────
 
 export const listOrders = query({
   args: {
+    token: v.string(),
     status: v.optional(v.string()),
     paymentStatus: v.optional(v.string()),
     fulfillmentStatus: v.optional(v.string()), // Handled via status mostly, or added logic
@@ -17,13 +21,12 @@ export const listOrders = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    let q = ctx.db.query('orders').order('desc');
-
-    if (args.status) {
-      q = ctx.db.query('orders').withIndex('by_status', (q) => q.eq('status', args.status as any)).order('desc');
-    } else if (args.customerId) {
-      q = ctx.db.query('orders').withIndex('by_customer', (q) => q.eq('customerId', args.customerId)).order('desc');
-    }
+    await requireStaff(ctx, args.token, ANY_STAFF);
+    const q = args.status
+      ? ctx.db.query('orders').withIndex('by_status', (q) => q.eq('status', args.status as Doc<'orders'>['status'])).order('desc')
+      : args.customerId
+        ? ctx.db.query('orders').withIndex('by_customer', (q) => q.eq('customerId', args.customerId)).order('desc')
+        : ctx.db.query('orders').order('desc');
 
     let results = await q.collect();
 
@@ -68,19 +71,85 @@ export const listMyOrders = query({
 });
 
 /**
+ * Distinct, currently in-stock products from a signed-in customer's most recent
+ * orders (newest first) — powers the homepage "Buy again" shelf. Read-only.
+ */
+export const myBuyAgainProducts = query({
+  args: { token: v.string(), limit: v.optional(v.number()) },
+  handler: async (ctx, { token, limit = 8 }) => {
+    let customerId;
+    try {
+      customerId = await requireCustomerId(ctx, token);
+    } catch {
+      return [];
+    }
+    const orders = await ctx.db
+      .query('orders')
+      .withIndex('by_customer', (q) => q.eq('customerId', customerId))
+      .order('desc')
+      .take(20);
+    const seen = new Set<string>();
+    const out = [];
+    for (const order of orders) {
+      if (order.status === 'cancelled') continue;
+      for (const item of order.items) {
+        if (seen.has(item.productId)) continue;
+        seen.add(item.productId);
+        const product = await ctx.db.get(item.productId as Id<'products'>);
+        if (!product || !product.inStock) continue;
+        const imageUrl = product.imageStorageId
+          ? ((await ctx.storage.getUrl(product.imageStorageId)) ?? product.imageUrl)
+          : product.imageUrl;
+        out.push({ ...product, imageUrl });
+        if (out.length >= limit) return out;
+      }
+    }
+    return out;
+  },
+});
+
+/** A single order belonging to the signed-in customer (order detail page). */
+export const getMyOrder = query({
+  args: { token: v.string(), orderId: v.string() },
+  handler: async (ctx, { token, orderId }) => {
+    let customerId;
+    try {
+      customerId = await requireCustomerId(ctx, token);
+    } catch {
+      return null;
+    }
+    const id = ctx.db.normalizeId('orders', orderId);
+    if (!id) return null;
+    const order = await ctx.db.get(id);
+    if (!order || order.customerId !== customerId) return null;
+    return order;
+  },
+});
+
+/**
  * Public order tracking for guests (accounts are optional) — verifies
  * identity by requiring the order number PLUS a matching phone or email
  * rather than exposing orders by number alone.
  */
-export const trackOrder = query({
+export const trackOrder = mutation({
   args: { orderNumber: v.string(), contact: v.string() },
   handler: async (ctx, { orderNumber, contact }) => {
+    if (orderNumber.length > 40 || contact.length > 254) {
+      return { found: false as const, error: 'No order found with that number.' };
+    }
     const normalizedNumber = orderNumber.trim().toUpperCase();
     const normalizedContact = contact.trim().toLowerCase();
 
+    // Rate limit per order number (every attempt counts) so numbers cannot be brute-forced.
+    const throttleKey = `track:${normalizedNumber}`;
+    if ((await lockedForMs(ctx, throttleKey)) > 0) {
+      return { found: false as const, error: 'Too many attempts. Please try again in a few minutes.' };
+    }
+    await recordFailure(ctx, throttleKey, 8);
+
     const order = await ctx.db
       .query('orders')
-      .filter((q) => q.eq(q.field('orderNumber'), normalizedNumber))
+      .withIndex('by_order_number', (q) => q.eq('orderNumber', normalizedNumber))
       .first();
 
     if (!order) return { found: false as const, error: 'No order found with that number.' };
@@ -106,8 +175,11 @@ export const trackOrder = query({
 });
 
 export const getOrderById = query({
-  args: { orderId: v.id('orders') },
-  handler: async (ctx, { orderId }) => {
+  args: {
+    token: v.string(), orderId: v.id('orders') },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, ANY_STAFF);
+    const { orderId } = args;
     const order = await ctx.db.get(orderId);
     if (!order) return null;
 
@@ -136,8 +208,11 @@ export const getOrderById = query({
 // ─── MUTATIONS ───────────────────────────────────────────────────────────
 
 export const captureAuthorizedPayment = mutation({
-  args: { orderId: v.id('orders') },
-  handler: async (ctx, { orderId }) => {
+  args: {
+    token: v.string(), orderId: v.id('orders') },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, ANY_STAFF);
+    const { orderId } = args;
     const order = await ctx.db.get(orderId);
     if (!order) throw new Error('Order not found');
     if (order.paymentStatus !== 'pending') throw new Error('Order is not in pending/authorized state');
@@ -155,8 +230,11 @@ export const captureAuthorizedPayment = mutation({
 });
 
 export const addOrderTimelineNote = mutation({
-  args: { orderId: v.id('orders'), body: v.string(), actorId: v.optional(v.id('staff')) },
-  handler: async (ctx, { orderId, body, actorId }) => {
+  args: {
+    token: v.string(), orderId: v.id('orders'), body: v.string(), actorId: v.optional(v.id('staff')) },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, ANY_STAFF);
+    const { orderId, body, actorId } = args;
     await ctx.db.insert('auditLog', {
       actorId,
       action: 'NOTE_ADDED',
@@ -169,7 +247,8 @@ export const addOrderTimelineNote = mutation({
 });
 
 export const editOrderLineItems = mutation({
-  args: { 
+  args: {
+    token: v.string(), 
     orderId: v.id('orders'), 
     changes: v.array(v.object({
       changeType: v.union(v.literal('addItem'), v.literal('removeItem'), v.literal('quantityChange')),
@@ -180,11 +259,13 @@ export const editOrderLineItems = mutation({
     })),
     actorId: v.id('staff')
   },
-  handler: async (ctx, { orderId, changes, actorId }) => {
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
+    const { orderId, changes, actorId } = args;
     const order = await ctx.db.get(orderId);
     if (!order) throw new Error('Order not found');
     
-    let currentItems = [...order.items];
+    const currentItems = [...order.items];
     let diffAmount = 0;
     
     for (const change of changes) {
@@ -233,7 +314,8 @@ export const editOrderLineItems = mutation({
 });
 
 export const updateFulfillmentStatus = mutation({
-  args: { 
+  args: {
+    token: v.string(), 
     orderId: v.id('orders'), 
     newStatus: v.union(
       v.literal('placed'),
@@ -248,7 +330,9 @@ export const updateFulfillmentStatus = mutation({
     trackingNumber: v.optional(v.string()), 
     notifyCustomer: v.boolean() 
   },
-  handler: async (ctx, { orderId, newStatus, carrier, trackingNumber }) => {
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, ANY_STAFF);
+    const { orderId, newStatus, carrier, trackingNumber } = args;
     await ctx.db.patch(orderId, { status: newStatus });
     
     await ctx.db.insert('auditLog', {
@@ -262,8 +346,11 @@ export const updateFulfillmentStatus = mutation({
 });
 
 export const markCodCollected = mutation({
-  args: { orderId: v.id('orders') },
-  handler: async (ctx, { orderId }) => {
+  args: {
+    token: v.string(), orderId: v.id('orders') },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, ANY_STAFF);
+    const { orderId } = args;
     const order = await ctx.db.get(orderId);
     if (!order || order.paymentMethod !== 'cod') throw new Error('Invalid order for COD collection');
 
@@ -279,8 +366,11 @@ export const markCodCollected = mutation({
 });
 
 export const cancelOrder = mutation({
-  args: { orderId: v.id('orders'), reason: v.string(), restock: v.boolean(), refund: v.boolean() },
-  handler: async (ctx, { orderId, reason, restock, refund }) => {
+  args: {
+    token: v.string(), orderId: v.id('orders'), reason: v.string(), restock: v.boolean(), refund: v.boolean() },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, ANY_STAFF);
+    const { orderId, reason, restock, refund } = args;
     const order = await ctx.db.get(orderId);
     if (!order) throw new Error('Order not found');
 
@@ -292,7 +382,7 @@ export const cancelOrder = mutation({
     if (restock) {
       for (const item of order.items) {
         await ctx.db.insert('inventoryLog', {
-          productId: item.productId as any, // assuming valid ID
+          productId: item.productId as Id<'products'>, // assuming valid ID
           changeAmount: item.qty,
           reason: `Order Cancelled: ${reason}`,
           createdAt: Date.now(),
@@ -311,12 +401,15 @@ export const cancelOrder = mutation({
 });
 
 export const refundOrder = mutation({
-  args: { 
+  args: {
+    token: v.string(), 
     orderId: v.id('orders'), 
     lineItemRefunds: v.array(v.object({ productId: v.string(), qty: v.number(), amount: v.number() })), 
     restockPerItem: v.array(v.boolean()) 
   },
-  handler: async (ctx, { orderId, lineItemRefunds, restockPerItem }) => {
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
+    const { orderId, lineItemRefunds, restockPerItem } = args;
     const order = await ctx.db.get(orderId);
     if (!order) throw new Error('Order not found');
     
@@ -328,7 +421,7 @@ export const refundOrder = mutation({
     lineItemRefunds.forEach(async (refund, idx) => {
       if (restockPerItem[idx]) {
         await ctx.db.insert('inventoryLog', {
-          productId: refund.productId as any,
+          productId: refund.productId as Id<'products'>,
           changeAmount: refund.qty,
           reason: `Order Refunded`,
           createdAt: Date.now(),
@@ -360,8 +453,11 @@ export const flagRisk = internalMutation({
 // ─── BULK ACTIONS ────────────────────────────────────────────────────────
 
 export const bulkFulfill = mutation({
-  args: { orderIds: v.array(v.id('orders')) },
-  handler: async (ctx, { orderIds }) => {
+  args: {
+    token: v.string(), orderIds: v.array(v.id('orders')) },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, ANY_STAFF);
+    const { orderIds } = args;
     for (const id of orderIds) {
       await ctx.db.patch(id, { status: 'completed' });
     }
@@ -369,8 +465,11 @@ export const bulkFulfill = mutation({
 });
 
 export const bulkTag = mutation({
-  args: { orderIds: v.array(v.id('orders')), tag: v.string() },
-  handler: async (ctx, { orderIds, tag }) => {
+  args: {
+    token: v.string(), orderIds: v.array(v.id('orders')), tag: v.string() },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
+    const { orderIds, tag } = args;
     // Orders table doesn't have tags natively, we'll write to auditLog to register the bulk action
     // If order tags were in schema, we'd patch here.
     for (const id of orderIds) {
@@ -386,8 +485,11 @@ export const bulkTag = mutation({
 });
 
 export const bulkExportCsv = query({
-  args: { orderIds: v.array(v.id('orders')) },
-  handler: async (ctx, { orderIds }) => {
+  args: {
+    token: v.string(), orderIds: v.array(v.id('orders')) },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
+    const { orderIds } = args;
     const orders = [];
     for (const id of orderIds) {
       const o = await ctx.db.get(id);
@@ -400,13 +502,15 @@ export const bulkExportCsv = query({
 // ─── DRAFT ORDERS ────────────────────────────────────────────────────────
 
 export const createDraftOrder = mutation({
-  args: { 
+  args: {
+    token: v.string(), 
     customerId: v.optional(v.string()), 
     lineItems: v.array(v.object({ productId: v.string(), name: v.string(), qty: v.number(), price: v.number() })),
     customDiscount: v.optional(v.number()),
     createdBy: v.id('staff')
   },
   handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
     return await ctx.db.insert('draftOrders', {
       ...args,
       invoiceStatus: 'open',
@@ -415,8 +519,11 @@ export const createDraftOrder = mutation({
 });
 
 export const sendDraftOrderInvoice = mutation({
-  args: { draftOrderId: v.id('draftOrders') },
-  handler: async (ctx, { draftOrderId }) => {
+  args: {
+    token: v.string(), draftOrderId: v.id('draftOrders') },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
+    const { draftOrderId } = args;
     // In a real app this would trigger an email. We just log it.
     await ctx.db.insert('auditLog', {
       action: 'SEND_INVOICE',
@@ -428,15 +535,21 @@ export const sendDraftOrderInvoice = mutation({
 });
 
 export const markDraftOrderPaid = mutation({
-  args: { draftOrderId: v.id('draftOrders') },
-  handler: async (ctx, { draftOrderId }) => {
+  args: {
+    token: v.string(), draftOrderId: v.id('draftOrders') },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
+    const { draftOrderId } = args;
     await ctx.db.patch(draftOrderId, { invoiceStatus: 'paid' });
   },
 });
 
 export const convertDraftOrderToOrder = mutation({
-  args: { draftOrderId: v.id('draftOrders') },
-  handler: async (ctx, { draftOrderId }) => {
+  args: {
+    token: v.string(), draftOrderId: v.id('draftOrders') },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
+    const { draftOrderId } = args;
     const draft = await ctx.db.get(draftOrderId);
     if (!draft) throw new Error('Draft not found');
     
@@ -462,8 +575,23 @@ export const convertDraftOrderToOrder = mutation({
     return orderId;
   },
 });
+/** Next sequential order number, derived from the newest orders only (no full-table scan). */
+async function nextOrderNumber(ctx: MutationCtx): Promise<string> {
+  const recent = await ctx.db.query('orders').order('desc').take(25);
+  let max = 1000;
+  for (const o of recent) {
+    const m = /^#PHR(\d+)$/.exec(o.orderNumber);
+    if (m) {
+      max = Math.max(max, parseInt(m[1], 10));
+      break;
+    }
+  }
+  return `#PHR${max + 1}`;
+}
+
 export const createOrder = mutation({
   args: {
+    token: v.string(),
     customerId: v.optional(v.string()),
     customerName: v.string(),
     customerPhone: v.string(),
@@ -496,6 +624,7 @@ export const createOrder = mutation({
     prescriptionFileId: v.optional(v.id('_storage')),
   },
   handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, ANY_STAFF);
     // 1. Validate required order-level fields
     if (args.items.length === 0) throw new Error('Your cart is empty.');
     if (!args.customerName.trim()) throw new Error('Customer name is required.');
@@ -509,6 +638,7 @@ export const createOrder = mutation({
     // so a tampered request can't under-price an order or oversell stock.
     const resolvedItems: Array<{ productId: string; name: string; qty: number; price: number }> = [];
     const inventoryUpdates: Array<{ id: Id<'products'>; newQty: number }> = [];
+    const productById = new Map<Id<'products'>, Doc<'products'>>();
 
     for (const item of args.items) {
       if (!Number.isFinite(item.qty) || item.qty <= 0) {
@@ -521,15 +651,11 @@ export const createOrder = mutation({
       }
       resolvedItems.push({ productId: item.productId, name: product.name, qty: item.qty, price: product.price });
       inventoryUpdates.push({ id: product._id, newQty: product.stockQty - item.qty });
+      productById.set(product._id, product);
     }
 
     // 3. Generate Order Number
-    const allOrders = await ctx.db.query('orders').collect();
-    const maxNum = allOrders.reduce((max, o) => {
-      const n = parseInt(o.orderNumber.replace(/[^0-9]/g, ''), 10);
-      return isNaN(n) ? max : Math.max(max, n);
-    }, 1000);
-    const orderNumber = `#PHR${maxNum + 1}`;
+    const orderNumber = await nextOrderNumber(ctx);
 
     // 4. Calculate totals from resolved (server-trusted) prices
     const subtotal = resolvedItems.reduce((acc, i) => acc + i.price * i.qty, 0);
@@ -538,12 +664,7 @@ export const createOrder = mutation({
     if (args.deliveryZoneId) {
       const zone = await ctx.db.get(args.deliveryZoneId);
       if (!zone || !zone.isActive) throw new Error('The selected delivery area is not available.');
-      const thresholdSetting = await ctx.db
-        .query('storeSettings')
-        .withIndex('by_key', (q) => q.eq('key', 'deliveryThreshold'))
-        .first();
-      const threshold = typeof thresholdSetting?.value === 'number' ? thresholdSetting.value : 1500;
-      deliveryFee = subtotal >= threshold ? 0 : zone.price;
+      deliveryFee = zone.price;
     } else {
       deliveryFee = args.deliveryFee ?? 250;
     }
@@ -592,21 +713,146 @@ export const createOrder = mutation({
         createdAt: Date.now(),
       });
 
-      if (update.newQty <= 10) {
-        const product = await ctx.db.get(update.id);
-        if (product) {
-          await ctx.db.insert('notifications', {
-            type: 'low_stock',
-            title: update.newQty <= 0 ? 'Out of stock' : 'Low stock warning',
-            message: `${product.name} has ${update.newQty} unit(s) left`,
-            targetId: update.id,
-            read: false,
-            createdAt: Date.now(),
-          });
-        }
-      }
+      const lowProduct = productById.get(update.id);
+      if (lowProduct) await syncLowStockNotification(ctx, lowProduct, lowProduct.stockQty, update.newQty);
     }
 
     return orderId;
   }
+});
+
+/**
+ * Public storefront checkout. Deliberately restricted: the client only supplies who is
+ * buying, what (productId + qty) and where. Prices, names, fee, channel, status and
+ * payment status are all decided here, never trusted from the request.
+ */
+export const placeOrder = mutation({
+  args: {
+    customerName: v.string(),
+    customerPhone: v.string(),
+    customerEmail: v.string(),
+    items: v.array(v.object({ productId: v.string(), qty: v.number() })),
+    deliveryZoneId: v.optional(v.id('deliveryZones')),
+    pickup: v.optional(v.boolean()),
+    deliveryAddress: v.string(),
+    notes: v.optional(v.string()),
+    paymentMethod: v.union(v.literal('mpesa'), v.literal('cod')),
+    prescriptionFileId: v.optional(v.id('_storage')),
+    customerToken: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const name = args.customerName.trim();
+    const phone = args.customerPhone.trim();
+    const email = args.customerEmail.trim();
+    const address = args.deliveryAddress.trim();
+    const notes = args.notes?.trim();
+
+    if (args.items.length === 0) throw new Error('Your cart is empty.');
+    if (args.items.length > 50) throw new Error('Too many items in one order.');
+    if (!name) throw new Error('Customer name is required.');
+    if (name.length > 100) throw new Error('Name is too long.');
+    if (!phone && !email) throw new Error('A phone number or email is required.');
+    if (phone.length > 30) throw new Error('Phone number is too long.');
+    if (email.length > 254) throw new Error('Email is too long.');
+    if (!address) throw new Error('Delivery address is required.');
+    if (address.length > 300) throw new Error('Delivery address is too long.');
+    if (notes && notes.length > 1000) throw new Error('Notes are too long.');
+
+    // Rate limit per phone number (every attempt counts).
+    const digits = phone.replace(/\D/g, '');
+    if (digits) {
+      const key = `order:${digits}`;
+      if ((await lockedForMs(ctx, key)) > 0) {
+        throw new Error('Too many orders from this number. Please try again later.');
+      }
+      await recordFailure(ctx, key, 10);
+    }
+
+    // Signed-in customers: derive the account from the session token, never from the client.
+    let customerId: string | undefined;
+    if (args.customerToken) {
+      try {
+        customerId = await requireCustomerId(ctx, args.customerToken);
+      } catch {
+        customerId = undefined;
+      }
+    }
+
+    // Resolve lines against the database; merge duplicates so stock checks are accurate.
+    const wanted = new Map<Id<'products'>, number>();
+    for (const item of args.items) {
+      if (!Number.isInteger(item.qty) || item.qty < 1 || item.qty > 50) {
+        throw new Error('Invalid quantity: choose between 1 and 50.');
+      }
+      const id = ctx.db.normalizeId('products', item.productId);
+      if (!id) throw new Error('An item in your cart is no longer available.');
+      wanted.set(id, (wanted.get(id) ?? 0) + item.qty);
+    }
+
+    const resolvedItems: Array<{ productId: string; name: string; qty: number; price: number }> = [];
+    const inventoryUpdates: Array<{ product: Doc<'products'>; qty: number; newQty: number }> = [];
+    for (const [id, qty] of wanted) {
+      const product = await ctx.db.get(id);
+      if (!product) throw new Error('An item in your cart is no longer available.');
+      if (qty > 50) throw new Error('Invalid quantity: choose between 1 and 50.');
+      if (!product.inStock || product.stockQty < qty) {
+        throw new Error(`Only ${Math.max(product.stockQty, 0)} unit(s) of ${product.name} left in stock.`);
+      }
+      resolvedItems.push({ productId: id, name: product.name, qty, price: product.price });
+      inventoryUpdates.push({ product, qty, newQty: product.stockQty - qty });
+    }
+
+    let deliveryFee = 0;
+    if (!args.pickup) {
+      if (!args.deliveryZoneId) throw new Error('Select a delivery area.');
+      const zone = await ctx.db.get(args.deliveryZoneId);
+      if (!zone || !zone.isActive) throw new Error('The selected delivery area is not available.');
+      deliveryFee = zone.price;
+    }
+
+    const subtotal = resolvedItems.reduce((acc, i) => acc + i.price * i.qty, 0);
+    const total = subtotal + deliveryFee;
+    const orderNumber = await nextOrderNumber(ctx);
+
+    const orderId = await ctx.db.insert('orders', {
+      orderNumber,
+      customerId,
+      customerName: name,
+      customerPhone: phone,
+      customerEmail: email,
+      items: resolvedItems,
+      subtotal,
+      deliveryFee,
+      total,
+      status: 'placed',
+      paymentMethod: args.paymentMethod,
+      paymentStatus: 'pending',
+      deliveryAddress: address,
+      notes: notes || undefined,
+      channel: 'Website',
+      prescriptionFileId: args.prescriptionFileId,
+    });
+
+    await ctx.db.insert('notifications', {
+      type: 'new_order',
+      title: 'New order received',
+      message: `${orderNumber} — ${name} · KES ${total.toLocaleString()}`,
+      targetId: orderId,
+      read: false,
+      createdAt: Date.now(),
+    });
+
+    for (const u of inventoryUpdates) {
+      await ctx.db.patch(u.product._id, { stockQty: u.newQty, inStock: u.newQty > 0 });
+      await ctx.db.insert('inventoryLog', {
+        productId: u.product._id,
+        changeAmount: -u.qty,
+        reason: `Order ${orderNumber}`,
+        createdAt: Date.now(),
+      });
+      await syncLowStockNotification(ctx, u.product, u.product.stockQty, u.newQty);
+    }
+
+    return orderId;
+  },
 });

@@ -3,34 +3,43 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { useQuery } from 'convex/react';
+import { useAdminSession } from '@/hooks/useAdminSession';
+import { useAdminQuery } from '@/hooks/useAdminApi';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Package, ShoppingCart, Users, Plus, FileText } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { api } from '../../../../convex/_generated/api';
 
 interface ResultItem {
   key: string;
   label: string;
   type: string;
-  icon: React.ElementType;
   href: string;
   shortcut?: string;
 }
 
 const ACTIONS: ResultItem[] = [
-  { key: 'action-add-product', label: 'Add product', type: 'Action', icon: Plus, href: '/admin/products/new' },
-  { key: 'action-create-order', label: 'Create order', type: 'Action', icon: Plus, href: '/admin/orders/new' },
-  { key: 'action-create-discount', label: 'Create discount', type: 'Action', icon: Plus, href: '/admin/discounts/new' },
+  { key: 'action-add-product', label: 'Add product', type: 'Action', href: '/admin/products/new' },
+  { key: 'action-create-order', label: 'Create order', type: 'Action', href: '/admin/orders/new' },
+  { key: 'action-create-discount', label: 'Create discount', type: 'Action', href: '/admin/discounts/new' },
 ];
 
 const PAGES: ResultItem[] = [
-  { key: 'nav-home', label: 'Home', type: 'Page', icon: FileText, href: '/admin' },
-  { key: 'nav-orders', label: 'Orders', type: 'Page', icon: ShoppingCart, href: '/admin/orders' },
-  { key: 'nav-products', label: 'Products', type: 'Page', icon: Package, href: '/admin/products' },
-  { key: 'nav-customers', label: 'Customers', type: 'Page', icon: Users, href: '/admin/customers' },
-  { key: 'nav-analytics', label: 'Analytics', type: 'Page', icon: FileText, href: '/admin/analytics' },
-  { key: 'nav-discounts', label: 'Discounts', type: 'Page', icon: FileText, href: '/admin/discounts' },
-  { key: 'nav-settings', label: 'Settings', type: 'Page', icon: FileText, href: '/admin/settings' },
+  { key: 'nav-home', label: 'Home', type: 'Page', href: '/admin' },
+  { key: 'nav-orders', label: 'Orders', type: 'Page', href: '/admin/orders' },
+  { key: 'nav-prescriptions', label: 'Prescriptions', type: 'Page', href: '/admin/prescriptions' },
+  { key: 'nav-products', label: 'Products', type: 'Page', href: '/admin/products' },
+  { key: 'nav-customers', label: 'Customers', type: 'Page', href: '/admin/customers' },
+  { key: 'nav-analytics', label: 'Analytics', type: 'Page', href: '/admin/analytics' },
+  { key: 'nav-discounts', label: 'Discounts', type: 'Page', href: '/admin/discounts' },
+  { key: 'nav-inventory', label: 'Inventory', type: 'Page', href: '/admin/inventory' },
+  { key: 'nav-categories', label: 'Categories', type: 'Page', href: '/admin/categories' },
+  { key: 'nav-brands', label: 'Brands', type: 'Page', href: '/admin/brands' },
+  { key: 'nav-conditions', label: 'Conditions', type: 'Page', href: '/admin/conditions' },
+  { key: 'nav-messages', label: 'Messages', type: 'Page', href: '/admin/messages' },
+  { key: 'nav-newsletter', label: 'Newsletter', type: 'Page', href: '/admin/newsletter' },
+  { key: 'nav-pos', label: 'POS Terminal', type: 'Page', href: '/admin/pos' },
+  { key: 'nav-staff', label: 'Staff', type: 'Page', href: '/admin/staff' },
+  { key: 'nav-settings', label: 'Settings', type: 'Page', href: '/admin/settings' },
 ];
 
 const RECENTS_KEY = 'admin_recent_routes';
@@ -61,12 +70,14 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const products = useQuery(api.adminProducts.adminListProducts, query.length > 1 ? { limit: 5, search: query } : 'skip');
-  const orders = useQuery(api.orders.listOrders, query.length > 1 ? { limit: 5, search: query } : 'skip');
-  const customers = useQuery(api.customers.listCustomers, query.length > 1 ? { search: query } : 'skip');
+  const products = useAdminQuery(api.adminProducts.adminListProducts, query.length > 1 ? { limit: 5, search: query } : 'skip');
+  const orders = useAdminQuery(api.orders.listOrders, query.length > 1 ? { limit: 5, search: query } : 'skip');
+  const { role } = useAdminSession();
+  const customers = useAdminQuery(api.customers.listCustomers, query.length > 1 && (role === 'super_admin' || role === 'admin') ? { search: query } : 'skip');
 
   useEffect(() => {
     if (open) {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset palette state when opened
       setQuery('');
       setActiveIndex(0);
       setTimeout(() => inputRef.current?.focus(), 10);
@@ -79,31 +90,28 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       return [
         { label: 'Actions', items: ACTIONS },
         ...(recents.length > 0
-          ? [{ label: 'Recently visited', items: recents.map((r) => ({ key: `recent-${r.href}`, label: r.label, type: 'Page', icon: FileText, href: r.href })) }]
+          ? [{ label: 'Recently visited', items: recents.map((r) => ({ key: `recent-${r.href}`, label: r.label, type: 'Page', href: r.href })) }]
           : []),
       ];
     }
 
     const navMatches = PAGES.filter((p) => p.label.toLowerCase().includes(query.toLowerCase()));
-    const productMatches: ResultItem[] = (products ?? []).map((p: any) => ({
+    const productMatches: ResultItem[] = (products ?? []).map((p) => ({
       key: `product-${p._id}`,
       label: p.name,
       type: 'Product',
-      icon: Package,
       href: `/admin/products/${p._id}/edit`,
     }));
-    const orderMatches: ResultItem[] = (orders ?? []).map((o: any) => ({
+    const orderMatches: ResultItem[] = (orders ?? []).map((o) => ({
       key: `order-${o._id}`,
       label: o.orderNumber,
       type: 'Order',
-      icon: ShoppingCart,
       href: `/admin/orders/${o._id}`,
     }));
-    const customerMatches: ResultItem[] = (customers ?? []).map((c: any) => ({
+    const customerMatches: ResultItem[] = (customers ?? []).map((c) => ({
       key: `customer-${c.id}`,
-      label: c.name || c.email || c.phone,
+      label: c.name || c.email || c.phone || "",
       type: 'Customer',
-      icon: Users,
       href: `/admin/customers/${encodeURIComponent(c.id)}`,
     }));
 
@@ -150,57 +158,67 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   return createPortal(
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-[400] flex justify-center px-4" style={{ paddingTop: '20vh' }}>
+        <div className="fixed inset-0 z-[400] flex justify-center px-4 pt-[12vh]">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.15 }}
             className="absolute inset-0 bg-black/50"
             onClick={onClose}
           />
           <motion.div
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
+            initial={{ opacity: 0, scale: 0.98, y: -8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.98, y: -8 }}
+            transition={{ type: 'spring', bounce: 0, duration: 0.3 }}
             className="relative bg-p-bg-surface rounded-xl shadow-p-modal w-full max-w-[640px] h-fit max-h-[70vh] flex flex-col overflow-hidden"
-            role="combobox"
-            aria-expanded={open}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Command palette"
           >
-            <div className="flex items-center gap-3 px-5 h-14 flex-shrink-0">
-              <Search size={18} className="text-p-icon-subdued flex-shrink-0" />
+            <div className="flex items-center gap-3 px-4 h-14 flex-shrink-0">
+              <Search size={16} className="text-p-icon flex-shrink-0" aria-hidden="true" />
               <input
                 ref={inputRef}
                 value={query}
                 onChange={(e) => { setQuery(e.target.value); setActiveIndex(0); }}
-                placeholder="Search or jump to..."
-                className="flex-1 min-w-0 text-base outline-none bg-transparent"
+                placeholder="Search orders, products, customers, or jump to a page"
+                aria-label="Search"
+                role="combobox"
+                aria-expanded="true"
+                aria-controls="admin-palette-list"
+                aria-activedescendant={flatItems[activeIndex] ? `palette-${flatItems[activeIndex].key}` : undefined}
+                className="flex-1 min-w-0 text-base text-p-text placeholder:text-p-text-subdued outline-none bg-transparent"
               />
+              <kbd className="hidden sm:inline text-xs text-p-text-subdued border border-p-border-subdued rounded px-1.5 py-0.5">Esc</kbd>
             </div>
-            <div role="listbox" className="border-t border-p-border-subdued overflow-y-auto max-h-[400px]">
+            <div id="admin-palette-list" role="listbox" className="admin-scroll border-t border-p-border-subdued overflow-y-auto max-h-[400px] py-1">
               {flatItems.length === 0 && (
-                <p className="text-sm text-p-text-subdued px-5 py-6 text-center">No results found.</p>
+                <p className="text-sm text-p-text-subdued px-5 py-8 text-center">
+                  {query ? 'No results found.' : 'Type to search.'}
+                </p>
               )}
               {groups.map((group) => (
-                <div key={group.label}>
-                  <p className="text-[12px] uppercase tracking-wide font-semibold text-p-text-subdued px-5 pt-2 pb-1">{group.label}</p>
+                <div key={group.label} role="group" aria-label={group.label}>
+                  <p className="text-xs font-semibold text-p-text-subdued px-4 pt-3 pb-1">{group.label}</p>
                   {group.items.map((item) => {
                     runningIndex += 1;
                     const idx = runningIndex;
-                    const Icon = item.icon;
+                    const active = idx === activeIndex;
                     return (
                       <button
                         key={item.key}
+                        id={`palette-${item.key}`}
                         role="option"
-                        aria-selected={idx === activeIndex}
+                        aria-selected={active}
+                        ref={active ? (el) => el?.scrollIntoView({ block: 'nearest' }) : undefined}
                         onMouseEnter={() => setActiveIndex(idx)}
                         onClick={() => select(item)}
-                        className={`w-full flex items-center gap-3 h-11 px-5 text-left transition-colors ${idx === activeIndex ? 'bg-p-bg' : ''}`}
+                        className={`w-full flex items-center gap-3 h-10 px-4 text-left transition-colors ${active ? 'bg-p-bg-surface-selected shadow-[inset_3px_0_0_var(--color-p-primary)]' : ''}`}
                       >
-                        <Icon size={18} className="text-p-icon flex-shrink-0" />
                         <span className="text-sm text-p-text flex-1 truncate">{item.label}</span>
-                        <span className="text-[12px] text-p-text-subdued">{item.type}</span>
+                        <span className="text-xs text-p-text-subdued">{item.type}</span>
                       </button>
                     );
                   })}

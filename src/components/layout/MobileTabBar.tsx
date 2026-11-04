@@ -4,17 +4,17 @@ import React from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { usePathname } from 'next/navigation';
-import { Home, LayoutGrid, Search, ShoppingCart, Heart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCartStore, useWishlistStore } from '@/store/cart';
 import { useScrollDirection } from '@/hooks/useScrollDirection';
 
+// Text-led tabs: labels carry the meaning, no decorative icons.
 const tabs = [
-  { label: 'Home', href: '/', icon: Home },
-  { label: 'Categories', href: '/products', icon: LayoutGrid },
-  { label: 'Search', href: '/search', icon: Search },
-  { label: 'Cart', href: '/cart', icon: ShoppingCart },
-  { label: 'Wishlist', href: '/account/wishlist', icon: Heart },
+  { label: 'Home', href: '/' },
+  { label: 'Shop', href: '/products' },
+  { label: 'Search', href: '/search' },
+  { label: 'Cart', href: '/cart' },
+  { label: 'Saved', href: '/account/wishlist' },
 ] as const;
 
 export function MobileTabBar() {
@@ -27,35 +27,35 @@ export function MobileTabBar() {
 
   return (
     <motion.nav
+      aria-label="Quick navigation"
       animate={{ y: direction === 'down' ? '100%' : '0%' }}
-      transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-      className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-paper border-t border-line/60 pb-[env(safe-area-inset-bottom)]">
+      transition={{ type: 'spring', bounce: 0, duration: 0.35 }}
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper/90 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+    >
       <div className="grid grid-cols-5">
-        {tabs.map(({ label, href, icon: Icon }) => {
+        {tabs.map(({ label, href }) => {
           const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
+          const count = label === 'Cart' ? cartCount : label === 'Saved' ? wishCount : 0;
           return (
             <Link
               key={href}
               href={href}
+              data-cart-target={label === 'Cart' ? '' : undefined}
+              aria-current={active ? 'page' : undefined}
               className={cn(
-                'relative flex flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-medium transition-colors',
-                active ? 'text-petrol' : 'text-petrol-300'
+                'relative flex h-14 items-center justify-center text-xs transition-transform duration-100 active:scale-[0.97]',
+                active ? 'font-semibold text-petrol' : 'font-medium text-muted-fg',
               )}
             >
+              {active && <span className="absolute inset-x-5 top-0 h-0.5 rounded-full bg-petrol" />}
               <span className="relative">
-                <Icon size={20} strokeWidth={active ? 2.25 : 1.75} />
-                {label === 'Cart' && cartCount > 0 && (
-                  <span className="absolute -top-1.5 -right-2 min-w-[15px] h-[15px] px-[3px] rounded-full bg-signal text-paper text-[9px] font-bold flex items-center justify-center">
-                    {cartCount > 9 ? '9+' : cartCount}
-                  </span>
-                )}
-                {label === 'Wishlist' && wishCount > 0 && (
-                  <span className="absolute -top-1.5 -right-2 min-w-[15px] h-[15px] px-[3px] rounded-full bg-signal text-paper text-[9px] font-bold flex items-center justify-center">
-                    {wishCount > 9 ? '9+' : wishCount}
+                {label}
+                {count > 0 && (
+                  <span className="absolute -right-4 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-petrol px-1 text-[10px] font-semibold tabular-nums text-white">
+                    {count > 9 ? '9+' : count}
                   </span>
                 )}
               </span>
-              {label}
             </Link>
           );
         })}

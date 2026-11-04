@@ -17,22 +17,29 @@ export function BulkActionBar({
     <AnimatePresence>
       {selectedCount > 0 && (
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          role="region"
+          aria-label="Bulk actions"
+          initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 20 }}
-          transition={{ duration: 0.2 }}
-          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 bg-p-bg-inverse text-white h-14 px-4 rounded-lg shadow-p-modal max-w-[calc(100vw-2rem)] overflow-x-auto"
+          exit={{ opacity: 0, y: 16 }}
+          transition={{ type: 'spring', bounce: 0, duration: 0.3 }}
+          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 bg-p-bg-inverse text-white h-12 px-2 rounded-xl shadow-p-modal max-w-[calc(100vw-2rem)] overflow-x-auto"
         >
-          <button onClick={onDeselect} aria-label="Deselect all" className="p-1.5 rounded hover:bg-white/10 flex-shrink-0">
+          <button
+            onClick={onDeselect}
+            aria-label="Deselect all"
+            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          >
             <X size={16} />
           </button>
-          <span className="text-sm font-medium px-2 flex-shrink-0">{selectedCount} selected</span>
+          <span className="text-sm font-medium px-2 flex-shrink-0 tabular-nums">{selectedCount} selected</span>
+          <div className="w-px h-5 bg-white/20 mx-1 flex-shrink-0" />
           <div className="flex items-center gap-1">
             {actions.map((action) => (
               <button
                 key={action.label}
                 onClick={action.onClick}
-                className="text-sm px-3 py-1.5 rounded hover:bg-white/10 transition-colors whitespace-nowrap"
+                className="text-sm h-8 px-3 rounded-lg hover:bg-white/10 active:scale-[0.97] transition whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
                 {action.label}
               </button>

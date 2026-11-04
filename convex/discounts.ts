@@ -1,15 +1,17 @@
-import { query, mutation } from './_generated/server';
+import { requireStaff, MANAGERS } from './adminGuard';
+import { query, mutation, internalQuery } from './_generated/server';
 import { v } from 'convex/values';
 
 export const listDiscounts = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
     return await ctx.db.query('discounts').order('desc').collect();
   },
 });
 
 export const createDiscount = mutation({
-  args: {
+  args: { token: v.string(),
     code: v.string(),
     title: v.optional(v.string()),
     type: v.union(v.literal('percentage'), v.literal('fixed'), v.literal('buyXgetY'), v.literal('freeShipping')),
@@ -31,20 +33,22 @@ export const createDiscount = mutation({
     active: v.boolean(),
   },
   handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
     const existing = await ctx.db.query('discounts')
       .withIndex('by_code', q => q.eq('code', args.code))
       .first();
     if (existing) throw new Error('Discount code already exists');
     
+    const { token: _token, ...data } = args;
     await ctx.db.insert('discounts', {
-      ...args,
+      ...data,
       usedCount: 0,
     });
   },
 });
 
 export const updateDiscount = mutation({
-  args: {
+  args: { token: v.string(),
     id: v.id('discounts'),
     code: v.optional(v.string()),
     title: v.optional(v.string()),
@@ -66,19 +70,25 @@ export const updateDiscount = mutation({
     status: v.optional(v.union(v.literal('active'), v.literal('scheduled'), v.literal('expired'))),
     active: v.optional(v.boolean()),
   },
-  handler: async (ctx, { id, ...updates }) => {
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
+    const { id, token: _token, ...updates } = args;
     await ctx.db.patch(id, updates);
   },
 });
 
 export const deactivateDiscount = mutation({
-  args: { id: v.id('discounts') },
-  handler: async (ctx, { id }) => {
+  args: { token: v.string(), id: v.id('discounts') },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
+    const { id } = args;
     await ctx.db.patch(id, { active: false, status: 'expired' });
   },
 });
 
-export const validateDiscountCode = query({
+// Internal only: nothing in the storefront uses it, and a public version would let anyone
+// test discount codes and read the full discount record.
+export const validateDiscountCode = internalQuery({
   args: { code: v.string(), cartValue: v.number() },
   handler: async (ctx, { code, cartValue }) => {
     const discount = await ctx.db.query('discounts')

@@ -1,87 +1,75 @@
 'use client';
 
 import React from 'react';
-import Image from 'next/image';
-import { motion } from 'framer-motion';
-import { Shield, Award, Users, Clock } from 'lucide-react';
-import { cdnImages } from '@/lib/images';
-import { branding } from '@/lib/config/branding';
+import { PageHeader } from '@/components/layout/LegalPage';
+import { useBranding } from '@/hooks/useBranding';
+import { usePharmacyDetails } from '@/components/layout/PharmacyDetails';
 
-const ease = [0.16, 1, 0.3, 1] as const;
+const commitments = [
+  { title: '100% genuine', sub: 'Every product is verified by our pharmacists.' },
+  { title: 'PPB licensed', sub: 'Fully licensed and regulated by the Pharmacy and Poisons Board.' },
+  { title: 'Expert team', sub: 'Qualified pharmacists on every shift.' },
+  { title: 'Same-day delivery', sub: 'In Nairobi and major towns.' },
+];
 
 export default function AboutPage() {
+  const branding = useBranding();
+  const { pharmacist, licence, expiry } = usePharmacyDetails();
   return (
-    <div className="min-h-screen bg-porcelain">
-      {/* Hero */}
-      <div className="relative bg-petrol overflow-hidden">
-        <Image src={cdnImages.about.team} alt="Team" fill className="object-cover opacity-20" sizes="100vw" />
-        <div className="relative py-20 px-4 sm:px-6 lg:px-8">
-          <div className="max-w-3xl mx-auto text-center">
-            <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease }}>
-              <h1 className="font-display font-extrabold text-4xl text-paper tracking-tight mb-4">
-                Your trusted online pharmacy
-              </h1>
-              <p className="text-paper/70 leading-relaxed max-w-xl mx-auto">
-                {branding.name} exists to give Kenyan families convenient access to genuine, affordable healthcare.
-              </p>
-            </motion.div>
-          </div>
-        </div>
-      </div>
+    <div className="min-h-screen bg-porcelain py-6 sm:py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
+        <PageHeader
+          crumb="About us"
+          title={`About ${branding.name}`}
+        />
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 space-y-16">
-        {/* Values */}
-        <div>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5, ease }}
-            className="text-center mb-10"
-          >
-            <h2 className="font-display font-bold text-2xl text-ink tracking-tight">What we stand for</h2>
-          </motion.div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {[
-              { icon: Shield, title: '100% Genuine', sub: 'Every product verified by our pharmacists.' },
-              { icon: Award, title: 'PPB Licensed', sub: 'Fully licensed and regulated.' },
-              { icon: Users, title: 'Expert team', sub: 'Qualified pharmacists on every shift.' },
-              { icon: Clock, title: 'Same-day delivery', sub: 'In Nairobi and major towns.' },
-            ].map(({ icon: Icon, title, sub }, i) => (
-              <motion.div
-                key={title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1, duration: 0.4, ease }}
-                className="bg-paper border border-line rounded-2xl p-5 text-center"
-              >
-                <div className="w-12 h-12 rounded-xl bg-petrol mx-auto flex items-center justify-center mb-3">
-                  <Icon size={20} className="text-paper" />
-                </div>
-                <p className="font-semibold text-sm text-ink">{title}</p>
-                <p className="text-xs text-petrol-300 mt-1">{sub}</p>
-              </motion.div>
+        <section className="bg-paper border border-line rounded-xl p-4 sm:p-6">
+          <div className="max-w-3xl space-y-3">
+            <p className="text-sm leading-relaxed text-ink/80">
+              {branding.name} was built on one conviction: every Kenyan family deserves access to genuine, affordable medication — without the guesswork.
+            </p>
+            <p className="text-sm leading-relaxed text-ink/80">
+              We work directly with licensed manufacturers and distributors to bring genuine medicines to your door, with registered pharmacists available to answer your questions.
+            </p>
+          </div>
+        </section>
+
+        <section className="bg-paper border border-line rounded-xl p-4 sm:p-6">
+          <dl className="grid sm:grid-cols-2 sm:gap-x-8">
+            {commitments.map((c) => (
+              <div key={c.title} className="py-3 border-t border-line first:border-t-0 sm:[&:nth-child(2)]:border-t-0">
+                <dt className="text-sm font-semibold text-ink">{c.title}</dt>
+                <dd className="text-sm text-muted-fg">{c.sub}</dd>
+              </div>
             ))}
-          </div>
-        </div>
+          </dl>
+        </section>
 
-        {/* Story */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5, ease }}
-          className="bg-paper border border-line rounded-2xl p-8"
-        >
-          <h2 className="font-display font-bold text-xl text-ink mb-4">Our story</h2>
-          <p className="text-ink/70 leading-relaxed mb-4">
-            {branding.name} was built on one conviction: every Kenyan family deserves access to genuine, affordable medication — without the guesswork.
-          </p>
-          <p className="text-ink/70 leading-relaxed">
-            We work directly with licensed manufacturers and distributors to bring genuine medicines to your door, with registered pharmacists available to answer your questions.
-          </p>
-        </motion.div>
+        {(pharmacist || licence) && (
+          <section className="bg-paper border border-line rounded-xl p-4 sm:p-6">
+            <h2 className="text-base font-semibold tracking-tight text-ink">Pharmacy details</h2>
+            <dl className="mt-3 space-y-1 text-sm">
+              {pharmacist && (
+                <div className="flex flex-wrap gap-x-2">
+                  <dt className="text-muted-fg">Superintending pharmacist:</dt>
+                  <dd className="text-ink">{pharmacist}</dd>
+                </div>
+              )}
+              {licence && (
+                <div className="flex flex-wrap gap-x-2">
+                  <dt className="text-muted-fg">PPB licence no.:</dt>
+                  <dd className="text-ink">{licence}</dd>
+                </div>
+              )}
+              {licence && expiry && (
+                <div className="flex flex-wrap gap-x-2">
+                  <dt className="text-muted-fg">Valid until:</dt>
+                  <dd className="text-ink">{expiry}</dd>
+                </div>
+              )}
+            </dl>
+          </section>
+        )}
       </div>
     </div>
   );

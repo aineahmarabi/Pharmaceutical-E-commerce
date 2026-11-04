@@ -9,6 +9,7 @@ export function useAdminSession() {
   const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- read localStorage after mount to avoid hydration mismatch
     setToken(localStorage.getItem('adminToken') || '');
   }, []);
 

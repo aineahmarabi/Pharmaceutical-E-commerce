@@ -2,6 +2,8 @@ export const branding = {
   name: 'PharmaCare',
   tagline: 'Your health, delivered',
   logo: null as string | null,
+  // Monogram only, for tiny spots like the admin sidebar badge.
+  logoMark: '/images/brand/mutende-logo-mark.png' as string,
   phone: '+254 700 000 000',
   email: '',
 
@@ -13,6 +15,5 @@ export const branding = {
     instagram: '',
     facebook: '',
   },
-  deliveryThreshold: 1500,
   currency: 'KES',
 } as const;

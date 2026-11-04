@@ -30,16 +30,23 @@ export function Tabs({
               aria-selected={active}
               onClick={() => onChange(tab.id)}
               className={cn(
-                'shrink-0 px-4 py-3 text-sm border-b-[3px] -mb-px transition-colors',
-                'focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_var(--color-p-focus)] rounded-t',
+                'shrink-0 px-3 sm:px-4 h-11 text-sm border-b-2 -mb-px transition-colors',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-p-focus rounded-t-md',
                 active
                   ? 'text-p-text font-semibold border-p-primary'
-                  : 'text-p-text-subdued font-medium border-transparent hover:text-p-text hover:bg-p-bg'
+                  : 'text-p-text-subdued font-medium border-transparent hover:text-p-text hover:bg-p-bg-surface-hover'
               )}
             >
               {tab.label}
               {tab.badge !== undefined && (
-                <span className="ml-1.5 text-p-text-subdued">({tab.badge})</span>
+                <span
+                  className={cn(
+                    'ml-1.5 text-xs tabular-nums rounded-full px-1.5 py-0.5',
+                    active ? 'bg-p-bg-surface-selected text-p-text-primary' : 'bg-p-bg-surface-active text-p-text-subdued'
+                  )}
+                >
+                  {tab.badge}
+                </span>
               )}
             </button>
           );

@@ -1,10 +1,9 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { useQuery } from 'convex/react';
+import { useAdminQuery } from '@/hooks/useAdminApi';
 import { api } from '../../../../../convex/_generated/api';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from 'recharts';
-import { TrendingUp, TrendingDown, Users, RotateCcw, CheckCircle2, ShoppingCart, DollarSign, Percent } from 'lucide-react';
 import { PageHeader } from '@/components/admin/shared/PageHeader';
 import { Card } from '@/components/admin/ui/Card';
 import { Badge } from '@/components/admin/ui/Badge';
@@ -14,16 +13,19 @@ import { DataTable } from '@/components/admin/ui/DataTable';
 import { ExportButton } from '@/components/admin/ui/ExportButton';
 import { cn } from '@/lib/utils';
 
-const PIE_COLORS = ['#0D9488', '#0F766E', '#FDE68A'];
+const PIE_COLORS = ['var(--color-p-primary)', '#64748B', '#CBD5E1'];
 const STATUS_COLORS: Record<string, string> = {
-  placed: '#FDE68A',
-  confirmed: '#BAE6FD',
-  packed: '#0F766E',
-  delivering: '#0D9488',
-  completed: '#166534',
-  cancelled: '#EF4444',
+  placed: '#94A3B8',
+  confirmed: '#64748B',
+  packed: '#475569',
+  delivering: '#334155',
+  completed: 'var(--color-p-primary)',
+  cancelled: 'var(--color-p-critical)',
 };
-const CLASS_COLORS: Record<string, string> = { OTC: '#0D9488', P: '#0F766E', POM: '#EF4444' };
+const CLASS_COLORS: Record<string, string> = { OTC: 'var(--color-p-primary)', P: '#64748B', POM: '#334155' };
+const GRID = 'var(--color-p-border-subdued)';
+const TICK = { fontSize: 12, fill: 'var(--color-p-text-subdued)' };
+const TOOLTIP_STYLE = { borderRadius: 8, border: '1px solid var(--color-p-border-subdued)', fontSize: 13 };
 const RANGE_OPTIONS = [7, 30, 90] as const;
 
 const TABS = [
@@ -39,22 +41,21 @@ function formatKES(val: number) {
   return `KES ${val.toLocaleString()}`;
 }
 
-function StatTile({ icon: Icon, label, value, delta }: { icon: React.ElementType; label: string; value: string; delta?: number }) {
+function StatTile({ label, value, delta }: { label: string; value: string; delta?: number }) {
   const hasDelta = delta !== undefined && Number.isFinite(delta);
   const positive = (delta ?? 0) >= 0;
   return (
     <Card padding="compact">
-      <div className="flex items-center gap-2 mb-1">
-        <Icon size={14} className="text-p-icon-subdued" />
-        <p className="text-[12px] text-p-text-subdued">{label}</p>
+      <p className="text-xs text-p-text-subdued">{label}</p>
+      <div className="flex items-baseline gap-2 mt-1">
+        <p className="text-xl font-semibold tracking-tight tabular-nums text-p-text">{value}</p>
+        {hasDelta && (
+          <span className={`text-xs font-medium tabular-nums ${positive ? 'text-p-primary' : 'text-p-critical'}`}>
+            {positive ? '+' : '-'}
+            {Math.abs(delta!).toFixed(1)}%
+          </span>
+        )}
       </div>
-      <p className="text-lg font-semibold text-p-text">{value}</p>
-      {hasDelta && (
-        <p className={`text-[12px] mt-0.5 flex items-center gap-1 ${positive ? 'text-p-primary' : 'text-p-critical'}`}>
-          {positive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-          {Math.abs(delta!).toFixed(1)}%
-        </p>
-      )}
     </Card>
   );
 }
@@ -63,15 +64,15 @@ export default function AdminAnalyticsPage() {
   const [tab, setTab] = useState('overview');
   const [rangeDays, setRangeDays] = useState<(typeof RANGE_OPTIONS)[number]>(30);
 
-  const revSummary = useQuery(api.analytics.getRevenueSummary);
-  const salesTrend = useQuery(api.analytics.getSalesTrend, { days: rangeDays });
-  const topProductsByRevenue = useQuery(api.analytics.getTopProducts, { by: 'revenue', limit: 5 });
-  const topProductsByVolume = useQuery(api.analytics.getTopProducts, { by: 'volume', limit: 5 });
-  const paymentBreakdown = useQuery(api.analytics.getPaymentMethodBreakdown);
-  const allOrders = useQuery(api.orders.listOrders, { limit: 500 });
-  const products = useQuery(api.adminProducts.adminListProducts, { limit: 500 });
-  const customers = useQuery(api.customers.listCustomers, {});
-  const discounts = useQuery(api.discounts.listDiscounts);
+  const revSummary = useAdminQuery(api.analytics.getRevenueSummary, {});
+  const salesTrend = useAdminQuery(api.analytics.getSalesTrend, { days: rangeDays });
+  const topProductsByRevenue = useAdminQuery(api.analytics.getTopProducts, { by: 'revenue', limit: 5 });
+  const topProductsByVolume = useAdminQuery(api.analytics.getTopProducts, { by: 'volume', limit: 5 });
+  const paymentBreakdown = useAdminQuery(api.analytics.getPaymentMethodBreakdown, {});
+  const allOrders = useAdminQuery(api.orders.listOrders, { limit: 500 });
+  const products = useAdminQuery(api.adminProducts.adminListProducts, { limit: 500 });
+  const customers = useAdminQuery(api.customers.listCustomers, {});
+  const discounts = useAdminQuery(api.discounts.listDiscounts, {});
 
   const loading =
     revSummary === undefined || salesTrend === undefined || topProductsByRevenue === undefined ||
@@ -110,11 +111,11 @@ export default function AdminAnalyticsPage() {
 
   const classificationRevenue = useMemo(() => {
     if (!allOrders || !products) return [];
-    const classMap = new Map(products.map((p) => [p._id, p.classification]));
+    const classMap = new Map<string, string | undefined>(products.map((p) => [p._id as string, p.classification]));
     const totals: Record<string, number> = { OTC: 0, P: 0, POM: 0 };
     allOrders.forEach((o) => {
       if (o.status === 'cancelled') return;
-      o.items.forEach((item: any) => {
+      o.items.forEach((item) => {
         const cls = classMap.get(item.productId) ?? 'OTC';
         totals[cls] = (totals[cls] ?? 0) + item.price * item.qty;
       });
@@ -144,7 +145,7 @@ export default function AdminAnalyticsPage() {
     return (
       <div className="pb-16">
         <PageHeader title="Analytics" />
-        <div className="space-y-5 max-w-[998px] mx-auto">
+        <div className="space-y-5 max-w-6xl mx-auto">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {Array.from({ length: 4 }).map((_, i) => <SkeletonLoader key={i} type="card" />)}
           </div>
@@ -156,9 +157,9 @@ export default function AdminAnalyticsPage() {
 
   return (
     <div className="pb-16">
-      <PageHeader title="Analytics" subtitle="Store performance across sales, orders, products and customers" />
+      <PageHeader title="Analytics" />
 
-      <div className="max-w-[998px] mx-auto">
+      <div className="max-w-6xl mx-auto">
         <div className="-mt-2 mb-5">
           <Tabs tabs={TABS} activeTab={tab} onChange={setTab} />
         </div>
@@ -166,27 +167,21 @@ export default function AdminAnalyticsPage() {
         {tab === 'overview' && (
           <div className="space-y-5">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatTile icon={DollarSign} label="Revenue today" value={formatKES(revSummary!.today.revenue)} delta={revSummary!.today.change} />
-              <StatTile icon={ShoppingCart} label="Orders today" value={String(ordersToday ?? 0)} />
-              <StatTile icon={CheckCircle2} label="Fulfillment rate" value={fulfillmentRate === null ? '—' : `${fulfillmentRate.toFixed(1)}%`} />
-              <StatTile icon={Users} label="Repeat customer rate" value={`${customerStats?.rate.toFixed(1)}%`} />
+              <StatTile label="Revenue today" value={formatKES(revSummary!.today.revenue)} delta={revSummary!.today.change} />
+              <StatTile label="Orders today" value={String(ordersToday ?? 0)} />
+              <StatTile label="Fulfillment rate" value={fulfillmentRate === null ? '—' : `${fulfillmentRate.toFixed(1)}%`} />
+              <StatTile label="Repeat customer rate" value={`${customerStats?.rate.toFixed(1)}%`} />
             </div>
 
-            <Card title="30-day revenue trend" headerAction={<ExportButton filename="revenue-trend.csv" rows={(salesTrend ?? []).map((d) => ({ date: d.date, revenue: d.revenue }))} />}>
-              <div style={{ height: 220 }}>
+            <Card title={`Revenue, last ${rangeDays} days`} headerAction={<ExportButton filename="revenue-trend.csv" rows={(salesTrend ?? []).map((d) => ({ date: d.date, revenue: d.revenue }))} />}>
+              <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={salesTrend}>
-                    <defs>
-                      <linearGradient id="colorOverview" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#0D9488" stopOpacity={0.15} />
-                        <stop offset="95%" stopColor="#0D9488" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E1E3E5" />
-                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6D7175' }} tickFormatter={(v) => new Date(v).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6D7175' }} tickFormatter={(v) => `${v / 1000}k`} width={50} />
-                    <RechartsTooltip contentStyle={{ borderRadius: 8, border: '1px solid #E1E3E5' }} formatter={(v: any) => [formatKES(Number(v)), 'Revenue']} />
-                    <Area type="monotone" dataKey="revenue" stroke="#0D9488" strokeWidth={2} fill="url(#colorOverview)" />
+                    <CartesianGrid vertical={false} stroke={GRID} />
+                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={TICK} tickFormatter={(v) => new Date(v).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} />
+                    <YAxis axisLine={false} tickLine={false} tick={TICK} tickFormatter={(v) => (v >= 1000 ? `${v / 1000}k` : String(v))} width={50} />
+                    <RechartsTooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [formatKES(Number(v)), 'Revenue']} />
+                    <Area type="monotone" dataKey="revenue" stroke="var(--color-p-primary)" strokeWidth={2} fill="var(--color-p-primary)" fillOpacity={0.06} />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -228,7 +223,7 @@ export default function AdminAnalyticsPage() {
                       <button
                         key={d}
                         onClick={() => setRangeDays(d)}
-                        className={cn('px-2.5 py-1 rounded text-xs font-medium transition-colors', rangeDays === d ? 'bg-p-primary text-white' : 'text-p-text-subdued hover:bg-p-bg')}
+                        className={cn('px-2.5 py-1 rounded text-xs font-medium transition-colors', rangeDays === d ? 'bg-p-bg-surface-selected text-p-primary' : 'text-p-text-subdued hover:bg-p-bg')}
                       >
                         {d}d
                       </button>
@@ -241,20 +236,14 @@ export default function AdminAnalyticsPage() {
               <p className="text-sm text-p-text-subdued -mt-2 mb-3">
                 Total for the last {rangeDays} days: <span className="font-semibold text-p-text">{formatKES(rangeRevenue)}</span>
               </p>
-              <div style={{ height: 260 }}>
+              <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={salesTrend}>
-                    <defs>
-                      <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#0D9488" stopOpacity={0.15} />
-                        <stop offset="95%" stopColor="#0D9488" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E1E3E5" />
-                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6D7175' }} tickFormatter={(v) => new Date(v).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6D7175' }} tickFormatter={(v) => `${v / 1000}k`} width={50} />
-                    <RechartsTooltip contentStyle={{ borderRadius: 8, border: '1px solid #E1E3E5' }} formatter={(v: any) => [formatKES(Number(v)), 'Revenue']} labelFormatter={(l) => new Date(l).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })} />
-                    <Area type="monotone" dataKey="revenue" stroke="#0D9488" strokeWidth={2} fill="url(#colorSales)" />
+                    <CartesianGrid vertical={false} stroke={GRID} />
+                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={TICK} tickFormatter={(v) => new Date(v).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} />
+                    <YAxis axisLine={false} tickLine={false} tick={TICK} tickFormatter={(v) => (v >= 1000 ? `${v / 1000}k` : String(v))} width={50} />
+                    <RechartsTooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [formatKES(Number(v)), 'Revenue']} labelFormatter={(l) => new Date(l).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })} />
+                    <Area type="monotone" dataKey="revenue" stroke="var(--color-p-primary)" strokeWidth={2} fill="var(--color-p-primary)" fillOpacity={0.06} />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -262,14 +251,14 @@ export default function AdminAnalyticsPage() {
 
             <div className="grid lg:grid-cols-2 gap-5 items-start">
               <Card title="Revenue by payment method" headerAction={<ExportButton filename="revenue-by-payment-method.csv" rows={pieData.map((d) => ({ method: d.name, revenue: d.value }))} />}>
-                <div style={{ height: 220 }}>
+                <div className="h-56">
                   {pieData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={4} dataKey="value">
                           {pieData.map((entry, index) => <Cell key={entry.name} fill={PIE_COLORS[index % PIE_COLORS.length]} />)}
                         </Pie>
-                        <RechartsTooltip formatter={(v: any) => formatKES(Number(v))} />
+                        <RechartsTooltip formatter={(v) => formatKES(Number(v))} />
                         <Legend verticalAlign="bottom" height={36} />
                       </PieChart>
                     </ResponsiveContainer>
@@ -280,14 +269,14 @@ export default function AdminAnalyticsPage() {
               </Card>
 
               <Card title="Revenue by classification" headerAction={<ExportButton filename="revenue-by-classification.csv" rows={classificationRevenue} />}>
-                <div style={{ height: 220 }}>
+                <div className="h-56">
                   {classificationRevenue.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie data={classificationRevenue} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={4} dataKey="revenue" nameKey="classification">
-                          {classificationRevenue.map((d) => <Cell key={d.classification} fill={CLASS_COLORS[d.classification] ?? '#0D9488'} />)}
+                          {classificationRevenue.map((d) => <Cell key={d.classification} fill={CLASS_COLORS[d.classification] ?? 'var(--color-p-primary)'} />)}
                         </Pie>
-                        <RechartsTooltip formatter={(v: any) => formatKES(Number(v))} />
+                        <RechartsTooltip formatter={(v) => formatKES(Number(v))} />
                         <Legend verticalAlign="bottom" height={36} />
                       </PieChart>
                     </ResponsiveContainer>
@@ -303,21 +292,21 @@ export default function AdminAnalyticsPage() {
         {tab === 'orders' && (
           <div className="space-y-5">
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-              <StatTile icon={ShoppingCart} label="Orders today" value={String(ordersToday ?? 0)} />
-              <StatTile icon={CheckCircle2} label="Fulfillment rate" value={fulfillmentRate === null ? '—' : `${fulfillmentRate.toFixed(1)}%`} />
-              <StatTile icon={ShoppingCart} label="Total orders" value={String(allOrders?.length ?? 0)} />
+              <StatTile label="Orders today" value={String(ordersToday ?? 0)} />
+              <StatTile label="Fulfillment rate" value={fulfillmentRate === null ? '—' : `${fulfillmentRate.toFixed(1)}%`} />
+              <StatTile label="Total orders" value={String(allOrders?.length ?? 0)} />
             </div>
             <Card title="Orders by status" headerAction={<ExportButton filename="orders-by-status.csv" rows={statusBreakdown} />}>
-              <div style={{ height: 260 }}>
+              <div className="h-64">
                 {statusBreakdown.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={statusBreakdown} margin={{ left: -20 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E1E3E5" />
-                      <XAxis dataKey="status" tick={{ fontSize: 11, fill: '#6D7175' }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize: 12, fill: '#6D7175' }} axisLine={false} tickLine={false} allowDecimals={false} />
-                      <RechartsTooltip contentStyle={{ borderRadius: 8, border: '1px solid #E1E3E5' }} />
+                      <CartesianGrid vertical={false} stroke={GRID} />
+                      <XAxis dataKey="status" tick={TICK} axisLine={false} tickLine={false} />
+                      <YAxis tick={TICK} axisLine={false} tickLine={false} allowDecimals={false} />
+                      <RechartsTooltip contentStyle={TOOLTIP_STYLE} />
                       <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                        {statusBreakdown.map((d) => <Cell key={d.status} fill={STATUS_COLORS[d.status] ?? '#0D9488'} />)}
+                        {statusBreakdown.map((d) => <Cell key={d.status} fill={STATUS_COLORS[d.status] ?? 'var(--color-p-primary)'} />)}
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
@@ -332,8 +321,8 @@ export default function AdminAnalyticsPage() {
         {tab === 'customers' && (
           <div className="space-y-5">
             <div className="grid grid-cols-2 gap-4">
-              <StatTile icon={Users} label="Total customers" value={String(customerStats?.total ?? 0)} />
-              <StatTile icon={RotateCcw} label="Repeat customer rate" value={`${customerStats?.rate.toFixed(1)}%`} />
+              <StatTile label="Total customers" value={String(customerStats?.total ?? 0)} />
+              <StatTile label="Repeat customer rate" value={`${customerStats?.rate.toFixed(1)}%`} />
             </div>
             <Card
               title="Top customers by lifetime spend"
@@ -341,11 +330,11 @@ export default function AdminAnalyticsPage() {
             >
               <DataTable
                 columns={[
-                  { key: 'name', label: 'Customer', render: (r: any) => r.name || 'Unknown' },
+                  { key: 'name', label: 'Customer', render: (r) => r.name || 'Unknown' },
                   { key: 'totalOrders', label: 'Orders', align: 'right' },
-                  { key: 'totalSpent', label: 'Total spent', align: 'right', render: (r: any) => formatKES(r.totalSpent) },
+                  { key: 'totalSpent', label: 'Total spent', align: 'right', render: (r) => formatKES(r.totalSpent) },
                 ]}
-                rows={topSpenders.map((c) => ({ id: c.id, ...c }))}
+                rows={topSpenders.map((c) => ({ ...c }))}
                 emptyState={<p className="text-sm text-p-text-subdued py-6 text-center">No customers yet.</p>}
               />
             </Card>
@@ -361,7 +350,7 @@ export default function AdminAnalyticsPage() {
               <DataTable
                 columns={[
                   { key: 'name', label: 'Product' },
-                  { key: 'revenue', label: 'Revenue', align: 'right', render: (r: any) => formatKES(r.revenue) },
+                  { key: 'revenue', label: 'Revenue', align: 'right', render: (r) => formatKES(r.revenue) },
                 ]}
                 rows={(topProductsByRevenue ?? []).map((p, i) => ({ id: String(i), ...p }))}
                 emptyState={<p className="text-sm text-p-text-subdued py-6 text-center">No sales data yet.</p>}
@@ -386,8 +375,8 @@ export default function AdminAnalyticsPage() {
         {tab === 'discounts' && (
           <div className="space-y-5">
             <div className="grid grid-cols-2 gap-4">
-              <StatTile icon={Percent} label="Active discount rate" value={activeDiscountRate === null ? '—' : `${activeDiscountRate.toFixed(0)}%`} />
-              <StatTile icon={Percent} label="Total redemptions" value={`${totalRedemptions}×`} />
+              <StatTile label="Active discount rate" value={activeDiscountRate === null ? '—' : `${activeDiscountRate.toFixed(0)}%`} />
+              <StatTile label="Total redemptions" value={`${totalRedemptions}×`} />
             </div>
             <Card
               title="Discount performance"
@@ -396,9 +385,9 @@ export default function AdminAnalyticsPage() {
               {discounts && discounts.length > 0 ? (
                 <DataTable
                   columns={[
-                    { key: 'code', label: 'Code', render: (r: any) => <span className="font-medium">{r.code}</span> },
-                    { key: 'status', label: 'Status', render: (r: any) => <Badge status={r.status === 'active' ? 'success' : 'default'}>{r.status}</Badge> },
-                    { key: 'usedCount', label: 'Redemptions', align: 'right', render: (r: any) => `${r.usedCount}×` },
+                    { key: 'code', label: 'Code', render: (r) => <span className="font-medium">{r.code}</span> },
+                    { key: 'status', label: 'Status', render: (r) => <Badge status={r.status === 'active' ? 'success' : 'default'}>{r.status}</Badge> },
+                    { key: 'usedCount', label: 'Redemptions', align: 'right', render: (r) => `${r.usedCount}×` },
                   ]}
                   rows={discounts.map((d) => ({ id: d._id, ...d }))}
                 />

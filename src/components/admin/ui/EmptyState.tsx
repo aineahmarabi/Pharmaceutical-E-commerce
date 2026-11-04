@@ -1,9 +1,9 @@
 import React from 'react';
-import { PackageSearch } from 'lucide-react';
 import { Button } from './Button';
 
+// `icon` is accepted for API compatibility but intentionally not rendered:
+// empty states are typographic, with a clear next step.
 export function EmptyState({
-  icon: Icon = PackageSearch,
   heading,
   body,
   action,
@@ -14,14 +14,15 @@ export function EmptyState({
   action?: { label: string; onClick: () => void };
 }) {
   return (
-    <div className="flex flex-col items-center text-center py-10 px-5">
-      <Icon size={48} className="text-p-text-disabled mb-4" />
-      <h3 className="text-base font-semibold text-p-text mb-2">{heading}</h3>
-      {body && <p className="text-sm text-p-text-subdued max-w-[400px] mb-4">{body}</p>}
+    <div className="flex flex-col items-center text-center py-12 px-5">
+      <h3 className="text-base font-semibold text-p-text">{heading}</h3>
+      {body && <p className="text-sm text-p-text-subdued max-w-[400px] mt-1">{body}</p>}
       {action && (
-        <Button variant="primary" onClick={action.onClick}>
-          {action.label}
-        </Button>
+        <div className="mt-4">
+          <Button variant="primary" onClick={action.onClick}>
+            {action.label}
+          </Button>
+        </div>
       )}
     </div>
   );

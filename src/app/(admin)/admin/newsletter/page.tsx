@@ -1,20 +1,17 @@
 'use client';
 
 import React from 'react';
-import { useMutation, useQuery } from 'convex/react';
-import { Mail, Download, X } from 'lucide-react';
+import { useAdminQuery, useAdminMutation } from '@/hooks/useAdminApi';
 import { api } from '../../../../../convex/_generated/api';
-import type { Id } from '../../../../../convex/_generated/dataModel';
 import { PageHeader } from '@/components/admin/shared/PageHeader';
 import { Card } from '@/components/admin/ui/Card';
 import { Badge } from '@/components/admin/ui/Badge';
-import { EmptyState } from '@/components/admin/ui/EmptyState';
 import { SkeletonLoader } from '@/components/admin/ui/SkeletonLoader';
 import { useAdminToast } from '@/components/admin/ui/Toast';
 
 export default function AdminNewsletterPage() {
-  const subscribers = useQuery(api.newsletter.listSubscribers);
-  const unsubscribe = useMutation(api.newsletter.unsubscribe);
+  const subscribers = useAdminQuery(api.newsletter.listSubscribers, {});
+  const unsubscribe = useAdminMutation(api.newsletter.unsubscribe);
   const { toast } = useAdminToast();
 
   const activeCount = subscribers?.filter((s) => s.subscribed).length;
@@ -37,46 +34,59 @@ export default function AdminNewsletterPage() {
     <div className="pb-16">
       <PageHeader
         title="Newsletter"
-        subtitle={activeCount !== undefined ? `${activeCount} active subscriber${activeCount === 1 ? '' : 's'}` : 'Emails collected from the homepage signup'}
-        primaryAction={{ label: 'Export CSV', icon: Download, onClick: handleExport }}
+        subtitle={activeCount !== undefined ? `${activeCount} active subscriber${activeCount === 1 ? '' : 's'}` : 'Emails collected from the storefront signup'}
+        primaryAction={{ label: 'Export CSV', onClick: handleExport }}
       />
 
       {subscribers === undefined ? (
         <SkeletonLoader type="text" count={6} />
       ) : subscribers.length === 0 ? (
         <Card>
-          <EmptyState icon={Mail} heading="No subscribers yet" body="Emails collected from the newsletter signup on the homepage will show up here." />
+          <div className="py-12 text-center">
+            <h3 className="text-base font-semibold text-p-text">No subscribers yet</h3>
+            <p className="text-sm text-p-text-subdued mt-1">Emails collected from the newsletter signup will show up here.</p>
+          </div>
         </Card>
       ) : (
-        <div className="max-w-[720px]">
-          <Card padding="compact">
-            <div className="space-y-1">
-              {subscribers.map((s) => (
-                <div key={s._id} className="flex items-center justify-between gap-3 px-1.5 py-2 border-b border-p-border-subdued last:border-0">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <p className="text-sm text-p-text truncate">{s.email}</p>
-                    {!s.subscribed && <Badge status="default">Unsubscribed</Badge>}
-                  </div>
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    <p className="text-[12px] text-p-text-disabled">{new Date(s.createdAt).toLocaleDateString()}</p>
-                    {s.subscribed && (
-                      <button
-                        onClick={async () => {
-                          await unsubscribe({ email: s.email });
-                          toast('Subscriber removed');
-                        }}
-                        aria-label={`Unsubscribe ${s.email}`}
-                        className="text-p-icon-subdued hover:text-p-critical hover:bg-p-critical-subdued rounded p-1 transition-colors"
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
+        <Card padding="compact" className="max-w-[860px] overflow-hidden">
+          <div className="-m-3.5 overflow-x-auto">
+            <table className="w-full min-w-[480px]">
+              <thead>
+                <tr className="bg-p-bg h-10 text-xs font-semibold text-p-text-subdued border-b border-p-border-subdued">
+                  <th className="text-left px-5">Email</th>
+                  <th className="text-left px-5">Status</th>
+                  <th className="text-left px-5">Subscribed</th>
+                  <th className="px-5"><span className="sr-only">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {subscribers.map((s) => (
+                  <tr key={s._id} className="h-12 border-b border-p-border-subdued last:border-0 text-sm hover:bg-p-bg transition-colors">
+                    <td className="px-5 text-p-text">{s.email}</td>
+                    <td className="px-5">
+                      <Badge status={s.subscribed ? 'success' : 'default'}>{s.subscribed ? 'Subscribed' : 'Unsubscribed'}</Badge>
+                    </td>
+                    <td className="px-5 text-p-text-subdued whitespace-nowrap">{new Date(s.createdAt).toLocaleDateString()}</td>
+                    <td className="px-5 text-right whitespace-nowrap">
+                      {s.subscribed && (
+                        <button
+                          onClick={async () => {
+                            await unsubscribe({ email: s.email });
+                            toast('Subscriber removed');
+                          }}
+                          aria-label={`Unsubscribe ${s.email}`}
+                          className="text-sm text-p-critical hover:underline"
+                        >
+                          Unsubscribe
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       )}
     </div>
   );

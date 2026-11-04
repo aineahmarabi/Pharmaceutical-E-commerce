@@ -1,8 +1,18 @@
 import { mutation, query, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
 import type { Id } from './_generated/dataModel';
+import { clearFailures, lockedForMs, recordFailure, safeEqual, secureToken } from './throttle';
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const MAX_SESSIONS_PER_ACCOUNT = 5;
+const MAX_LOGIN_FAILURES = 5;
+
+const LIMITS = { name: 100, email: 254, password: 128 };
+const MIN_PASSWORD = 8;
+const COMMON_PASSWORDS = new Set([
+  '12345678', '123456789', '1234567890', 'password', 'password1', 'password123', 'qwertyui', 'qwerty123',
+  'iloveyou', '11111111', '00000000', 'abc12345', 'letmein1', 'welcome1', 'admin123', 'pharmacare',
+]);
 
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -25,8 +35,16 @@ async function hashPassword(password: string, saltHex?: string): Promise<{ hash:
   return { hash: bytesToHex(new Uint8Array(bits)), salt: bytesToHex(salt) };
 }
 
-function generateToken(): string {
-  return bytesToHex(crypto.getRandomValues(new Uint8Array(24)));
+function passwordProblem(password: string, email: string): string | null {
+  if (password.length < MIN_PASSWORD) return `Password must be at least ${MIN_PASSWORD} characters.`;
+  if (password.length > LIMITS.password) return `Password must be at most ${LIMITS.password} characters.`;
+  if (COMMON_PASSWORDS.has(password.toLowerCase())) return 'That password is too common. Please choose another.';
+  const local = email.split('@')[0];
+  if (local.length >= 4 && password.toLowerCase().includes(local.toLowerCase())) {
+    return 'Password should not contain your email name.';
+  }
+  if (/^(.)\1+$/.test(password)) return 'Please choose a less repetitive password.';
+  return null;
 }
 
 async function getCustomerFromToken(ctx: QueryCtx, token: string) {
@@ -46,11 +64,24 @@ export const signup = mutation({
     const email = args.email.trim().toLowerCase();
 
     if (!name) return { success: false, error: 'Please enter your name.' };
-    if (!/^\S+@\S+\.\S+$/.test(email)) return { success: false, error: 'Please enter a valid email address.' };
-    if (args.password.length < 6) return { success: false, error: 'Password must be at least 6 characters.' };
+    if (name.length > LIMITS.name) return { success: false, error: 'Name is too long.' };
+    if (email.length > LIMITS.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return { success: false, error: 'Please enter a valid email address.' };
+    }
+    const problem = passwordProblem(args.password, email);
+    if (problem) return { success: false, error: problem };
+
+    // Limit repeated sign-up attempts for the same address.
+    const key = `signup:${email}`;
+    if ((await lockedForMs(ctx, key)) > 0) {
+      return { success: false, error: 'Too many attempts. Please try again in a few minutes.' };
+    }
 
     const existing = await ctx.db.query('customerAccounts').withIndex('by_email', (q) => q.eq('email', email)).first();
-    if (existing) return { success: false, error: 'An account with this email already exists.' };
+    if (existing) {
+      await recordFailure(ctx, key, 5);
+      return { success: false, error: 'An account with this email already exists. Try logging in instead.' };
+    }
 
     const { hash, salt } = await hashPassword(args.password);
     const customerAccountId = await ctx.db.insert('customerAccounts', {
@@ -61,7 +92,7 @@ export const signup = mutation({
       createdAt: Date.now(),
     });
 
-    const token = generateToken();
+    const token = secureToken();
     await ctx.db.insert('customerAccountSessions', {
       customerAccountId,
       token,
@@ -77,13 +108,39 @@ export const login = mutation({
   args: { email: v.string(), password: v.string() },
   handler: async (ctx, args) => {
     const email = args.email.trim().toLowerCase();
+    const generic = { success: false as const, error: 'Invalid email or password.' };
+
+    if (email.length > LIMITS.email || args.password.length > LIMITS.password) return generic;
+
+    const key = `login:${email}`;
+    if ((await lockedForMs(ctx, key)) > 0) {
+      return { success: false as const, error: 'Too many failed attempts. Please wait a few minutes and try again.' };
+    }
+
     const customer = await ctx.db.query('customerAccounts').withIndex('by_email', (q) => q.eq('email', email)).first();
-    if (!customer) return { success: false, error: 'Invalid email or password.' };
 
-    const { hash } = await hashPassword(args.password, customer.passwordSalt);
-    if (hash !== customer.passwordHash) return { success: false, error: 'Invalid email or password.' };
+    // Always do the same amount of hashing work, so response time does not reveal
+    // whether the email has an account.
+    const { hash } = await hashPassword(args.password, customer?.passwordSalt ?? '00'.repeat(16));
+    const ok = customer ? safeEqual(hash, customer.passwordHash) : false;
 
-    const token = generateToken();
+    if (!customer || !ok) {
+      await recordFailure(ctx, key, MAX_LOGIN_FAILURES);
+      return generic;
+    }
+
+    await clearFailures(ctx, key);
+
+    // Housekeeping: drop expired sessions and cap how many stay active per account.
+    const sessions = await ctx.db
+      .query('customerAccountSessions')
+      .withIndex('by_customer', (q) => q.eq('customerAccountId', customer._id))
+      .collect();
+    const live = sessions.filter((s) => s.expiresAt >= Date.now()).sort((a, b) => b.createdAt - a.createdAt);
+    for (const s of sessions) if (s.expiresAt < Date.now()) await ctx.db.delete(s._id);
+    for (const s of live.slice(MAX_SESSIONS_PER_ACCOUNT - 1)) await ctx.db.delete(s._id);
+
+    const token = secureToken();
     await ctx.db.insert('customerAccountSessions', {
       customerAccountId: customer._id,
       token,
@@ -91,7 +148,7 @@ export const login = mutation({
       expiresAt: Date.now() + SESSION_TTL_MS,
     });
 
-    return { success: true, token };
+    return { success: true as const, token };
   },
 });
 
@@ -132,11 +189,12 @@ export const updateProfile = mutation({
 
     const name = args.name.trim();
     if (!name) return { success: false, error: 'Please enter your name.' };
+    if (name.length > LIMITS.name) return { success: false, error: 'Name is too long.' };
 
     await ctx.db.patch(session.customerAccountId, {
       name,
-      phone: args.phone?.trim() || undefined,
-      dob: args.dob?.trim() || undefined,
+      phone: args.phone?.trim().slice(0, 30) || undefined,
+      dob: args.dob?.trim().slice(0, 20) || undefined,
     });
 
     return { success: true };

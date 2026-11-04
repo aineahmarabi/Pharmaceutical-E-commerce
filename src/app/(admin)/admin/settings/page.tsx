@@ -2,24 +2,26 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery } from 'convex/react';
+import { useAdminMutation } from '@/hooks/useAdminApi';
 import { api } from '../../../../../convex/_generated/api';
 import { useBranding } from '@/hooks/useBranding';
 import { useAdminName } from '@/hooks/useAdminName';
 import { Card } from '@/components/admin/ui/Card';
 import { Input } from '@/components/admin/ui/Input';
 import { Button } from '@/components/admin/ui/Button';
+import { ContextualSaveBar } from '@/components/admin/ui/ContextualSaveBar';
 import { useAdminToast } from '@/components/admin/ui/Toast';
-import { UploadCloud, X } from 'lucide-react';
 
 export default function StoreDetailsPage() {
   const { toast } = useAdminToast();
   const branding = useBranding();
   const { name: adminName } = useAdminName();
-  const updateSetting = useMutation(api.settings.updateStoreSetting);
-  const updateLogo = useMutation(api.settings.updateLogo);
-  const generateUploadUrl = useMutation(api.files.generateUploadUrl);
+  const updateSetting = useAdminMutation(api.settings.updateStoreSetting);
+  const updateLogo = useAdminMutation(api.settings.updateLogo);
+  const generateUploadUrl = useAdminMutation(api.files.generateUploadUrl);
   const changePasscode = useMutation(api.adminAuth.changePasscode);
 
+  const allSettings = useQuery(api.settings.getStoreSettings);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [removingLogo, setRemovingLogo] = useState(false);
@@ -27,8 +29,20 @@ export default function StoreDetailsPage() {
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', whatsapp: '', address: '', mapLink: '' });
   const [saving, setSaving] = useState(false);
 
+  const [pharmacy, setPharmacy] = useState({ pharmacistName: '', ppbLicenceNumber: '', ppbLicenceExpiry: '', lowStockThreshold: '' });
+  const savedPharmacy = {
+    pharmacistName: String(allSettings?.find((s) => s.key === 'pharmacistName')?.value ?? ''),
+    ppbLicenceNumber: String(allSettings?.find((s) => s.key === 'ppbLicenceNumber')?.value ?? ''),
+    ppbLicenceExpiry: String(allSettings?.find((s) => s.key === 'ppbLicenceExpiry')?.value ?? ''),
+    lowStockThreshold: String(allSettings?.find((s) => s.key === 'lowStockThreshold')?.value ?? ''),
+  };
+  const savedPharmacyKey = JSON.stringify(savedPharmacy);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset form when saved settings change
+    setPharmacy(JSON.parse(savedPharmacyKey));
+  }, [savedPharmacyKey]);
+
   const [socialLinks, setSocialLinks] = useState({ twitter: '', instagram: '', facebook: '' });
-  const [savingSocial, setSavingSocial] = useState(false);
 
   const [displayName, setDisplayName] = useState('');
   const [savingName, setSavingName] = useState(false);
@@ -38,7 +52,22 @@ export default function StoreDetailsPage() {
   const [confirmPasscode, setConfirmPasscode] = useState('');
   const [savingPasscode, setSavingPasscode] = useState(false);
 
+  const savedForm = {
+    name: branding.name,
+    email: branding.email,
+    phone: branding.phone,
+    whatsapp: branding.whatsapp,
+    address: branding.address,
+    mapLink: branding.mapLink,
+  };
+  const savedSocial = {
+    twitter: branding.socialLinks?.twitter ?? '',
+    instagram: branding.socialLinks?.instagram ?? '',
+    facebook: branding.socialLinks?.facebook ?? '',
+  };
+
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync editable fields from saved branding
     setFormData({
       name: branding.name,
       email: branding.email,
@@ -50,6 +79,7 @@ export default function StoreDetailsPage() {
   }, [branding.name, branding.email, branding.phone, branding.whatsapp, branding.address, branding.mapLink]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync editable fields from saved social links
     setSocialLinks({
       twitter: branding.socialLinks?.twitter ?? '',
       instagram: branding.socialLinks?.instagram ?? '',
@@ -58,14 +88,42 @@ export default function StoreDetailsPage() {
   }, [branding.socialLinks?.twitter, branding.socialLinks?.instagram, branding.socialLinks?.facebook]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync editable field from saved name
     setDisplayName(adminName);
   }, [adminName]);
+
+  const formDirty = (Object.keys(savedForm) as (keyof typeof savedForm)[]).some((k) => formData[k] !== savedForm[k]);
+  const socialDirty = (Object.keys(savedSocial) as (keyof typeof savedSocial)[]).some((k) => socialLinks[k] !== savedSocial[k]);
+  const pharmacyDirty = (Object.keys(savedPharmacy) as (keyof typeof savedPharmacy)[]).some((k) => pharmacy[k] !== savedPharmacy[k]);
+  const isDirty = formDirty || socialDirty || pharmacyDirty;
+
+  const handleDiscard = () => {
+    setFormData(savedForm);
+    setSocialLinks(savedSocial);
+    setPharmacy(savedPharmacy);
+  };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      await Promise.all(Object.entries(formData).map(([key, value]) => updateSetting({ key, value })));
-      toast('Store details saved');
+      if (formDirty) {
+        await Promise.all(Object.entries(formData).map(([key, value]) => updateSetting({ key, value })));
+      }
+      if (socialDirty) {
+        await updateSetting({ key: 'socialLinks', value: socialLinks });
+      }
+      if (pharmacyDirty) {
+        await Promise.all(
+          (Object.keys(pharmacy) as (keyof typeof pharmacy)[])
+            .filter((k) => pharmacy[k] !== savedPharmacy[k])
+            .map((k) => {
+              const raw = pharmacy[k].trim();
+              const value = k === 'lowStockThreshold' ? (raw === '' ? null : Math.max(0, Math.floor(Number(raw)) || 0)) : raw;
+              return updateSetting({ key: k, value });
+            }),
+        );
+      }
+      toast('Settings saved');
     } finally {
       setSaving(false);
     }
@@ -76,7 +134,7 @@ export default function StoreDetailsPage() {
     if (!file) return;
     setUploadingLogo(true);
     try {
-      const postUrl = await generateUploadUrl();
+      const postUrl = await generateUploadUrl({});
       const result = await fetch(postUrl, {
         method: 'POST',
         headers: { 'Content-Type': file.type },
@@ -98,16 +156,6 @@ export default function StoreDetailsPage() {
       toast('Logo removed');
     } finally {
       setRemovingLogo(false);
-    }
-  };
-
-  const handleSaveSocial = async () => {
-    setSavingSocial(true);
-    try {
-      await updateSetting({ key: 'socialLinks', value: socialLinks });
-      toast('Social links saved');
-    } finally {
-      setSavingSocial(false);
     }
   };
 
@@ -146,66 +194,15 @@ export default function StoreDetailsPage() {
   };
 
   return (
-    <div className="space-y-5">
-      <h1 className="text-xl font-semibold text-p-text">Store details</h1>
+    <div className="space-y-4">
+      <ContextualSaveBar isDirty={isDirty} onSave={handleSave} onDiscard={handleDiscard} saving={saving} />
 
-      <Card title="Your account">
-        <div className="flex flex-wrap items-end gap-3">
-          <Input
-            containerClassName="flex-1 min-w-[200px]"
-            label="Display name"
-            helpText="What the system calls you across the admin panel."
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-          />
-          <Button variant="secondary" onClick={handleSaveName} loading={savingName}>Save name</Button>
-        </div>
-      </Card>
+      <div>
+        <h2 className="text-xl font-semibold text-p-text">Store details</h2>
+        <p className="text-sm text-p-text-subdued mt-0.5">Contact information, branding and account security.</p>
+      </div>
 
-      <Card title="Logo">
-        <p className="text-sm text-p-text-subdued mb-4">Shown in the admin sidebar, storefront header, and used as the browser tab icon.</p>
-        <div className="flex items-center gap-4">
-          <div
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={async (e) => {
-              e.preventDefault();
-              const dropped = e.dataTransfer.files?.[0];
-              if (dropped && dropped.type.startsWith('image/')) {
-                const dt = new DataTransfer();
-                dt.items.add(dropped);
-                if (logoInputRef.current) {
-                  logoInputRef.current.files = dt.files;
-                  await handleLogoChange({ target: logoInputRef.current } as React.ChangeEvent<HTMLInputElement>);
-                }
-              }
-            }}
-            onClick={() => logoInputRef.current?.click()}
-            className="w-20 h-20 flex-shrink-0 rounded-xl border-2 border-dashed border-p-border bg-p-bg flex items-center justify-center cursor-pointer hover:bg-p-bg-surface transition-colors overflow-hidden"
-          >
-            <input type="file" ref={logoInputRef} className="hidden" accept="image/*" onChange={handleLogoChange} />
-            {branding.logo ? (
-              <img src={branding.logo} alt={branding.name} className="w-full h-full object-contain" />
-            ) : (
-              <UploadCloud size={20} className="text-p-icon" />
-            )}
-          </div>
-          <div className="flex flex-col gap-2">
-            <div className="flex gap-2">
-              <Button variant="secondary" onClick={() => logoInputRef.current?.click()} loading={uploadingLogo}>
-                {branding.logo ? 'Replace logo' : 'Upload logo'}
-              </Button>
-              {branding.logo && (
-                <Button variant="plain" icon={X} onClick={handleRemoveLogo} loading={removingLogo}>
-                  Remove
-                </Button>
-              )}
-            </div>
-            <p className="text-xs text-p-text-subdued">Square image recommended, PNG or SVG with a transparent background.</p>
-          </div>
-        </div>
-      </Card>
-
-      <Card title="Store details">
+      <Card title="Store profile">
         <div className="grid sm:grid-cols-2 gap-4">
           <Input label="Store name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
           <Input label="Store email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
@@ -220,23 +217,97 @@ export default function StoreDetailsPage() {
           <Input
             label="Google Maps pin or link"
             placeholder="https://maps.google.com/?q=..."
-            helpText="Paste a Google Maps share link, or a place/pin URL. Shown on the Contact page and used for pickup directions at checkout."
+            helpText="Shown on the Contact page and used for pickup directions at checkout."
             value={formData.mapLink}
             onChange={(e) => setFormData({ ...formData, mapLink: e.target.value })}
           />
         </div>
       </Card>
 
-      <Button variant="primary" onClick={handleSave} loading={saving}>Save</Button>
+      <Card title="Pharmacy details">
+        <div className="grid sm:grid-cols-2 gap-4">
+          <Input label="Superintending pharmacist" helpText="Shown in the storefront footer and About page when set." value={pharmacy.pharmacistName} onChange={(e) => setPharmacy({ ...pharmacy, pharmacistName: e.target.value })} />
+          <Input label="PPB licence number" value={pharmacy.ppbLicenceNumber} onChange={(e) => setPharmacy({ ...pharmacy, ppbLicenceNumber: e.target.value })} />
+          <Input label="PPB licence expiry (optional)" type="date" value={pharmacy.ppbLicenceExpiry} onChange={(e) => setPharmacy({ ...pharmacy, ppbLicenceExpiry: e.target.value })} />
+          <Input
+            label="Low stock alert level"
+            type="number"
+            min={0}
+            placeholder="10"
+            helpText="Alert when a product falls to this many units. Default 10."
+            value={pharmacy.lowStockThreshold}
+            onChange={(e) => setPharmacy({ ...pharmacy, lowStockThreshold: e.target.value })}
+          />
+        </div>
+      </Card>
+
+      <Card title="Branding">
+        <p className="text-sm text-p-text-subdued mb-4">The logo is used in the admin sidebar and as the browser tab icon. Logo changes apply immediately.</p>
+        <div className="flex items-center gap-4">
+          <div
+            role="button"
+            tabIndex={0}
+            aria-label="Upload logo"
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); logoInputRef.current?.click(); } }}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={async (e) => {
+              e.preventDefault();
+              const dropped = e.dataTransfer.files?.[0];
+              if (dropped && dropped.type.startsWith('image/')) {
+                const dt = new DataTransfer();
+                dt.items.add(dropped);
+                if (logoInputRef.current) {
+                  logoInputRef.current.files = dt.files;
+                  await handleLogoChange({ target: logoInputRef.current } as React.ChangeEvent<HTMLInputElement>);
+                }
+              }
+            }}
+            onClick={() => logoInputRef.current?.click()}
+            className="w-20 h-20 flex-shrink-0 rounded-xl border border-dashed border-p-border bg-p-bg flex items-center justify-center cursor-pointer hover:bg-p-bg-surface-hover transition-colors overflow-hidden text-xs text-p-text-subdued text-center"
+          >
+            <input type="file" ref={logoInputRef} className="hidden" accept="image/*" onChange={handleLogoChange} />
+            {branding.logo ? (
+              <img src={branding.logo} alt={branding.name} className="w-full h-full object-contain" />
+            ) : (
+              <span className="px-2">Drop image</span>
+            )}
+          </div>
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={() => logoInputRef.current?.click()} loading={uploadingLogo}>
+                {branding.logo ? 'Replace logo' : 'Upload logo'}
+              </Button>
+              {branding.logo && (
+                <Button variant="plain" onClick={handleRemoveLogo} loading={removingLogo}>
+                  Remove
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-p-text-subdued">Square image recommended. PNG or SVG with a transparent background.</p>
+          </div>
+        </div>
+      </Card>
 
       <Card title="Social links">
-        <p className="text-sm text-p-text-subdued mb-4">Shown as icons in the storefront footer. Leave blank to hide an icon.</p>
+        <p className="text-sm text-p-text-subdued mb-4">Shown in the storefront footer. Leave blank to hide a link.</p>
         <div className="grid sm:grid-cols-3 gap-4">
           <Input label="X (Twitter) URL" placeholder="https://x.com/yourstore" value={socialLinks.twitter} onChange={(e) => setSocialLinks({ ...socialLinks, twitter: e.target.value })} />
           <Input label="Instagram URL" placeholder="https://instagram.com/yourstore" value={socialLinks.instagram} onChange={(e) => setSocialLinks({ ...socialLinks, instagram: e.target.value })} />
           <Input label="Facebook URL" placeholder="https://facebook.com/yourstore" value={socialLinks.facebook} onChange={(e) => setSocialLinks({ ...socialLinks, facebook: e.target.value })} />
         </div>
-        <Button variant="primary" className="mt-4" onClick={handleSaveSocial} loading={savingSocial}>Save social links</Button>
+      </Card>
+
+      <Card title="Your account">
+        <div className="flex flex-wrap items-end gap-3">
+          <Input
+            containerClassName="flex-1 min-w-[200px]"
+            label="Display name"
+            helpText="What the system calls you across the admin panel."
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+          />
+          <Button variant="secondary" onClick={handleSaveName} loading={savingName}>Save name</Button>
+        </div>
       </Card>
 
       <Card title="Security">
@@ -247,7 +318,7 @@ export default function StoreDetailsPage() {
           <Input label="Confirm new passcode" type="password" value={confirmPasscode} onChange={(e) => setConfirmPasscode(e.target.value)} />
         </div>
         <Button
-          variant="primary"
+          variant="secondary"
           className="mt-4"
           onClick={handleChangePasscode}
           loading={savingPasscode}

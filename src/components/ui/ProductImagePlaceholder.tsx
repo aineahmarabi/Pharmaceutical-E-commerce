@@ -1,97 +1,92 @@
-import React from 'react';
+'use client';
+
+import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
 
 interface ProductImagePlaceholderProps {
   className?: string;
+  /** Tailwind aspect class for the tile (every card uses the same one, so cards match in height). */
   aspectRatio?: string;
   size?: 'sm' | 'md' | 'lg';
   name?: string;
   categorySlug?: string;
   imageUrl?: string;
+  /**
+   * Framed mode (product cards): a fixed-size tile that always shows the WHOLE photo
+   * (never cropped). Any space left by the photo's own shape is filled with a soft,
+   * blurred version of the same photo instead of empty white, so every card is the
+   * same height and the tile still looks full.
+   */
+  framed?: boolean;
 }
-
-const CATEGORY_GRADIENTS: Record<string, [string, string]> = {
-  'pain-relief': ['#3B82C4', '#0D9488'],
-  antibiotics: ['#0D9488', '#22C55E'],
-  'cough-cold': ['#3B82C4', '#5EEAD4'],
-  'baby-care': ['#F9A8D4', '#F59E0B'],
-  'skin-care': ['#FDA4AF', '#FED7AA'],
-  'arthritis-joint-care': ['#EF4444', '#F59E0B'],
-  'sexual-wellness': ['#334155', '#0F766E'],
-  'mother-baby': ['#F9A8D4', '#0D9488'],
-  allergy: ['#22C55E', '#5EEAD4'],
-  'vitamins-supplements': ['#F59E0B', '#22C55E'],
-  'digestive-health': ['#F59E0B', '#FDBA74'],
-  cardiovascular: ['#EF4444', '#F59E0B'],
-  'anti-infective': ['#0D9488', '#3B82C4'],
-  antimalarial: ['#22C55E', '#0D9488'],
-  antifungal: ['#3B82C4', '#0D9488'],
-  respiratory: ['#5EEAD4', '#3B82C4'],
-};
-
-const DEFAULT_GRADIENT: [string, string] = ['#0D9488', '#0F766E'];
 
 function initialsFor(name: string) {
   const words = name.trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return '?';
+  if (words.length === 0) return '';
   if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
   return (words[0][0] + words[1][0]).toUpperCase();
 }
 
+/**
+ * Product photography sits on a white tile (bg-white is intentional and does not flip in
+ * dark mode: pack shots are cut out on white). Photos are never cropped.
+ */
 export function ProductImagePlaceholder({
   className,
-  aspectRatio = 'aspect-[4/3]',
+  aspectRatio = 'aspect-square',
   size = 'md',
   name,
-  categorySlug,
   imageUrl,
+  framed = false,
 }: ProductImagePlaceholderProps) {
-  const iconSizes = { sm: 24, md: 40, lg: 56 };
-  const iconSize = iconSizes[size];
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
 
-  if (imageUrl) {
+  if (imageUrl && failedUrl !== imageUrl) {
+    if (framed) {
+      return (
+        <div className={cn('relative w-full overflow-hidden bg-white', aspectRatio, className)}>
+          {/* Soft backdrop: the same photo, enlarged and blurred, fills the leftover space. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imageUrl}
+            alt=""
+            aria-hidden="true"
+            loading="lazy"
+            className="absolute inset-0 h-full w-full scale-125 object-cover opacity-70 blur-2xl"
+          />
+          {/* The photo itself: whole, uncropped, centred. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imageUrl}
+            alt={name ?? ''}
+            loading="lazy"
+            onError={() => setFailedUrl(imageUrl)}
+            className="absolute inset-0 h-full w-full object-contain"
+          />
+        </div>
+      );
+    }
+
     return (
-      <div className={cn('relative overflow-hidden bg-porcelain', aspectRatio, className)}>
+      <div className={cn('relative overflow-hidden bg-white', aspectRatio, className)}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={imageUrl}
           alt={name ?? ''}
-          className="ghost-float-hover absolute inset-0 w-full h-full object-contain"
+          loading="lazy"
+          onError={() => setFailedUrl(imageUrl)}
+          className="absolute inset-0 h-full w-full object-contain p-1 mix-blend-multiply"
         />
       </div>
     );
   }
 
-  if (name) {
-    const [from, to] = (categorySlug && CATEGORY_GRADIENTS[categorySlug]) || DEFAULT_GRADIENT;
-    const textSizes = { sm: 'text-base', md: 'text-2xl', lg: 'text-3xl' };
-    return (
-      <div
-        className={cn('flex items-center justify-center overflow-hidden', aspectRatio, className)}
-        style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}
-      >
-        <span className={cn('font-display font-bold text-white/90 tracking-wide select-none', textSizes[size])}>
-          {initialsFor(name)}
-        </span>
-      </div>
-    );
-  }
-
+  const textSizes = { sm: 'text-lg', md: 'text-3xl', lg: 'text-4xl' };
   return (
-    <div className={cn('bg-petrol-50 flex items-center justify-center overflow-hidden', aspectRatio, className)}>
-      {/* Capsule SVG icon */}
-      <svg
-        width={iconSize}
-        height={iconSize}
-        viewBox="0 0 48 48"
-        fill="none"
-        className="opacity-25"
-      >
-        <rect x="6" y="18" width="36" height="12" rx="6" stroke="#0D9488" strokeWidth="2.5" fill="none" />
-        <rect x="6" y="18" width="18" height="12" rx="6" fill="#0D9488" fillOpacity="0.3" />
-        <line x1="24" y1="18" x2="24" y2="30" stroke="#0D9488" strokeWidth="1.5" />
-        <circle cx="37" cy="12" r="4" fill="#5EEAD4" fillOpacity="0.4" />
-        <circle cx="11" cy="36" r="3" fill="#5EEAD4" fillOpacity="0.3" />
-      </svg>
+    <div className={cn('relative flex items-center justify-center overflow-hidden bg-porcelain', aspectRatio, className)}>
+      <span className={cn('select-none font-semibold tracking-tight text-muted-fg/60', textSizes[size])} aria-hidden="true">
+        {name ? initialsFor(name) : ''}
+      </span>
     </div>
   );
 }

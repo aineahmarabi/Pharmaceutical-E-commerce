@@ -2,15 +2,13 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Heart, ShoppingCart, Zap, Check, Package } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Heart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ProductImagePlaceholder } from './ProductImagePlaceholder';
 import { ClassBadge } from './ClassBadge';
-import { StarRating } from './StarRating';
 import { useCartStore, useWishlistStore } from '@/store/cart';
 import { useToast } from './Toast';
+import { flyToCart, productImageNear } from '@/lib/flyToCart';
 import { formatPrice } from '@/lib/utils';
 import type { Product } from '@/lib/fixtures/types';
 
@@ -20,155 +18,95 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product, className }: ProductCardProps) {
-  const router = useRouter();
-  const { addItem, closeCart } = useCartStore();
+  const { addItem } = useCartStore();
   const { toggle, has } = useWishlistStore();
   const { toast } = useToast();
   const [justAdded, setJustAdded] = useState(false);
   const wishlisted = has(product.id);
-
-  const handleAdd = (e: React.MouseEvent) => {
+    const handleAdd = (e: React.MouseEvent) => {
     e.preventDefault();
     if (!product.inStock || justAdded) return;
+    const near = productImageNear(e.currentTarget as Element);
+    flyToCart(near.el, { imageUrl: near.url, initials: product.name.trim().slice(0, 2).toUpperCase() });
     addItem(product);
     setJustAdded(true);
-    setTimeout(() => setJustAdded(false), 800);
-  };
-
-  const handleBuyNow = (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (!product.inStock) return;
-    addItem(product);
-    closeCart();
-    router.push('/checkout');
+    setTimeout(() => setJustAdded(false), 1200);
   };
 
   const handleWishlist = (e: React.MouseEvent) => {
     e.preventDefault();
     toggle(product.id);
-    toast(wishlisted ? 'Removed from wishlist' : `Saved — ${product.name}`, wishlisted ? 'info' : 'success');
+    toast(wishlisted ? 'Removed from wishlist' : `Saved: ${product.name}`, wishlisted ? 'info' : 'success');
+  };
+
+  const handleNotify = (e: React.MouseEvent) => {
+    e.preventDefault();
+    toast('We will notify you', 'info');
   };
 
   return (
-    <div className={cn('group relative product-card-hover', className)}>
+    <article className={cn('group relative flex flex-col bg-paper rounded-lg border border-line overflow-hidden', className)}>
       <Link
         href={`/products/${product.slug}`}
-        className="relative block bg-paper rounded-2xl border border-line overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-petrol/40"
+        className="flex flex-col flex-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-petrol/40 rounded-lg"
       >
-        {/* Image */}
-        <div className="relative overflow-hidden">
-          <ProductImagePlaceholder aspectRatio="aspect-[4/3]" name={product.name} categorySlug={product.categorySlug} imageUrl={product.imageUrl} />
-
-          {/* Badges top-left */}
-          <div className="absolute top-2 left-2 flex flex-wrap gap-1">
-            <ClassBadge classification={product.classification} />
-            {product.isNew && (
-              <span className="bg-info/10 text-info border border-info/20 px-2 py-0.5 rounded-full font-mono text-[10px] font-bold uppercase">New</span>
-            )}
-            {product.isOffer && product.compareAtPrice && (
-              <span className="bg-signal/10 text-signal border border-signal/20 px-2 py-0.5 rounded-full font-mono text-[10px] font-bold uppercase">Sale</span>
-            )}
-          </div>
-
-          {/* Wishlist */}
-          <button
-            type="button"
-            onClick={handleWishlist}
-            className={cn(
-              'absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center shadow-md transition-colors',
-              wishlisted ? 'bg-signal text-paper' : 'bg-paper/90 text-ink hover:bg-signal hover:text-paper'
-            )}
-            aria-label={wishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
-          >
-            <Heart size={13} fill={wishlisted ? 'currentColor' : 'none'} />
-          </button>
-
-          {/* Out of stock */}
+        <div className="relative border-b border-line">
+          <ProductImagePlaceholder
+            framed
+            aspectRatio="aspect-square"
+            name={product.name}
+            categorySlug={product.categorySlug}
+            imageUrl={product.imageUrl}
+          />
+          {product.classification !== 'OTC' && product.inStock && (
+            <ClassBadge classification={product.classification} className="absolute bottom-1.5 left-1.5 bg-paper" />
+          )}
           {!product.inStock && (
-            <div className="absolute inset-0 bg-ink/25 flex items-center justify-center">
-              <span className="bg-paper/95 text-ink text-xs font-semibold px-3 py-1.5 rounded-full">Out of stock</span>
-            </div>
+            <span className="absolute bottom-1.5 left-1.5 bg-paper/95 text-muted-fg border border-line px-1.5 py-0.5 rounded-md text-xs font-medium leading-none">
+              Out of stock
+            </span>
           )}
         </div>
 
-        {/* Body */}
-        <div className="p-3">
-          <p className="font-body text-[11px] text-petrol-300 uppercase tracking-wide truncate">{product.brand}</p>
-          <h3 className="font-body font-semibold text-xs text-ink leading-snug line-clamp-2 mt-0.5 group-hover:text-petrol transition-colors">
-            {product.name}
-          </h3>
-          {product.rating ? (
-            <StarRating rating={product.rating} reviewCount={product.reviewCount} className="mt-1" />
-          ) : (
-            <p className="font-mono text-[11px] text-petrol-300 mt-1">
-              {product.strength} · {product.packSize}
-            </p>
-          )}
-          <div className="flex items-baseline gap-1.5 mt-2">
-            <span className="font-mono font-semibold text-sm text-ink">
+        <div className="flex flex-col flex-1 px-2.5 pt-2.5 pb-1">
+          <h3 className="text-sm font-medium text-ink leading-snug line-clamp-2 h-9">{product.name}</h3>
+          <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2">
+            <span className="text-sm font-semibold tabular-nums text-ink">
               {formatPrice(product.price)}
             </span>
-            {product.compareAtPrice && (
-              <span className="font-mono text-[11px] text-petrol-300 line-through">
-                {formatPrice(product.compareAtPrice)}
-              </span>
-            )}
           </div>
         </div>
-
-        {/* Quick-action bar — in-flow below the price on touch devices (no hover there); overlays on hover from md+ */}
-        {product.inStock && (
-          <div className="static md:absolute md:bottom-0 md:left-0 md:right-0 flex md:translate-y-full md:group-hover:translate-y-0 transition-transform duration-200 ease-out">
-            <button
-              type="button"
-              onClick={handleAdd}
-              disabled={justAdded}
-              className="relative flex-1 flex items-center justify-center gap-1.5 bg-petrol hover:bg-petrol-700 active:bg-petrol-700 active:scale-[0.96] text-paper text-xs font-semibold py-2.5 md:py-3 transition-all touch-manipulation disabled:opacity-100 overflow-hidden"
-            >
-              <AnimatePresence mode="wait" initial={false}>
-                {justAdded ? (
-                  <motion.span key="dropped" className="flex items-center gap-1.5" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                    <span className="relative w-4 h-4 flex items-center justify-center">
-                      <motion.span
-                        initial={{ y: -14, opacity: 0, rotate: -15 }}
-                        animate={{ y: 0, opacity: 1, rotate: 0 }}
-                        transition={{ type: 'spring', stiffness: 500, damping: 14 }}
-                        className="absolute"
-                      >
-                        <Package size={14} />
-                      </motion.span>
-                      <motion.span
-                        initial={{ scale: 0, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{ delay: 0.35, type: 'spring', stiffness: 400, damping: 12 }}
-                        className="absolute -bottom-0.5 -right-0.5 bg-success rounded-full w-2.5 h-2.5 flex items-center justify-center"
-                      >
-                        <Check size={7} className="text-paper" strokeWidth={4} />
-                      </motion.span>
-                    </span>
-                    <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }} className="hidden sm:inline">
-                      Added to cart
-                    </motion.span>
-                  </motion.span>
-                ) : (
-                  <motion.span key="idle" className="flex items-center gap-1.5" exit={{ opacity: 0 }}>
-                    <ShoppingCart size={14} />
-                    <span className="hidden sm:inline">Add to cart</span>
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </button>
-            <button
-              type="button"
-              onClick={handleBuyNow}
-              className="flex-1 flex items-center justify-center gap-1.5 bg-signal hover:bg-signal/90 active:bg-signal/90 active:scale-[0.96] text-paper text-xs font-semibold py-2.5 md:py-3 transition-all touch-manipulation border-l border-paper/20"
-            >
-              <Zap size={14} />
-              <span className="hidden sm:inline">Buy now</span>
-            </button>
-          </div>
-        )}
       </Link>
-    </div>
+
+      <div className="px-2.5 pb-2.5 pt-1.5 flex items-center gap-1.5">
+        {product.inStock ? (
+          <button
+            type="button"
+            onClick={handleAdd}
+            className="flex-1 h-8 rounded-md bg-petrol hover:bg-petrol-700 text-white text-sm font-medium transition-transform duration-100 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-petrol/40 focus-visible:ring-offset-2 touch-manipulation"
+            aria-live="polite"
+          >
+            {justAdded ? 'Added' : 'Add'}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleNotify}
+            className="flex-1 h-8 rounded-md border border-line bg-paper hover:bg-porcelain text-ink text-sm font-medium transition-transform duration-100 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-petrol/40"
+          >
+            Notify me
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={handleWishlist}
+          aria-pressed={wishlisted}
+          aria-label={wishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+          className="h-8 w-8 shrink-0 rounded-md border border-line bg-paper text-ink hover:bg-porcelain flex items-center justify-center transition-transform duration-100 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-petrol/40"
+        >
+          <Heart size={14} className={wishlisted ? 'text-signal' : undefined} fill={wishlisted ? 'currentColor' : 'none'} />
+        </button>
+      </div>
+    </article>
   );
 }

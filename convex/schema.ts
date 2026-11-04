@@ -389,7 +389,26 @@ export default defineSchema({
     token: v.string(),
     createdAt: v.number(),
     expiresAt: v.number(),
-  }).index('by_token', ['token']),
+  }).index('by_token', ['token']).index('by_customer', ['customerAccountId']),
+
+  // In-app refill reminders: shown on the site once remindAt has passed.
+  refillReminders: defineTable({
+    customerAccountId: v.id('customerAccounts'),
+    orderId: v.id('orders'),
+    orderNumber: v.string(),
+    items: v.array(v.object({ productId: v.string(), name: v.string(), qty: v.number() })),
+    remindAt: v.number(),
+    status: v.union(v.literal('scheduled'), v.literal('done'), v.literal('dismissed')),
+    createdAt: v.number(),
+  }).index('by_customer', ['customerAccountId']),
+
+  // Failed-login limiter (see convex/throttle.ts)
+  authThrottle: defineTable({
+    key: v.string(),
+    failures: v.number(),
+    windowStart: v.number(),
+    lockedUntil: v.optional(v.number()),
+  }).index('by_key', ['key']),
 
   customerAddresses: defineTable({
     customerAccountId: v.id('customerAccounts'),
@@ -399,4 +418,21 @@ export default defineSchema({
     phone: v.string(),
     isDefault: v.boolean(),
   }).index('by_customer', ['customerAccountId']),
+  prescriptions: defineTable({
+    reference: v.string(),
+    customerName: v.string(),
+    phone: v.string(),
+    email: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    fileIds: v.array(v.id('_storage')),
+    status: v.union(v.literal('pending'), v.literal('approved'), v.literal('rejected'), v.literal('needs_info')),
+    pharmacistNote: v.optional(v.string()),
+    reviewedAt: v.optional(v.number()),
+    reviewedBy: v.optional(v.string()),
+    orderId: v.optional(v.id('orders')),
+    createdAt: v.number(),
+  })
+    .index('by_reference', ['reference'])
+    .index('by_status', ['status'])
+    .index('by_phone', ['phone']),
 });

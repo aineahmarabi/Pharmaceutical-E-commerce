@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useMutation } from 'convex/react';
+import { useAdminMutation } from '@/hooks/useAdminApi';
 import { api } from '../../../../../../convex/_generated/api';
 import { PageHeader } from '@/components/admin/shared/PageHeader';
 import { Card } from '@/components/admin/ui/Card';
@@ -19,7 +19,7 @@ function randomCode() {
 export default function CreateDiscountPage() {
   const router = useRouter();
   const { toast } = useAdminToast();
-  const createDiscount = useMutation(api.discounts.createDiscount);
+  const createDiscount = useAdminMutation(api.discounts.createDiscount);
 
   const [code, setCode] = useState('');
   const [type, setType] = useState<DiscountType>('percentage');
@@ -35,7 +35,6 @@ export default function CreateDiscountPage() {
 
   const startsAtMs = new Date(startsAt).getTime();
   const endsAtMs = hasEndDate && endsAt ? new Date(endsAt).getTime() : undefined;
-  const status = startsAtMs > Date.now() ? 'scheduled' : endsAtMs && endsAtMs < Date.now() ? 'expired' : 'active';
 
   const handleSave = async () => {
     if (!code.trim()) {
@@ -44,6 +43,7 @@ export default function CreateDiscountPage() {
     }
     setSaving(true);
     try {
+      const status = startsAtMs > Date.now() ? 'scheduled' : endsAtMs && endsAtMs < Date.now() ? 'expired' : 'active';
       await createDiscount({
         code: code.trim().toUpperCase(),
         type,
@@ -61,8 +61,8 @@ export default function CreateDiscountPage() {
       });
       toast('Discount created');
       router.push('/admin/discounts');
-    } catch (err: any) {
-      toast(err?.message ?? 'Failed to create discount');
+    } catch (err) {
+      toast((err instanceof Error ? err.message : null) ?? 'Failed to create discount');
     } finally {
       setSaving(false);
     }
@@ -71,12 +71,12 @@ export default function CreateDiscountPage() {
   return (
     <div className="pb-16">
       <PageHeader
-        title="Create discount code"
+        title="Create discount"
         backUrl="/admin/discounts"
-        primaryAction={{ label: 'Save discount', onClick: handleSave }}
+        primaryAction={{ label: saving ? 'Saving...' : 'Save discount', onClick: handleSave }}
       />
 
-      <div className="max-w-[680px] space-y-5">
+      <div className="max-w-2xl space-y-4">
         <Card title="Discount code">
           <div className="flex gap-2 items-end">
             <Input containerClassName="flex-1" label="Code" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="e.g. SUMMER20" />
@@ -88,7 +88,7 @@ export default function CreateDiscountPage() {
           <div className="space-y-3">
             {(['percentage', 'fixed', 'freeShipping'] as DiscountType[]).map((t) => (
               <label key={t} className="flex items-center gap-2 text-sm text-p-text">
-                <input type="radio" name="type" checked={type === t} onChange={() => setType(t)} className="accent-[#0D9488]" />
+                <input type="radio" name="type" checked={type === t} onChange={() => setType(t)} className="accent-p-primary" />
                 {t === 'percentage' ? 'Percentage' : t === 'fixed' ? 'Fixed amount' : 'Free shipping'}
               </label>
             ))}
@@ -112,7 +112,7 @@ export default function CreateDiscountPage() {
               ['quantity', 'Minimum quantity of items'],
             ] as const).map(([val, label]) => (
               <label key={val} className="flex items-center gap-2 text-sm text-p-text">
-                <input type="radio" name="minType" checked={minimumType === val} onChange={() => setMinimumType(val)} className="accent-[#0D9488]" />
+                <input type="radio" name="minType" checked={minimumType === val} onChange={() => setMinimumType(val)} className="accent-p-primary" />
                 {label}
               </label>
             ))}
@@ -131,32 +131,31 @@ export default function CreateDiscountPage() {
         <Card title="Usage limits">
           <div className="space-y-3">
             <label className="flex items-center gap-2 text-sm text-p-text">
-              <input type="checkbox" checked={!!usageLimit} onChange={(e) => setUsageLimit(e.target.checked ? '100' : '')} className="accent-[#0D9488]" />
+              <input type="checkbox" checked={!!usageLimit} onChange={(e) => setUsageLimit(e.target.checked ? '100' : '')} className="accent-p-primary" />
               Limit number of times this discount can be used in total
             </label>
             {!!usageLimit && (
               <Input type="number" value={usageLimit} onChange={(e) => setUsageLimit(e.target.value)} containerClassName="max-w-[200px]" />
             )}
             <label className="flex items-center gap-2 text-sm text-p-text">
-              <input type="checkbox" checked={oncePerCustomer} onChange={(e) => setOncePerCustomer(e.target.checked)} className="accent-[#0D9488]" />
+              <input type="checkbox" checked={oncePerCustomer} onChange={(e) => setOncePerCustomer(e.target.checked)} className="accent-p-primary" />
               Limit to one use per customer
             </label>
           </div>
         </Card>
 
         <Card title="Active dates">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid sm:grid-cols-2 gap-4">
             <Input label="Start date" type="date" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
-            <div />
-            <label className="flex items-center gap-2 text-sm text-p-text col-span-2">
-              <input type="checkbox" checked={hasEndDate} onChange={(e) => setHasEndDate(e.target.checked)} className="accent-[#0D9488]" />
+            <label className="flex items-center gap-2 text-sm text-p-text sm:col-span-2">
+              <input type="checkbox" checked={hasEndDate} onChange={(e) => setHasEndDate(e.target.checked)} className="accent-p-primary" />
               Set end date
             </label>
             {hasEndDate && <Input label="End date" type="date" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />}
           </div>
         </Card>
 
-        <Card title="Summary" className="bg-p-bg-surface-subdued">
+        <Card title="Summary">
           <ul className="text-sm text-p-text space-y-1 list-disc list-inside">
             <li>{code || 'DISCOUNTCODE'}</li>
             <li>

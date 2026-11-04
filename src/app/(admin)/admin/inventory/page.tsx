@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useMutation, useQuery } from 'convex/react';
-import { AlertTriangle, Boxes } from 'lucide-react';
+import { useAdminQuery, useAdminMutation } from '@/hooks/useAdminApi';
 import { api } from '../../../../../convex/_generated/api';
 import type { Id } from '../../../../../convex/_generated/dataModel';
 import { PageHeader } from '@/components/admin/shared/PageHeader';
@@ -28,27 +27,27 @@ export default function AdminInventoryPage() {
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState('all');
 
-  const products = useQuery(api.inventory.listInventory, {
+  const products = useAdminQuery(api.inventory.listInventory, {
     search: search || undefined,
     stockStatus: tab === 'all' ? undefined : (tab as 'inStock' | 'lowStock' | 'outOfStock'),
     limit: 300,
   });
-  const adjustStock = useMutation(api.inventory.adjustStock);
+  const adjustStock = useAdminMutation(api.inventory.adjustStock);
 
   const handleAdjust = async (productId: Id<'products'>, delta: number, name: string) => {
     await adjustStock({ productId, changeAmount: delta, reason: 'Manual adjustment' });
     toast(`${name} stock ${delta > 0 ? 'increased' : 'decreased'} by ${Math.abs(delta)}`);
   };
 
-  const columns: DataTableColumn<any>[] = [
-    { key: 'name', label: 'Product', render: (r) => <span className="font-medium text-p-text">{r.name}</span> },
+  const columns: DataTableColumn<NonNullable<typeof products>[number] & { id: string }>[] = [
+    { key: 'name', label: 'Product', render: (r) => <span className="font-medium text-p-text line-clamp-1">{r.name}</span> },
     { key: 'sku', label: 'SKU', hideOnMobile: true, render: (r) => r.sku || '—' },
-    { key: 'classification', label: 'Class', hideOnMobile: true },
+    { key: 'classification', label: 'Class', hideOnMobile: true, render: (r) => <Badge>{r.classification}</Badge> },
     {
       key: 'stockQty',
       label: 'Stock',
       align: 'right',
-      render: (r) => <span className={r.stockQty === 0 ? 'text-p-critical font-semibold' : r.stockQty <= 10 ? 'text-[#92400E] font-semibold' : ''}>{r.stockQty}</span>,
+      render: (r) => <span className="tabular-nums">{r.stockQty}</span>,
     },
     {
       key: 'status',
@@ -67,9 +66,9 @@ export default function AdminInventoryPage() {
       label: '',
       align: 'right',
       render: (r) => (
-        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-          <button onClick={() => handleAdjust(r._id, -1, r.name)} disabled={r.stockQty === 0} className="w-6 h-6 rounded border border-p-border-input hover:bg-p-bg disabled:opacity-40">−</button>
-          <button onClick={() => handleAdjust(r._id, 1, r.name)} className="w-6 h-6 rounded border border-p-border-input hover:bg-p-bg">+</button>
+        <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+          <button onClick={() => handleAdjust(r._id, -1, r.name)} disabled={r.stockQty === 0} aria-label={`Decrease stock for ${r.name}`} className="w-8 h-8 rounded-lg border border-p-border-input text-p-text hover:bg-p-bg disabled:opacity-40 disabled:pointer-events-none">−</button>
+          <button onClick={() => handleAdjust(r._id, 1, r.name)} aria-label={`Increase stock for ${r.name}`} className="w-8 h-8 rounded-lg border border-p-border-input text-p-text hover:bg-p-bg">+</button>
         </div>
       ),
     },
@@ -77,7 +76,7 @@ export default function AdminInventoryPage() {
 
   return (
     <div className="pb-16">
-      <PageHeader title="Products" />
+      <PageHeader title="Inventory" />
       <ProductsSubNav />
 
       <Card>
@@ -95,9 +94,8 @@ export default function AdminInventoryPage() {
             rows={products.map((p) => ({ ...p, id: p._id }))}
             emptyState={
               <EmptyState
-                icon={AlertTriangle}
-                heading="No products found"
-                body="Try changing the filters or search term."
+                heading={search || tab !== 'all' ? 'No products match' : 'No inventory yet'}
+                body={search || tab !== 'all' ? 'Try a different search term or another stock filter.' : 'Products you add will appear here with their stock levels.'}
               />
             }
           />

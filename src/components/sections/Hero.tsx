@@ -1,38 +1,210 @@
 'use client';
 
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { motion, useMotionValue, useSpring } from 'framer-motion';
-import {
-  ArrowRight,
-  MessageCircle,
-  ShieldCheck,
-  Zap,
-  Truck,
-  Clock,
-} from 'lucide-react';
+import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion';
+import { useRouter } from 'next/navigation';
+import { useQuery } from 'convex/react';
+import { Search, ArrowRight } from 'lucide-react';
+import { api } from '../../../convex/_generated/api';
+import { categories as fixtureCategories } from '@/lib/fixtures/categories';
 import { useBranding } from '@/hooks/useBranding';
+import { useDebounce } from '@/hooks/useDebounce';
+import { ProductImagePlaceholder } from '@/components/ui/ProductImagePlaceholder';
+import { formatPrice, cn } from '@/lib/utils';
 
-// ─── Constants ──────────────────────────────────────────────────────────────
-const CATEGORY_PILLS = [
-  { label: 'All', slug: '' },
-  { label: 'Pain Relief', slug: 'pain-relief' },
-  { label: 'Vitamins', slug: 'vitamins-supplements' },
-  { label: 'Skincare', slug: 'skin-care' },
-  { label: 'Cold & Flu', slug: 'cough-cold' },
-  { label: 'Baby Care', slug: 'baby-care' },
+const needs = [
+  { label: 'Pain', href: '/category/pain-relief' },
+  { label: 'Cold & flu', href: '/category/cough-cold' },
+  { label: 'Skin', href: '/category/skin-care' },
+  { label: 'Baby', href: '/category/baby-care' },
+  { label: 'Digestion', href: '/category/digestive-health' },
+  { label: 'Vitamins', href: '/category/vitamins-supplements' },
 ];
 
-const TAGLINES = [
-  'vitamins & supplements',
-  'pain & fever relief',
-  'skincare & beauty',
-  'cold & flu remedies',
-  'baby care essentials',
+const facts = [
+  'Licensed pharmacy',
+  'Genuine products',
+  'Same-day Nairobi delivery before 2pm',
+  'Pay by M-PESA or cash on delivery',
 ];
 
-const HERO_IMAGES = [
+const groupLabel = 'px-5 pb-1 pt-3 text-xs font-semibold uppercase tracking-wider text-muted-fg';
+
+type Dest = { href: string };
+
+function SmartSearch() {
+  const router = useRouter();
+  const [q, setQ] = useState('');
+  const [focused, setFocused] = useState(false);
+  const [active, setActive] = useState(-1);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const debounced = useDebounce(q, 250);
+  const term = q.trim().toLowerCase();
+
+  const products = useQuery(api.products.searchProducts, term ? { term: debounced, limit: 4 } : 'skip');
+  const liveCats = useQuery(api.taxonomy.listCategories, {});
+  const conds = useQuery(api.taxonomy.listConditions, {});
+  const brandsRes = useQuery(api.brands.list);
+
+  const cats = useMemo(() => {
+    const src = liveCats && liveCats.length > 0 ? liveCats : fixtureCategories;
+    return term ? src.filter((c) => c.name.toLowerCase().includes(term)).slice(0, 3) : [];
+  }, [liveCats, term]);
+  const condList = useMemo(
+    () => (term && Array.isArray(conds) ? conds.filter((c) => c.name.toLowerCase().includes(term)).slice(0, 3) : []),
+    [conds, term],
+  );
+  const brandList = useMemo(
+    () => (term && Array.isArray(brandsRes) ? brandsRes.filter((b) => b.name.toLowerCase().includes(term)).slice(0, 3) : []),
+    [brandsRes, term],
+  );
+
+  const prodList = term ? (products ?? []) : [];
+  const dests: Dest[] = [
+    ...prodList.map((p) => ({ href: `/products/${p.slug}` })),
+    ...cats.map((c) => ({ href: `/category/${c.slug}` })),
+    ...condList.map((c) => ({ href: `/search?q=${encodeURIComponent(c.name)}` })),
+    ...brandList.map((b) => ({ href: `/brand/${b.slug}` })),
+  ];
+  const open = focused && term.length > 0;
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset highlighted suggestion when query changes
+    setActive(-1);
+  }, [q]);
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setFocused(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, []);
+
+  const go = (href: string) => {
+    setFocused(false);
+    router.push(href);
+  };
+
+  const onKey = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') setFocused(false);
+    else if (e.key === 'ArrowDown' && dests.length) {
+      e.preventDefault();
+      setActive((i) => (i + 1) % dests.length);
+    } else if (e.key === 'ArrowUp' && dests.length) {
+      e.preventDefault();
+      setActive((i) => (i <= 0 ? dests.length - 1 : i - 1));
+    }
+  };
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!q.trim()) return;
+    go(active >= 0 && dests[active] ? dests[active].href : `/search?q=${encodeURIComponent(q.trim())}`);
+  };
+
+  const row = (i: number) =>
+    cn('flex items-center gap-3 px-5 py-2.5 transition-colors hover:bg-porcelain', active === i && 'bg-porcelain');
+
+  const cOff = prodList.length;
+  const dOff = cOff + cats.length;
+  const bOff = dOff + condList.length;
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <form role="search" onSubmit={submit} className="relative">
+        <label htmlFor="hero-search" className="sr-only">What do you need today?</label>
+        <Search size={22} aria-hidden="true" className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-muted-fg" />
+        <input
+          id="hero-search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onKeyDown={onKey}
+          placeholder="Medicine, symptom or brand"
+          autoComplete="off"
+          spellCheck={false}
+          role="combobox"
+          aria-expanded={open}
+          aria-controls="hero-suggestions"
+          className="h-14 w-full rounded-full border border-line bg-porcelain pl-14 pr-32 text-base text-ink shadow-sm placeholder:text-muted-fg focus:border-petrol focus:bg-paper focus:outline-none focus:ring-2 focus:ring-petrol/40 sm:h-16 sm:text-lg"
+        />
+        <button
+          type="submit"
+          className="absolute right-2 top-1/2 h-10 -translate-y-1/2 rounded-full bg-petrol px-5 text-sm font-medium text-white transition-transform duration-100 hover:bg-petrol-700 active:scale-[0.97] sm:h-12 sm:px-6"
+        >
+          Search
+        </button>
+      </form>
+
+      {open && (
+        <div id="hero-suggestions" role="listbox" className="absolute inset-x-0 top-full z-30 mt-2 max-h-[60vh] overflow-y-auto overscroll-contain rounded-xl border border-line bg-paper pb-2 shadow-lg">
+          {dests.length === 0 && (
+            <p className="px-5 py-6 text-sm text-muted-fg">
+              {products === undefined ? 'Searching' : `No match for "${q}". Ask a pharmacist on WhatsApp.`}
+            </p>
+          )}
+          {prodList.length > 0 && (
+            <>
+              <p className={groupLabel}>Products</p>
+              {prodList.map((p, i) => (
+                <Link key={p._id} href={`/products/${p.slug}`} onMouseEnter={() => setActive(i)} className={row(i)}>
+                  <ProductImagePlaceholder className="h-10 w-10 shrink-0 rounded-lg" aspectRatio="" size="sm" name={p.name} categorySlug={p.categorySlug} imageUrl={p.imageUrl} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-ink">{p.name}</span>
+                    <span className="block truncate text-xs text-muted-fg">{p.brand}</span>
+                  </span>
+                  <span className="shrink-0 text-sm font-semibold tabular-nums text-ink">{formatPrice(p.price)}</span>
+                </Link>
+              ))}
+            </>
+          )}
+          {cats.length > 0 && (
+            <>
+              <p className={groupLabel}>Categories</p>
+              {cats.map((c, i) => (
+                <Link key={c.slug} href={`/category/${c.slug}`} onMouseEnter={() => setActive(cOff + i)} className={row(cOff + i)}>
+                  <span className="flex-1 text-sm text-ink">{c.name}</span>
+                  <ArrowRight size={14} className="text-muted-fg" />
+                </Link>
+              ))}
+            </>
+          )}
+          {condList.length > 0 && (
+            <>
+              <p className={groupLabel}>Conditions</p>
+              {condList.map((c, i) => (
+                <Link key={c.slug} href={`/search?q=${encodeURIComponent(c.name)}`} onMouseEnter={() => setActive(dOff + i)} className={row(dOff + i)}>
+                  <span className="flex-1 text-sm text-ink">{c.name}</span>
+                  <ArrowRight size={14} className="text-muted-fg" />
+                </Link>
+              ))}
+            </>
+          )}
+          {brandList.length > 0 && (
+            <>
+              <p className={groupLabel}>Brands</p>
+              {brandList.map((b, i) => (
+                <Link key={b.slug} href={`/brand/${b.slug}`} onMouseEnter={() => setActive(bOff + i)} className={row(bOff + i)}>
+                  <span className="flex-1 text-sm text-ink">{b.name}</span>
+                  <ArrowRight size={14} className="text-muted-fg" />
+                </Link>
+              ))}
+            </>
+          )}
+          <div className="mt-1 border-t border-line px-5 pt-3">
+            <Link href={`/search?q=${encodeURIComponent(q.trim())}`} className="inline-flex items-center gap-2 text-sm font-medium text-petrol underline-offset-4 hover:underline">
+              See all results <ArrowRight size={14} />
+            </Link>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const HERO_PHOTOS = [
   { desktop: '/images/hero/hero-vitamins.png', mobile: '/images/hero/hero-vitamins-mobile.png' },
   { desktop: '/images/hero/hero-painrelief.png', mobile: '/images/hero/hero-painrelief-mobile.png' },
   { desktop: '/images/hero/hero-skincare.png', mobile: '/images/hero/hero-skincare-mobile.png' },
@@ -40,319 +212,115 @@ const HERO_IMAGES = [
   { desktop: '/images/hero/hero-babycare.png', mobile: '/images/hero/hero-babycare-mobile.png' },
 ];
 
-const ease = [0.16, 1, 0.3, 1] as const;
-
-const THEMES = [
-  // 0: Vitamins & supplements (Greenish)
-  { a: 'radial-gradient(circle, #16695e 0%, #5FA89C55 45%, transparent 72%)',
-    b: 'radial-gradient(circle, #0A3B35 0%, #0E4D4577 50%, transparent 78%)',
-    c: 'radial-gradient(circle, #5FA89C44 0%, #0E4D4522 55%, transparent 75%)' },
-  // 1: Pain & fever relief (Reddish)
-  { a: 'radial-gradient(circle, #8A2733 0%, #B3505D55 45%, transparent 72%)',
-    b: 'radial-gradient(circle, #4A1119 0%, #701D2877 50%, transparent 78%)',
-    c: 'radial-gradient(circle, #B3505D44 0%, #701D2822 55%, transparent 75%)' },
-  // 2: Skincare & beauty (Teal/Cyan)
-  { a: 'radial-gradient(circle, #145D70 0%, #51A3B855 45%, transparent 72%)',
-    b: 'radial-gradient(circle, #0A313C 0%, #15465677 50%, transparent 78%)',
-    c: 'radial-gradient(circle, #51A3B844 0%, #15465622 55%, transparent 75%)' },
-  // 3: Cold & flu remedies (Blue/Purple)
-  { a: 'radial-gradient(circle, #3B2973 0%, #6A56AD55 45%, transparent 72%)',
-    b: 'radial-gradient(circle, #1D143D 0%, #2A1D5977 50%, transparent 78%)',
-    c: 'radial-gradient(circle, #6A56AD44 0%, #2A1D5922 55%, transparent 75%)' },
-  // 4: Baby & mother care (Pinkish/Soft)
-  { a: 'radial-gradient(circle, #7A2C58 0%, #AA5E8955 45%, transparent 72%)',
-    b: 'radial-gradient(circle, #3D152B 0%, #59203F77 50%, transparent 78%)',
-    c: 'radial-gradient(circle, #AA5E8944 0%, #59203F22 55%, transparent 75%)' },
-];
-
-// ─── Parallax background layers ─────────────────────────────────────────────
-// Each blob/layer has a "depth" factor controlling how much it shifts with mouse
-const BG_LAYERS = [
-  // depth: higher = moves more (closer to viewer)
-  { id: 'a', depth: 0.04, className: 'mesh-blob mesh-blob-a', themeKey: 'a' as const },
-  { id: 'b', depth: 0.025, className: 'mesh-blob mesh-blob-b', themeKey: 'b' as const },
-  { id: 'c', depth: 0.055, className: 'mesh-blob mesh-blob-c', themeKey: 'c' as const },
-];
-
-const PILL_PARTICLES = Array.from({ length: 14 }, (_, i) => ({
-  id: i,
-  depth: 0.02 + (i % 4) * 0.018,
-  width: 22 + (i % 4) * 10,
-  top: 6 + i * 6.5,
-  left: 2 + i * 7,
-  opacity: 0.10 + (i % 3) * 0.04,
-  rotate: -50 + i * 22,
-  duration: 7 + i * 1.2,
-  delay: i * 0.45,
-}));
-
-// ─── Crossfading hero photography per category state ────────────────────────
-function HeroPhotoLayer({ taglineIndex }: { taglineIndex: number }) {
-  return (
-    <div className="absolute inset-0 z-0 overflow-hidden" aria-hidden>
-      {HERO_IMAGES.map((img, i) => (
-        <motion.div
-          key={img.desktop}
-          className="absolute inset-0"
-          initial={false}
-          animate={{ opacity: i === taglineIndex ? 1 : 0 }}
-          transition={{ duration: 1, ease }}
-        >
-          <Image
-            src={img.desktop}
-            alt=""
-            fill
-            priority={i === 0}
-            sizes="100vw"
-            className="hidden object-cover lg:block"
-          />
-          <Image
-            src={img.mobile}
-            alt=""
-            fill
-            priority={i === 0}
-            sizes="100vw"
-            className="object-cover lg:hidden"
-          />
-        </motion.div>
-      ))}
-      {/* Legibility scrim so text reads over any photo */}
-      <div className="absolute inset-0 bg-gradient-to-r from-ink via-ink/75 to-ink/25 lg:to-ink/15" />
-      <div className="absolute inset-0 bg-gradient-to-t from-ink via-transparent to-transparent" />
-    </div>
-  );
-}
-
-// ─── Interactive Background ──────────────────────────────────────────────────
-function InteractiveBg({ mouseX, mouseY, taglineIndex }: { mouseX: number; mouseY: number; taglineIndex: number }) {
-  const currentTheme = THEMES[taglineIndex] || THEMES[0];
-
-  return (
-    <div className="hero-mesh absolute inset-0 pointer-events-none" aria-hidden>
-      {/* Mesh blobs with parallax */}
-      {BG_LAYERS.map((layer) => (
-        <motion.div
-          key={layer.id}
-          className={layer.className}
-          animate={{
-            x: mouseX * layer.depth * -1,
-            y: mouseY * layer.depth * -1,
-            background: currentTheme[layer.themeKey],
-          }}
-          transition={{
-            x: { type: 'spring', stiffness: 60, damping: 22, mass: 1.2 },
-            y: { type: 'spring', stiffness: 60, damping: 22, mass: 1.2 },
-            background: { duration: 1.2, ease: 'easeInOut' },
-          }}
-        />
-      ))}
-
-      {/* Grid overlay */}
-      <div
-        className="absolute inset-0 opacity-[0.035]"
-        style={{
-          backgroundImage:
-            'linear-gradient(rgba(95,168,156,1) 1px,transparent 1px),linear-gradient(90deg,rgba(95,168,156,1) 1px,transparent 1px)',
-          backgroundSize: '64px 64px',
-        }}
-      />
-
-      {/* Pill particles with varied parallax depths */}
-      {PILL_PARTICLES.map((p) => (
-        <motion.div
-          key={p.id}
-          className="absolute rounded-full border border-petrol-300/25"
-          style={{
-            width: p.width,
-            height: 10,
-            top: `${p.top}%`,
-            left: `${p.left}%`,
-            opacity: p.opacity,
-            backgroundColor: 'rgba(95,168,156,0.12)',
-            rotate: p.rotate,
-          }}
-          animate={{
-            y: [0, -(8 + p.id * 1.5), 0, mouseY * p.depth * -0.6],
-            x: mouseX * p.depth * -0.6,
-            rotate: [p.rotate, p.rotate + 10, p.rotate],
-          }}
-          transition={{
-            y: { duration: p.duration, repeat: Infinity, ease: 'easeInOut', delay: p.delay },
-            x: { type: 'spring', stiffness: 50, damping: 20 },
-          }}
-        />
-      ))}
-
-      {/* Radial vignette so edges stay dark */}
-      <div
-        className="absolute inset-0"
-        style={{
-          background:
-            'radial-gradient(ellipse 80% 80% at 50% 50%, transparent 40%, rgba(10,27,24,0.55) 100%)',
-        }}
-      />
-    </div>
-  );
-}
-
-// ─── HERO ────────────────────────────────────────────────────────────────────
-export function Hero() {
-  const branding = useBranding();
-  const sectionRef = useRef<HTMLElement>(null);
-
-  // Raw mouse pos relative to section center (in px)
-  const rawX = useMotionValue(0);
-  const rawY = useMotionValue(0);
-  const smoothX = useSpring(rawX, { stiffness: 55, damping: 20 });
-  const smoothY = useSpring(rawY, { stiffness: 55, damping: 20 });
-  const [mx, setMx] = useState(0);
-  const [my, setMy] = useState(0);
-
-  // Subscribe spring values so we can pass numbers to children
-  useEffect(() => {
-    const unsubX = smoothX.on('change', setMx);
-    const unsubY = smoothY.on('change', setMy);
-    return () => { unsubX(); unsubY(); };
-  }, [smoothX, smoothY]);
-
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent<HTMLElement>) => {
-      const rect = sectionRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      rawX.set(e.clientX - rect.left - rect.width / 2);
-      rawY.set(e.clientY - rect.top - rect.height / 2);
-    },
-    [rawX, rawY]
-  );
-
-  const handleMouseLeave = useCallback(() => {
-    rawX.set(0);
-    rawY.set(0);
-  }, [rawX, rawY]);
-
-  // Cycling tagline
-  const [taglineIndex, setTaglineIndex] = useState(0);
-  const [taglineVisible, setTaglineVisible] = useState(true);
+/** Decorative photo background: the original hero photos, crossfading slowly. Pure backdrop, no interaction. */
+function HeroBackdrop() {
+  const [active, setActive] = useState(0);
 
   useEffect(() => {
-    const id = setInterval(() => {
-      setTaglineVisible(false);
-      setTimeout(() => {
-        setTaglineIndex((i) => (i + 1) % TAGLINES.length);
-        setTaglineVisible(true);
-      }, 320);
-    }, 2800);
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const id = setInterval(() => setActive((i) => (i + 1) % HERO_PHOTOS.length), 6000);
     return () => clearInterval(id);
   }, []);
 
   return (
-    <section
-      ref={sectionRef}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      className="relative bg-ink overflow-hidden min-h-[80vh] lg:min-h-0 flex items-center pt-10 pb-10 lg:pt-12 lg:pb-24"
-    >
-      {/* ── Crossfading category photography ────────────────────────── */}
-      <HeroPhotoLayer taglineIndex={taglineIndex} />
-
-      {/* ── Interactive parallax background ─────────────────────────── */}
-      <InteractiveBg mouseX={mx} mouseY={my} taglineIndex={taglineIndex} />
-
-      {/* ── Content — centered single column ────────────────────────── */}
-      <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center text-center lg:items-start lg:text-left gap-6">
-
-        {/* Headline */}
-        <h1
-          className="font-display font-extrabold text-porcelain tracking-tighter leading-[1.04]"
-          style={{ fontSize: 'clamp(2.8rem, 6vw, 5rem)' }}
+    <div aria-hidden="true" className="absolute inset-0 -z-10 bg-deep">
+      {HERO_PHOTOS.map((p, i) => (
+        <div
+          key={p.desktop}
+          className="absolute inset-0 transition-opacity duration-[1200ms] ease-out motion-reduce:transition-none"
+          style={{ opacity: i === active ? 1 : 0 }}
         >
-          {['Your', 'health,'].map((word, i) => (
-            <motion.span
-              key={word}
-              initial={{ opacity: 0, y: 28 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.12 + i * 0.1, duration: 0.55, ease }}
-              className="inline-block mr-4"
-            >
-              {word}
-            </motion.span>
-          ))}
-          <br />
-          <motion.span
-            initial={{ opacity: 0, y: 28 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.34, duration: 0.55, ease }}
-            className="inline-block text-transparent bg-clip-text"
-            style={{
-              backgroundImage: 'linear-gradient(135deg,#5FA89C 0%,#a8d8d0 45%,#5FA89C 100%)',
-            }}
-          >
-            delivered.
-          </motion.span>
-        </h1>
+          <Image src={p.desktop} alt="" fill priority={i === 0} sizes="(min-width: 1280px) 1280px, 100vw" className="hidden object-cover lg:block" />
+          <Image src={p.mobile} alt="" fill priority={i === 0} sizes="100vw" className="object-cover lg:hidden" />
+        </div>
+      ))}
+      {/* Keeps the photo calm behind the cards. */}
+      <div className="absolute inset-0 bg-gradient-to-b from-deep/40 via-deep/20 to-deep/50" />
+    </div>
+  );
+}
 
-        {/* Cycling tagline */}
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5, duration: 0.4 }}
-          className="text-lg text-porcelain/58 leading-relaxed max-w-xl"
-        >
-          Genuine medicines for{' '}
-          <span
-            className="text-petrol-300 font-semibold transition-opacity duration-300"
-            style={{ opacity: taglineVisible ? 1 : 0 }}
-          >
-            {TAGLINES[taglineIndex]}
-          </span>
-          {' '}— shipped same-day across Kenya.
-        </motion.p>
+export function Hero() {
+  const branding = useBranding();
+  const wa = String(branding.whatsapp).replace(/[^0-9]/g, '');
+  const waHref = `https://wa.me/${wa}?text=${encodeURIComponent('Hello, I have a prescription to send.')}`;
 
-        {/* CTAs */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.62, duration: 0.5, ease }}
-          className="flex flex-wrap justify-center gap-3 lg:justify-start"
-        >
-          <Link
-            href="/products"
-            className="group inline-flex items-center gap-2 bg-signal hover:bg-signal/90 active:scale-[0.97] text-white font-bold px-8 py-3.5 rounded-2xl transition-all shadow-[0_8px_28px_-4px_rgba(255,106,77,0.5)] hover:shadow-[0_14px_36px_-4px_rgba(255,106,77,0.65)] hover:-translate-y-0.5"
-          >
-            Shop now
-            <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-          </Link>
-          <a
-            href={`https://wa.me/${branding.whatsapp}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 border-2 border-porcelain/20 text-porcelain hover:bg-porcelain/10 hover:border-porcelain/35 font-semibold px-8 py-3.5 rounded-2xl transition-all backdrop-blur-sm"
-          >
-            <MessageCircle size={17} className="text-whatsapp" />
-            Talk to pharmacist
-          </a>
-        </motion.div>
+  // Leaving the hero starts with the very first scroll: the content lifts and fades and the
+  // photo darkens, so it is clear you are moving past it.
+  const reduceMotion = useReducedMotion();
+  const { scrollY } = useScroll();
+  const contentY = useTransform(scrollY, [0, 260], [0, -56]);
+  const contentOpacity = useTransform(scrollY, [0, 300], [1, 0]);
+  const scrim = useTransform(scrollY, [0, 360], [0, 0.65]);
 
+  return (
+    <section aria-label="Find what you need" className="relative isolate overflow-hidden">
+      <HeroBackdrop />
+      {!reduceMotion && <motion.div aria-hidden="true" className="absolute inset-0 -z-10 bg-deep" style={{ opacity: scrim }} />}
+      <motion.div
+        style={reduceMotion ? undefined : { y: contentY, opacity: contentOpacity }}
+        className="mx-auto flex min-h-[calc(100svh-11rem)] max-w-7xl flex-col justify-center gap-4 px-4 py-10 sm:px-6 lg:px-8"
+      >
+      <div className="grid gap-4 lg:grid-cols-12">
+        <div className="rounded-xl border border-line bg-paper p-6 sm:p-10 lg:col-span-8 lg:p-12">
+          <h1 className="text-4xl font-semibold leading-[1.05] tracking-tighter text-ink sm:text-5xl lg:text-6xl">
+            What do you
+            <br />
+            need <span className="text-petrol">today?</span>
+          </h1>
+          <div className="mt-8">
+            <SmartSearch />
+          </div>
+          <ul className="mt-5 flex flex-wrap gap-2">
+            {needs.map((n) => (
+              <li key={n.href}>
+                <Link
+                  href={n.href}
+                  className="inline-block rounded-full border border-line px-4 py-2 text-sm font-medium text-ink transition-[colors,transform] duration-100 hover:border-petrol hover:text-petrol active:scale-[0.97]"
+                >
+                  {n.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
 
-
-        {/* Category pills */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.9, duration: 0.4 }}
-          className="flex flex-wrap justify-center lg:justify-start gap-2 pt-1"
-        >
-          {CATEGORY_PILLS.map((pill) => (
-            <Link
-              key={pill.slug}
-              href={pill.slug ? `/category/${pill.slug}` : '/products'}
-              className="text-xs font-medium px-4 py-1.5 rounded-full border border-porcelain/14 text-porcelain/50 hover:border-petrol-300/50 hover:text-porcelain/85 hover:bg-petrol/20 backdrop-blur-sm transition-all"
-            >
-              {pill.label}
-            </Link>
-          ))}
-        </motion.div>
+        <div className="flex flex-col rounded-xl border border-line bg-paper p-4 sm:p-6 lg:col-span-4">
+          <div className="flex flex-1 flex-col justify-between gap-6 rounded-lg border border-dashed border-line bg-porcelain p-6">
+            <div>
+              <h2 className="text-2xl font-semibold tracking-tight text-ink">Have a prescription?</h2>
+              <p className="mt-2 text-base leading-relaxed text-muted-fg">
+                Upload a photo. A pharmacist checks it before dispatch.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Link
+                href="/prescription"
+                className="flex h-12 items-center justify-center rounded-full bg-petrol text-sm font-medium text-white transition-transform duration-100 hover:bg-petrol-700 active:scale-[0.97]"
+              >
+                Upload prescription
+              </Link>
+              <a
+                href={waHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-1.5 text-center text-sm font-medium text-ink underline-offset-4 hover:text-petrol hover:underline"
+              >
+                Or send on WhatsApp
+              </a>
+            </div>
+          </div>
+        </div>
       </div>
+
+      <ul className="grid grid-cols-2 divide-line rounded-xl border border-line bg-paper text-sm text-ink lg:grid-cols-4 lg:divide-x">
+        {facts.map((f, i) => (
+          <li key={f} className={cn('px-5 py-4', i > 1 && 'border-t border-line lg:border-t-0', i % 2 === 1 && 'border-l border-line lg:border-l-0')}>
+            {f}
+          </li>
+        ))}
+      </ul>
+      </motion.div>
     </section>
   );
 }

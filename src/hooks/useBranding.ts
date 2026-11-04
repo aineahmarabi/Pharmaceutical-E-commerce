@@ -13,8 +13,7 @@ export function useBranding() {
   
   for (const setting of settings) {
     if (setting.key in dynamicBranding) {
-      // @ts-ignore
-      dynamicBranding[setting.key] = setting.value;
+      (dynamicBranding as Record<string, unknown>)[setting.key] = setting.value;
     }
   }
   

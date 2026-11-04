@@ -1,68 +1,98 @@
 'use client';
 
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown } from 'lucide-react';
-
-const ease = [0.16, 1, 0.3, 1] as const;
-
-const faqs = [
-  { q: 'Is it safe to buy medicines online?', a: 'Yes. All products on our platform are genuine and sourced directly from licensed manufacturers. We are regulated by the Pharmacy and Poisons Board (PPB) of Kenya.' },
-  { q: 'Do you require a prescription for Rx medicines?', a: 'Prescription-Only Medicines (POM) require a valid prescription from a licensed healthcare provider. OTC and P-class medicines can be purchased without a prescription.' },
-  { q: 'How fast is delivery?', a: 'We offer same-day delivery in Nairobi for orders placed before 2pm. Delivery to other towns takes 1–3 business days.' },
-  { q: 'What is the return policy?', a: 'For safety reasons, medicines cannot be returned once dispensed. If you receive a wrong or damaged product, contact us within 24 hours and we will arrange a replacement at no cost.' },
-  { q: 'Is my payment information secure?', a: 'Yes. All payments are processed over an encrypted connection. We support M-PESA, card, and cash on delivery.' },
-  { q: 'How do I track my order?', a: 'You can check your order status any time from My Account → Orders.' },
-  { q: 'Do you deliver outside Kenya?', a: 'Currently we only deliver within Kenya. International orders are not supported at this time.' },
-];
-
-function FAQ({ q, a }: { q: string; a: string }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="border-b border-line last:border-b-0">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-full text-left py-5 flex items-start justify-between gap-4"
-      >
-        <span className="font-semibold text-sm text-ink leading-snug">{q}</span>
-        <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }} className="flex-shrink-0">
-          <ChevronDown size={16} className="text-petrol-300" />
-        </motion.span>
-      </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.22 }}
-            className="overflow-hidden"
-          >
-            <p className="text-sm text-ink/70 leading-relaxed pb-5">{a}</p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
+import React, { useMemo, useState } from 'react';
+import Link from 'next/link';
+import { PageHeader } from '@/components/layout/LegalPage';
+import { faqGroups } from '@/lib/content/faq';
+import { FaqAnswer } from '@/components/ui/FaqAnswer';
 
 export default function FAQPage() {
-  return (
-    <div className="min-h-screen bg-porcelain py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-2xl mx-auto">
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease }}>
-          <p className="font-mono text-xs uppercase tracking-widest text-petrol-300 mb-1">Help</p>
-          <h1 className="font-display font-bold text-2xl text-ink tracking-tight">Frequently Asked Questions</h1>
-        </motion.div>
+  const [query, setQuery] = useState('');
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1, duration: 0.4, ease }}
-          className="mt-8 bg-paper rounded-2xl border border-line divide-y divide-line px-6"
-        >
-          {faqs.map((faq) => <FAQ key={faq.q} {...faq} />)}
-        </motion.div>
+  const groups = useMemo(() => {
+    const t = query.trim().toLowerCase();
+    if (!t) return faqGroups;
+    return faqGroups
+      .map((g) => ({
+        ...g,
+        items: g.items.filter((f) => f.q.toLowerCase().includes(t) || f.a.join(' ').toLowerCase().includes(t) || (f.list ?? []).join(' ').toLowerCase().includes(t)),
+      }))
+      .filter((g) => g.items.length > 0);
+  }, [query]);
+
+  const total = groups.reduce((n, g) => n + g.items.length, 0);
+
+  return (
+    <div className="min-h-screen bg-porcelain py-6 sm:py-8">
+      <div className="mx-auto max-w-7xl space-y-4 px-4 sm:px-6 lg:px-8">
+        <PageHeader crumb="FAQ" title="Frequently asked questions" />
+
+        <div className="rounded-xl border border-line bg-paper p-4 sm:p-6">
+          <label htmlFor="faq-search" className="sr-only">Search questions</label>
+          <input
+            id="faq-search"
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search, e.g. prescription, refund, M-PESA"
+            className="w-full max-w-xl rounded-lg border border-line bg-porcelain px-3.5 py-2.5 text-sm text-ink placeholder:text-muted-fg focus:border-petrol focus:outline-none focus:ring-2 focus:ring-petrol/40"
+          />
+
+          {!query && (
+            <nav aria-label="Topics" className="mt-4 flex flex-wrap gap-2">
+              {faqGroups.map((g) => (
+                <a
+                  key={g.id}
+                  href={`#${g.id}`}
+                  className="rounded-full border border-line px-3 py-1.5 text-sm text-ink transition-colors hover:border-petrol hover:text-petrol"
+                >
+                  {g.title}
+                </a>
+              ))}
+            </nav>
+          )}
+
+          <p className="mt-4 text-xs text-muted-fg" aria-live="polite">
+            {total} {total === 1 ? 'question' : 'questions'}
+          </p>
+        </div>
+
+        {groups.length === 0 ? (
+          <div className="rounded-xl border border-line bg-paper p-8 text-center">
+            <p className="text-base font-semibold text-ink">No questions match &ldquo;{query}&rdquo;</p>
+            <p className="mt-1 text-sm text-muted-fg">
+              Try another word, or{' '}
+              <Link href="/contact" className="text-petrol underline underline-offset-2">ask our team directly</Link>.
+            </p>
+          </div>
+        ) : (
+          groups.map((g) => (
+            <section key={g.id} id={g.id} className="scroll-mt-28 rounded-xl border border-line bg-paper p-4 sm:p-6">
+              <h2 className="text-lg font-semibold tracking-tight text-ink">{g.title}</h2>
+              <div className="mt-2 divide-y divide-line">
+                {g.items.map((f) => (
+                  <details key={f.q} className="group py-3.5" open={Boolean(query)}>
+                    <summary className="flex cursor-pointer list-none items-start justify-between gap-4 text-sm font-semibold text-ink">
+                      <span>{f.q}</span>
+                      <span aria-hidden="true" className="mt-0.5 shrink-0 text-muted-fg transition-transform duration-200 group-open:rotate-45">+</span>
+                    </summary>
+                    <FaqAnswer item={f} />
+                  </details>
+                ))}
+              </div>
+            </section>
+          ))
+        )}
+
+        <p className="px-1 text-sm text-muted-fg">
+          Still have a question?{' '}
+          <Link href="/contact" className="text-petrol underline underline-offset-2">Contact us</Link>
+          {' '}or read our{' '}
+          <Link href="/shipping" className="text-petrol underline underline-offset-2">Shipping</Link>,{' '}
+          <Link href="/returns" className="text-petrol underline underline-offset-2">Returns</Link>,{' '}
+          <Link href="/terms" className="text-petrol underline underline-offset-2">Terms</Link> and{' '}
+          <Link href="/privacy" className="text-petrol underline underline-offset-2">Privacy</Link> pages.
+        </p>
       </div>
     </div>
   );

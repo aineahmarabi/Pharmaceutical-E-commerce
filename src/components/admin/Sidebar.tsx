@@ -1,277 +1,204 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Home, ShoppingCart, Package, Users, BarChart3, Percent, Monitor,
-  Settings, ChevronRight, ChevronDown, Boxes, Activity, UserCircle,
-  Store, LogOut, X, Pill, Mail, Send,
+  X, LayoutDashboard, ShoppingBag, FileCheck2, Package, Boxes, Users, LayoutGrid, Stethoscope, Tag,
+  Percent, Mail, Newspaper, Store, BarChart3, UserCog, Settings, ExternalLink, type LucideIcon,
 } from 'lucide-react';
-import { branding } from '@/lib/config/branding';
-import { useMutation, useQuery } from 'convex/react';
+import { useQuery } from 'convex/react';
+import { useAdminQuery } from '@/hooks/useAdminApi';
 import { api } from '../../../convex/_generated/api';
-import { useAdminName } from '@/hooks/useAdminName';
 import { useBranding } from '@/hooks/useBranding';
 import { useAdminSession } from '@/hooks/useAdminSession';
 import { canAccessRoute, ROLE_LABELS } from '@/lib/permissions';
-import { BrandName } from '@/components/ui/BrandName';
 
 interface NavLeaf {
   href: string;
-  icon: React.ElementType;
   label: string;
+  icon: LucideIcon;
   exact?: boolean;
   badge?: number;
+  indent?: boolean;
 }
 
-const mainNav: NavLeaf[] = [
-  { href: '/admin', icon: Home, label: 'Home', exact: true },
-  { href: '/admin/orders', icon: ShoppingCart, label: 'Orders' },
-  { href: '/admin/products', icon: Package, label: 'Products' },
+interface NavGroup {
+  label?: string;
+  items: NavLeaf[];
+}
+
+const navGroups: NavGroup[] = [
+  {
+    items: [
+      { href: '/admin', label: 'Home', icon: LayoutDashboard, exact: true },
+      { href: '/admin/orders', label: 'Orders', icon: ShoppingBag },
+      { href: '/admin/prescriptions', label: 'Prescriptions', icon: FileCheck2 },
+      { href: '/admin/products', label: 'Products', icon: Package },
+      { href: '/admin/inventory', label: 'Inventory', icon: Boxes, indent: true },
+      { href: '/admin/customers', label: 'Customers', icon: Users },
+    ],
+  },
+  {
+    label: 'Catalogue',
+    items: [
+      { href: '/admin/categories', label: 'Categories', icon: LayoutGrid },
+      { href: '/admin/conditions', label: 'Conditions', icon: Stethoscope },
+      { href: '/admin/brands', label: 'Brands', icon: Tag },
+    ],
+  },
+  {
+    label: 'Marketing',
+    items: [
+      { href: '/admin/discounts', label: 'Discounts', icon: Percent },
+      { href: '/admin/messages', label: 'Messages', icon: Mail },
+      { href: '/admin/newsletter', label: 'Newsletter', icon: Newspaper },
+    ],
+  },
+  {
+    label: 'Operations',
+    items: [
+      { href: '/admin/pos', label: 'POS Terminal', icon: Store },
+      { href: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
+      { href: '/admin/staff', label: 'Staff', icon: UserCog },
+    ],
+  },
 ];
 
-const productsChildNav: NavLeaf = { href: '/admin/inventory', icon: Boxes, label: 'Inventory' };
+const settingsNav: NavLeaf = { href: '/admin/settings', label: 'Settings', icon: Settings };
 
-const mainNavAfterProducts: NavLeaf[] = [
-  { href: '/admin/customers', icon: Users, label: 'Customers' },
-  { href: '/admin/analytics', icon: BarChart3, label: 'Analytics' },
-  { href: '/admin/discounts', icon: Percent, label: 'Discounts' },
-  { href: '/admin/messages', icon: Mail, label: 'Messages' },
-  { href: '/admin/newsletter', icon: Send, label: 'Newsletter' },
-];
+function isActive(pathname: string, item: NavLeaf) {
+  if (item.exact) return pathname === item.href;
+  return pathname === item.href || pathname.startsWith(item.href + '/');
+}
 
-const catalogNav: NavLeaf[] = [
-  { href: '/admin/categories', icon: Boxes, label: 'Categories' },
-  { href: '/admin/conditions', icon: Activity, label: 'Conditions' },
-  { href: '/admin/brands', icon: Boxes, label: 'Brands' },
-  { href: '/admin/pos', icon: Monitor, label: 'POS Terminal' },
-  { href: '/admin/staff', icon: UserCircle, label: 'Staff' },
-];
-
-const settingsNav: NavLeaf = { href: '/admin/settings', icon: Settings, label: 'Settings' };
-
-function NavItem({ item, collapsed, onClick, indent = false }: { item: NavLeaf; collapsed: boolean; onClick?: () => void; indent?: boolean }) {
+function NavItem({ item, onClick }: { item: NavLeaf; onClick?: () => void }) {
   const pathname = usePathname();
-  const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
-  const Icon = item.icon;
+  const active = isActive(pathname, item);
 
   return (
     <Link
       href={item.href}
       onClick={onClick}
       aria-current={active ? 'page' : undefined}
-      title={collapsed ? item.label : undefined}
-      className={`
-        relative flex items-center gap-2 rounded-lg text-sm font-medium transition-colors duration-150 group
-        focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_var(--color-p-focus)]
-        ${collapsed ? 'h-9 w-9 justify-center mx-auto' : indent ? 'h-8 pl-6 pr-3 w-full' : 'h-8 px-3 w-full'}
-        ${active ? 'bg-white/8 text-white' : 'text-[#D4D6D8] hover:bg-white/6'}
-      `}
+      className={`relative flex items-center h-9 rounded-lg text-sm transition-colors duration-100 pr-3
+        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-p-success/70
+        ${item.indent ? 'pl-6' : 'pl-3'}
+        ${active
+          ? 'bg-white/10 text-white font-semibold'
+          : 'text-on-deep/70 hover:bg-white/5 hover:text-white font-medium'}`}
     >
-      <Icon size={indent ? 16 : 20} className={`flex-shrink-0 ${active ? 'text-white' : 'text-[#A6ACB2]'}`} />
-      {!collapsed && <span className="truncate leading-none">{item.label}</span>}
-      {!collapsed && item.badge !== undefined && (
-        <span className="ml-auto bg-p-primary-hover text-white rounded-[10px] px-2 py-0.5 text-xs font-semibold">
+      {active && <span aria-hidden="true" className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-p-success" />}
+      <item.icon size={17} aria-hidden="true" className={`mr-2.5 shrink-0 ${active ? 'text-p-success' : 'text-on-deep/55'}`} />
+      <span className="truncate">{item.label}</span>
+      {item.badge !== undefined && item.badge > 0 && (
+        <span className="ml-auto min-w-5 h-5 px-1.5 rounded-full bg-p-success text-p-text text-xs font-semibold tabular-nums flex items-center justify-center">
           {item.badge}
         </span>
-      )}
-      {collapsed && (
-        <div className="absolute left-full ml-3 px-2 py-1 bg-p-bg-inverse text-white text-xs rounded-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 shadow-p-popover">
-          {item.label}
-        </div>
       )}
     </Link>
   );
 }
 
-function SidebarContent({ collapsed, onClose, showClose }: { collapsed: boolean; onClose?: () => void; showClose?: boolean }) {
-  const router = useRouter();
+function SidebarContent({ onClose, showClose }: { onClose?: () => void; showClose?: boolean }) {
   const dynamicBranding = useBranding();
-  const [catalogOpen, setCatalogOpen] = useState(false);
-  const logoutMutation = useMutation(api.adminAuth.logout);
-  const { name: adminName, initials: adminInitials } = useAdminName();
   const { role } = useAdminSession();
   const visible = (href: string) => role !== null && canAccessRoute(role, href);
-  const visibleMainNav = mainNav.filter((i) => visible(i.href));
-  const visibleMainNavAfterProducts = mainNavAfterProducts.filter((i) => visible(i.href));
-  const visibleCatalogNav = catalogNav.filter((i) => visible(i.href));
-  const orders = useQuery(api.orders.listOrders, { limit: 200 });
+  const orders = useAdminQuery(api.orders.listOrders, { limit: 200 });
   const pendingOrderCount = orders?.filter((o) => o.status === 'placed' || o.status === 'confirmed').length;
-  const messages = useQuery(api.messages.listMessages);
+  const rxToken = typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null;
+  const pendingRx = useQuery(api.prescriptions.list, rxToken ? { token: rxToken, status: 'pending' as const } : 'skip');
+  const pendingRxCount = pendingRx?.length;
+  const messages = useAdminQuery(api.messages.listMessages, role === 'super_admin' || role === 'admin' ? {} : 'skip');
   const unreadMessageCount = messages?.filter((m) => !m.read).length;
 
-  const handleLogout = async () => {
-    const token = localStorage.getItem('adminToken');
-    if (token) await logoutMutation({ token });
-    localStorage.removeItem('adminToken');
-    window.location.href = '/admin/login';
+  const withBadge = (item: NavLeaf): NavLeaf => {
+    if (item.href === '/admin/orders' && pendingOrderCount) return { ...item, badge: pendingOrderCount };
+    if (item.href === '/admin/prescriptions' && pendingRxCount) return { ...item, badge: pendingRxCount };
+    if (item.href === '/admin/messages' && unreadMessageCount) return { ...item, badge: unreadMessageCount };
+    return item;
   };
+
+  const groups = navGroups
+    .map((g) => ({ ...g, items: g.items.filter((i) => visible(i.href)) }))
+    .filter((g) => g.items.length > 0);
 
   return (
     <div className="flex flex-col h-full">
-      <div className={`flex items-center h-14 border-b border-white/10 flex-shrink-0 ${collapsed ? 'justify-center px-2' : 'px-4'}`}>
-        {!collapsed ? (
-          <>
-            <div className="flex items-center gap-2.5 flex-1 min-w-0">
-              <div className="w-8 h-8 rounded-lg bg-p-primary flex items-center justify-center flex-shrink-0 overflow-hidden">
-                {dynamicBranding.logo ? (
-                  <img src={dynamicBranding.logo} alt={dynamicBranding.name} className="w-full h-full object-cover" />
-                ) : (
-                  <Pill size={16} className="text-white" strokeWidth={2.5} />
-                )}
-              </div>
-              <div className="min-w-0">
-                <p className="font-display font-bold text-white text-sm leading-none truncate">
-                  <BrandName name={branding.name} accentClassName="text-[#5EEAD4]" />
-                </p>
-                <p className="text-[10px] text-white/40 font-mono leading-none mt-0.5">{role ? ROLE_LABELS[role] : 'Admin'}</p>
-              </div>
-            </div>
-            {showClose && (
-              <button onClick={onClose} aria-label="Close menu" className="w-7 h-7 rounded-lg flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0">
-                <X size={15} />
-              </button>
-            )}
-          </>
-        ) : (
-          <div className="w-8 h-8 rounded-lg bg-p-primary flex items-center justify-center overflow-hidden">
-            {dynamicBranding.logo ? (
-              <img src={dynamicBranding.logo} alt={dynamicBranding.name} className="w-full h-full object-cover" />
-            ) : (
-              <Pill size={16} className="text-white" strokeWidth={2.5} />
-            )}
-          </div>
+      <div className="flex items-center h-14 px-4 border-b border-white/10 flex-shrink-0 gap-3">
+        <div className={`w-9 h-9 flex items-center justify-center flex-shrink-0 text-white text-sm font-bold ${dynamicBranding.logo ? '' : 'rounded-lg bg-p-primary ring-1 ring-white/25'}`}>
+          {dynamicBranding.logo ? (
+            // The monogram sits directly on the dark panel with a faint light outline, no box.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={dynamicBranding.logoMark} alt="" className="brand-logo-glow h-full w-full object-contain" />
+          ) : (
+            (dynamicBranding.name || 'P').charAt(0).toUpperCase()
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-white leading-tight truncate">{dynamicBranding.name}</p>
+          <p className="text-xs text-on-deep/60 leading-tight truncate">{role ? ROLE_LABELS[role] : 'Admin'}</p>
+        </div>
+        {showClose && (
+          <button
+            onClick={onClose}
+            aria-label="Close menu"
+            className="w-9 h-9 -mr-2 rounded-lg flex items-center justify-center text-on-deep/70 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-p-success/70"
+          >
+            <X size={18} />
+          </button>
         )}
       </div>
 
-      {!collapsed && (
-        <div className="px-3 pt-3">
-          <Link
-            href="/"
-            target="_blank"
-            className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-white/40 hover:text-white/80 hover:bg-white/5 transition-colors"
-          >
-            <Store size={13} />
-            <span>View storefront</span>
-          </Link>
-        </div>
-      )}
-
-      <nav aria-label="Main navigation" className="flex-1 overflow-y-auto overscroll-contain py-3 px-2 space-y-1 scrollbar-hide">
-        {visibleMainNav.map((item) => (
-          <NavItem
-            key={item.href}
-            item={item.href === '/admin/orders' && pendingOrderCount ? { ...item, badge: pendingOrderCount } : item}
-            collapsed={collapsed}
-            onClick={onClose}
-          />
-        ))}
-        {visible(productsChildNav.href) && <NavItem item={productsChildNav} collapsed={collapsed} onClick={onClose} indent />}
-        {visibleMainNavAfterProducts.map((item) => (
-          <NavItem
-            key={item.href}
-            item={item.href === '/admin/messages' && unreadMessageCount ? { ...item, badge: unreadMessageCount } : item}
-            collapsed={collapsed}
-            onClick={onClose}
-          />
-        ))}
-
-        {visibleCatalogNav.length > 0 && (
-          <div className="pt-1">
-            <button
-              onClick={() => setCatalogOpen((v) => !v)}
-              className={`flex items-center gap-2 rounded-lg text-sm font-medium transition-colors duration-150 text-[#D4D6D8] hover:bg-white/6
-                ${collapsed ? 'h-9 w-9 justify-center mx-auto' : 'h-8 px-3 w-full'}`}
-              title={collapsed ? 'Catalogue & Operations' : undefined}
-            >
-              <Monitor size={20} className="flex-shrink-0 text-[#A6ACB2]" />
-              {!collapsed && <span className="truncate leading-none flex-1 text-left">Catalogue &amp; Ops</span>}
-              {!collapsed && (
-                <motion.span animate={{ rotate: catalogOpen ? 90 : 0 }} transition={{ duration: 0.2 }}>
-                  <ChevronRight size={14} />
-                </motion.span>
-              )}
-            </button>
-            <AnimatePresence initial={false}>
-              {catalogOpen && !collapsed && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="overflow-hidden pl-5 space-y-1 mt-1"
-                >
-                  {visibleCatalogNav.map((item) => (
-                    <NavItem key={item.href} item={item} collapsed={false} onClick={onClose} />
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
+      <nav aria-label="Main navigation" className="flex-1 overflow-y-auto overscroll-contain admin-scroll py-3 px-3 space-y-5">
+        {groups.map((group, gi) => (
+          <div key={group.label ?? `g${gi}`}>
+            {group.label && (
+              <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-on-deep/45">{group.label}</p>
+            )}
+            <div className="space-y-0.5">
+              {group.items.map((item) => (
+                <NavItem key={item.href} item={withBadge(item)} onClick={onClose} />
+              ))}
+            </div>
           </div>
-        )}
-
-        {visible(settingsNav.href) && (
-          <div className="pt-1">
-            <NavItem item={settingsNav} collapsed={collapsed} onClick={onClose} />
-          </div>
-        )}
+        ))}
       </nav>
 
-      <div className={`border-t border-white/10 pt-3 pb-4 flex-shrink-0 ${collapsed ? 'px-1' : 'px-2'}`}>
-        {!collapsed ? (
-          <div className="flex items-center gap-2.5 px-3 py-2">
-            <div className="w-7 h-7 rounded-full bg-p-primary flex items-center justify-center flex-shrink-0">
-              <span className="font-mono font-bold text-white text-xs">{adminInitials}</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-white/80 leading-none truncate">{adminName}</p>
-              <p className="text-[10px] text-white/35 leading-none mt-0.5 truncate">{branding.email}</p>
-            </div>
-            <button
-              onClick={handleLogout}
-              aria-label="Log out"
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-white/35 hover:text-white hover:bg-white/10 transition-colors"
-            >
-              <LogOut size={13} />
-            </button>
-          </div>
-        ) : (
-          <button
-            title="Log out"
-            onClick={handleLogout}
-            className="h-9 w-9 rounded-lg flex items-center justify-center mx-auto text-white/35 hover:text-white hover:bg-white/10 transition-colors"
-          >
-            <LogOut size={15} />
-          </button>
-        )}
+      <div className="border-t border-white/10 p-3 flex-shrink-0 space-y-0.5">
+        {visible(settingsNav.href) && <NavItem item={settingsNav} onClick={onClose} />}
+        <Link
+          href="/"
+          target="_blank"
+          rel="noopener"
+          className="flex items-center h-9 pl-3 pr-3 rounded-lg text-sm font-medium text-on-deep/60 hover:text-white hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-p-success/70"
+        >
+          <ExternalLink size={16} aria-hidden="true" className="mr-2.5 shrink-0 text-on-deep/55" />
+          View storefront
+        </Link>
       </div>
     </div>
   );
 }
 
 export function AdminSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => void }) {
-  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [mobileOpen, onClose]);
 
   return (
     <>
       <aside
-        className={`
-          hidden md:flex flex-col bg-p-bg-inverse flex-shrink-0 relative
-          transition-[width] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]
-          ${collapsed ? 'w-14' : 'w-60'}
-        `}
-        style={{ minHeight: '100vh' }}
+        id="admin-sidebar"
+        className="hidden lg:flex flex-col w-60 flex-shrink-0 bg-deep border-r border-white/10"
       >
-        <SidebarContent collapsed={collapsed} />
-        <button
-          onClick={() => setCollapsed((v) => !v)}
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className="absolute -right-3 top-[68px] w-6 h-6 rounded-full bg-p-bg-inverse border border-white/15 flex items-center justify-center text-white/50 hover:text-white hover:border-white/30 transition-colors shadow-p-popover z-10"
-        >
-          {collapsed ? <ChevronRight size={11} /> : <ChevronRight size={11} className="rotate-180" />}
-        </button>
+        <SidebarContent />
       </aside>
 
       <AnimatePresence>
@@ -281,18 +208,21 @@ export function AdminSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onC
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[300] md:hidden"
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 bg-black/50 z-[300] lg:hidden"
               onClick={onClose}
             />
             <motion.aside
-              initial={{ x: -280 }}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Navigation"
+              initial={{ x: -288 }}
               animate={{ x: 0 }}
-              exit={{ x: -280 }}
-              transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-              className="fixed inset-y-0 left-0 w-[280px] bg-p-bg-inverse z-[300] md:hidden flex flex-col shadow-p-modal"
+              exit={{ x: -288 }}
+              transition={{ type: 'spring', bounce: 0, duration: 0.35 }}
+              className="fixed inset-y-0 left-0 w-72 max-w-[85vw] bg-deep z-[300] lg:hidden flex flex-col shadow-p-modal"
             >
-              <SidebarContent collapsed={false} onClose={onClose} showClose />
+              <SidebarContent onClose={onClose} showClose />
             </motion.aside>
           </>
         )}

@@ -16,21 +16,23 @@ export function StarRatingInput({ value, onChange, size = 22, className }: StarR
   const display = hovered || value;
 
   return (
-    <div className={cn('flex items-center gap-1', className)} onMouseLeave={() => setHovered(0)}>
+    <div className={cn('flex items-center gap-1', className)} onMouseLeave={() => setHovered(0)} role="radiogroup" aria-label="Your rating">
       {Array.from({ length: 5 }).map((_, i) => {
         const starValue = i + 1;
         return (
           <button
             key={i}
             type="button"
+            role="radio"
+            aria-checked={value === starValue}
             onClick={() => onChange(starValue)}
             onMouseEnter={() => setHovered(starValue)}
-            className="p-0.5 transition-transform hover:scale-110"
+            className="p-0.5 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-petrol/40"
             aria-label={`Rate ${starValue} star${starValue > 1 ? 's' : ''}`}
           >
             <Star
               size={size}
-              className={starValue <= display ? 'text-signal' : 'text-line'}
+              className={starValue <= display ? 'text-ink' : 'text-line'}
               fill={starValue <= display ? 'currentColor' : 'none'}
               strokeWidth={1.75}
             />

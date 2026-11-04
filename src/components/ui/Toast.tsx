@@ -35,32 +35,32 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
   const icons = { success: CheckCircle, error: AlertCircle, info: Info };
   const colours = {
-    success: 'border-l-success text-success',
-    error: 'border-l-danger text-danger',
-    info: 'border-l-info text-info',
+    success: 'text-ink',
+    error: 'text-signal',
+    info: 'text-muted-fg',
   };
 
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}
-      <div className="fixed bottom-6 right-6 z-[200] flex flex-col gap-3 pointer-events-none">
+      <div className="fixed bottom-20 lg:bottom-6 right-4 sm:right-6 z-[200] flex flex-col gap-3 pointer-events-none">
         <AnimatePresence>
           {toasts.map((t) => {
             const Icon = icons[t.type];
             return (
               <motion.div
                 key={t.id}
-                initial={{ opacity: 0, x: 60, scale: 0.95 }}
-                animate={{ opacity: 1, x: 0, scale: 1 }}
-                exit={{ opacity: 0, x: 60 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                className={`pointer-events-auto flex items-center gap-3 bg-paper border border-line border-l-4 ${colours[t.type]} rounded-xl px-4 py-3 shadow-xl min-w-[260px] max-w-sm`}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 12 }}
+                transition={{ type: 'spring', bounce: 0, duration: 0.35 }}
+                className={`pointer-events-auto flex items-center gap-3 bg-paper border border-line rounded-xl px-4 py-3 shadow-md min-w-[260px] max-w-sm`}
               >
-                <Icon size={16} className="flex-shrink-0" />
-                <span className="text-sm font-medium text-ink flex-1">{t.message}</span>
+                <Icon size={16} aria-hidden="true" className={`flex-shrink-0 ${colours[t.type]}`} />
+                <span role="status" className="text-sm font-medium text-ink flex-1">{t.message}</span>
                 <button
                   onClick={() => setToasts((prev) => prev.filter((x) => x.id !== t.id))}
-                  className="text-ink/30 hover:text-ink transition-colors"
+                  aria-label="Dismiss" className="text-muted-fg hover:text-ink transition-colors"
                 >
                   <X size={14} />
                 </button>

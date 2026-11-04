@@ -5,6 +5,9 @@ import { useEffect, useState } from 'react';
  *  during SSR, so the loading render is identical on server and client. */
 export function useMounted() {
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- flip after hydration by design
+    setMounted(true);
+  }, []);
   return mounted;
 }

@@ -1,18 +1,22 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useMutation, useQuery } from 'convex/react';
-import { Menu, Bell, Search, ChevronRight, User } from 'lucide-react';
+import { useMutation } from 'convex/react';
+import { useAdminQuery, useAdminMutation } from '@/hooks/useAdminApi';
+import { Menu, Bell, Search, ChevronDown } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { branding } from '@/lib/config/branding';
 import { api } from '../../../convex/_generated/api';
 import { useAdminName } from '@/hooks/useAdminName';
+import { useBranding } from '@/hooks/useBranding';
+import { useAdminSession } from '@/hooks/useAdminSession';
+import { ROLE_LABELS } from '@/lib/permissions';
 import { useAdminToast } from '@/components/admin/ui/Toast';
 
 function playChime() {
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'sine';
@@ -27,41 +31,23 @@ function playChime() {
   } catch {}
 }
 
-const routeLabels: Record<string, string> = {
-  '/admin': 'Home',
-  '/admin/orders': 'Orders',
-  '/admin/pos': 'POS Terminal',
-  '/admin/products': 'Products',
-  '/admin/products/new': 'New Product',
-  '/admin/categories': 'Categories',
-  '/admin/conditions': 'Conditions',
-  '/admin/brands': 'Brands',
-  '/admin/inventory': 'Inventory',
-  '/admin/customers': 'Customers',
-  '/admin/staff': 'Staff',
-  '/admin/analytics': 'Analytics',
-  '/admin/discounts': 'Discounts',
-  '/admin/audit-log': 'Audit Log',
-  '/admin/settings': 'Settings',
-};
-
-function getTitle(pathname: string): string {
-  if (routeLabels[pathname]) return routeLabels[pathname];
-  const parent = Object.entries(routeLabels).find(([k]) => pathname.startsWith(k) && k !== '/admin')?.[1];
-  return parent ?? 'Admin';
-}
+const iconButton =
+  'relative w-9 h-9 rounded-lg flex items-center justify-center text-p-text hover:bg-p-bg-surface-hover active:scale-[0.97] transition ' +
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-p-focus';
 
 export function AdminTopBar({ onMenuClick, onSearchClick }: { onMenuClick: () => void; onSearchClick?: () => void }) {
-  const pathname = usePathname();
-  const title = getTitle(pathname);
-  const isDetail = !routeLabels[pathname] && pathname !== '/admin';
   const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform);
-  const { name: adminName } = useAdminName();
+  const pathname = usePathname();
+  const { name: adminName, initials } = useAdminName();
+  const branding = useBranding();
+  const { role } = useAdminSession();
   const { toast } = useAdminToast();
   const [notifOpen, setNotifOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const logoutMutation = useMutation(api.adminAuth.logout);
 
-  const notifications = useQuery(api.notifications.listNotifications, { limit: 20 });
-  const markAsRead = useMutation(api.notifications.markAsRead);
+  const notifications = useAdminQuery(api.notifications.listNotifications, { limit: 20 });
+  const markAsRead = useAdminMutation(api.notifications.markAsRead);
   const unreadCount = notifications?.filter((n) => !n.read).length ?? 0;
   const lastSeenIdRef = useRef<string | null>(null);
   const isFirstLoadRef = useRef(true);
@@ -81,60 +67,77 @@ export function AdminTopBar({ onMenuClick, onSearchClick }: { onMenuClick: () =>
     }
   }, [notifications, toast]);
 
-  const handleOpenNotifications = () => {
-    setNotifOpen((v) => !v);
-  };
+  // Close menus on navigation and on Escape.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- close menus on navigation
+    setNotifOpen(false);
+    setAccountOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!notifOpen && !accountOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setNotifOpen(false);
+        setAccountOpen(false);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [notifOpen, accountOpen]);
 
   const handleMarkAllRead = async () => {
     const unreadIds = notifications?.filter((n) => !n.read).map((n) => n._id) ?? [];
     if (unreadIds.length > 0) await markAsRead({ notificationIds: unreadIds });
   };
 
+  const handleLogout = async () => {
+    const token = localStorage.getItem('adminToken');
+    if (token) await logoutMutation({ token });
+    localStorage.removeItem('adminToken');
+    window.location.href = '/admin/login';
+  };
+
   return (
-    <header className="h-14 flex-shrink-0 flex items-center gap-3 px-3 sm:px-4 bg-p-bg-inverse">
+    <header className="h-14 flex-shrink-0 flex items-center gap-2 sm:gap-3 px-3 sm:px-4 bg-p-bg-surface border-b border-p-border-subdued">
       <button
         onClick={onMenuClick}
         aria-label="Open menu"
-        aria-expanded={false}
         aria-controls="admin-sidebar"
-        className="md:hidden w-9 h-9 rounded-lg flex items-center justify-center text-white hover:bg-white/10 transition-colors flex-shrink-0"
+        className={`lg:hidden flex-shrink-0 ${iconButton}`}
       >
         <Menu size={20} />
       </button>
 
-      <div className="flex items-center gap-1.5 min-w-0 text-sm shrink-0">
-        <span className="text-white/40 hidden sm:inline truncate">{branding.name}</span>
-        <ChevronRight size={12} className="text-white/20 hidden sm:block flex-shrink-0" />
-        {isDetail && (
-          <>
-            <span className="text-white/40 truncate hidden sm:inline">{getTitle(pathname.split('/').slice(0, -1).join('/') || '/admin')}</span>
-            <ChevronRight size={12} className="text-white/20 flex-shrink-0 hidden sm:block" />
-          </>
-        )}
-        <span className="font-semibold text-white truncate">{title}</span>
-      </div>
+      <p className="hidden md:block text-sm font-semibold text-p-text truncate max-w-[200px] flex-shrink-0">{branding.name}</p>
 
       <button
         onClick={onSearchClick}
-        className="flex-1 max-w-[580px] mx-auto flex items-center gap-2 h-9 px-3.5 text-sm text-white/70 bg-white/12 hover:bg-white/[0.16] rounded-lg transition-colors"
+        aria-label="Search or open command palette"
+        className="flex-1 max-w-[560px] mx-auto flex items-center gap-2 h-9 px-3 text-sm text-p-text-subdued bg-p-bg border border-p-border-subdued hover:border-p-border rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-p-focus"
       >
-        <Search size={14} />
-        <span className="text-xs">Search</span>
-        <kbd className="hidden sm:inline text-[10px] bg-white/10 rounded px-1.5 py-0.5 font-mono text-white/50 ml-auto">
+        <Search size={14} aria-hidden="true" />
+        <span className="truncate">Search</span>
+        <kbd className="hidden sm:inline ml-auto text-xs text-p-text-subdued bg-p-bg-surface border border-p-border-subdued rounded px-1.5 py-0.5">
           {isMac ? '⌘K' : 'Ctrl K'}
         </kbd>
       </button>
 
-      <div className="flex items-center gap-2 flex-shrink-0 relative">
+      <div className="flex items-center gap-1 flex-shrink-0 relative">
         <button
-          aria-label="Notifications"
+          aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
           aria-expanded={notifOpen}
-          onClick={handleOpenNotifications}
-          className="relative w-9 h-9 rounded-lg flex items-center justify-center text-white hover:bg-white/10 transition-colors"
+          onClick={() => {
+            setNotifOpen((v) => !v);
+            setAccountOpen(false);
+          }}
+          className={iconButton}
         >
           <Bell size={18} />
           {unreadCount > 0 && (
-            <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-p-critical ring-2 ring-p-bg-inverse" />
+            <span className="absolute top-1.5 right-1.5 min-w-4 h-4 px-1 rounded-full bg-p-critical text-white text-[10px] font-semibold flex items-center justify-center tabular-nums">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
           )}
         </button>
 
@@ -143,16 +146,16 @@ export function AdminTopBar({ onMenuClick, onSearchClick }: { onMenuClick: () =>
             <>
               <div className="fixed inset-0 z-[150]" onClick={() => setNotifOpen(false)} />
               <motion.div
-                initial={{ opacity: 0, y: -8 }}
+                initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
+                exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.15 }}
-                className="absolute right-0 top-12 w-[340px] bg-p-bg-surface border border-p-border-subdued rounded-xl shadow-p-popover z-[160] overflow-hidden"
+                className="absolute right-0 top-11 w-[min(340px,calc(100vw-1.5rem))] bg-p-bg-surface border border-p-border-subdued rounded-xl shadow-p-popover z-[160] overflow-hidden"
               >
                 <div className="flex items-center justify-between px-4 h-11 border-b border-p-border-subdued">
                   <p className="text-sm font-semibold text-p-text">Notifications</p>
                   {unreadCount > 0 && (
-                    <button onClick={handleMarkAllRead} className="text-xs text-p-focus hover:underline">
+                    <button onClick={handleMarkAllRead} className="text-sm text-p-text-primary hover:underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-p-focus">
                       Mark all read
                     </button>
                   )}
@@ -169,8 +172,8 @@ export function AdminTopBar({ onMenuClick, onSearchClick }: { onMenuClick: () =>
                         className={`px-4 py-3 border-b border-p-border-subdued last:border-0 ${!n.read ? 'bg-p-bg-surface-selected' : ''}`}
                       >
                         <p className="text-sm font-medium text-p-text">{n.title}</p>
-                        <p className="text-[13px] text-p-text-subdued mt-0.5">{n.message}</p>
-                        <p className="text-[12px] text-p-text-disabled mt-1">{new Date(n.createdAt).toLocaleString()}</p>
+                        <p className="text-sm text-p-text-subdued mt-0.5">{n.message}</p>
+                        <p className="text-xs text-p-text-subdued mt-1">{new Date(n.createdAt).toLocaleString()}</p>
                       </div>
                     ))
                   )}
@@ -180,9 +183,60 @@ export function AdminTopBar({ onMenuClick, onSearchClick }: { onMenuClick: () =>
           )}
         </AnimatePresence>
 
-        <div className="w-7 h-7 rounded-full bg-p-primary flex items-center justify-center flex-shrink-0" title={adminName}>
-          <User size={14} className="text-white" />
-        </div>
+        <button
+          aria-label="Account menu"
+          aria-expanded={accountOpen}
+          aria-haspopup="menu"
+          onClick={() => {
+            setAccountOpen((v) => !v);
+            setNotifOpen(false);
+          }}
+          className="flex items-center gap-1.5 h-9 pl-1 pr-2 rounded-lg hover:bg-p-bg-surface-hover active:scale-[0.97] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-p-focus"
+        >
+          <span className="w-7 h-7 rounded-full bg-p-primary text-white text-xs font-semibold flex items-center justify-center">
+            {initials}
+          </span>
+          <ChevronDown size={14} className="text-p-icon hidden sm:block" />
+        </button>
+
+        <AnimatePresence>
+          {accountOpen && (
+            <>
+              <div className="fixed inset-0 z-[150]" onClick={() => setAccountOpen(false)} />
+              <motion.div
+                role="menu"
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.15 }}
+                className="absolute right-0 top-11 w-60 bg-p-bg-surface border border-p-border-subdued rounded-xl shadow-p-popover z-[160] overflow-hidden"
+              >
+                <div className="px-4 py-3 border-b border-p-border-subdued">
+                  <p className="text-sm font-semibold text-p-text truncate">{adminName}</p>
+                  <p className="text-xs text-p-text-subdued truncate">{role ? ROLE_LABELS[role] : 'Admin'}</p>
+                </div>
+                <div className="py-1">
+                  <Link
+                    href="/"
+                    target="_blank"
+                    rel="noopener"
+                    role="menuitem"
+                    className="flex items-center h-9 px-4 text-sm text-p-text hover:bg-p-bg-surface-hover focus-visible:outline-none focus-visible:bg-p-bg-surface-hover"
+                  >
+                    View storefront
+                  </Link>
+                  <button
+                    role="menuitem"
+                    onClick={handleLogout}
+                    className="w-full flex items-center h-9 px-4 text-sm text-left text-p-text hover:bg-p-bg-surface-hover focus-visible:outline-none focus-visible:bg-p-bg-surface-hover"
+                  >
+                    Log out
+                  </button>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
       </div>
     </header>
   );

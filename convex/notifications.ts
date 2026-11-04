@@ -1,12 +1,15 @@
 import { query, mutation, internalMutation } from './_generated/server';
 import { v } from 'convex/values';
+import { requireStaff, ANY_STAFF } from './adminGuard';
 
 export const listNotifications = query({
-  args: { 
+  args: {
+    token: v.string(), 
     limit: v.optional(v.number()), 
     includeRead: v.optional(v.boolean()) 
   },
   handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, ANY_STAFF);
     let q = ctx.db.query('notifications').order('desc');
     
     if (args.includeRead === false) {
@@ -20,8 +23,11 @@ export const listNotifications = query({
 });
 
 export const markAsRead = mutation({
-  args: { notificationIds: v.array(v.id('notifications')) },
-  handler: async (ctx, { notificationIds }) => {
+  args: {
+    token: v.string(), notificationIds: v.array(v.id('notifications')) },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, ANY_STAFF);
+    const { notificationIds } = args;
     for (const id of notificationIds) {
       await ctx.db.patch(id, { read: true });
     }

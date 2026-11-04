@@ -3,8 +3,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMutation, useQuery } from 'convex/react';
-import { Package, Upload, Download, Plus } from 'lucide-react';
+import { useAdminQuery, useAdminMutation } from '@/hooks/useAdminApi';
 import { api } from '../../../../../convex/_generated/api';
 import type { Id } from '../../../../../convex/_generated/dataModel';
 import { PageHeader } from '@/components/admin/shared/PageHeader';
@@ -43,33 +42,45 @@ export default function AdminProductsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [tab, setTab] = useState('all');
   const [page, setPage] = useState(1);
+  const [classFilter, setClassFilter] = useState('All classes');
+  const [sortBy, setSortBy] = useState('Newest first');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const toggleStock = useMutation(api.adminProducts.adminToggleStock);
-  const deleteProduct = useMutation(api.adminProducts.adminDeleteProduct);
+  const toggleStock = useAdminMutation(api.adminProducts.adminToggleStock);
+  const deleteProduct = useAdminMutation(api.adminProducts.adminDeleteProduct);
 
-  const products = useQuery(api.adminProducts.adminListProducts, {
+  const products = useAdminQuery(api.adminProducts.adminListProducts, {
     limit: 500,
     search: searchTerm || undefined,
   }) as Product[] | undefined;
 
   const filtered = useMemo(() => {
     if (!products) return undefined;
-    if (tab === 'active') return products.filter((p) => p.inStock);
-    if (tab === 'out') return products.filter((p) => !p.inStock);
-    if (tab === 'low') return products.filter((p) => p.inStock && p.stockQty < 10);
-    return products;
-  }, [products, tab]);
+    let list = products;
+    if (tab === 'active') list = list.filter((p) => p.inStock);
+    else if (tab === 'out') list = list.filter((p) => !p.inStock);
+    else if (tab === 'low') list = list.filter((p) => p.inStock && p.stockQty < 10);
+    if (classFilter !== 'All classes') list = list.filter((p) => p.classification === classFilter);
+    if (sortBy === 'Name A-Z') list = [...list].sort((a, b) => a.name.localeCompare(b.name));
+    else if (sortBy === 'Price: low to high') list = [...list].sort((a, b) => a.price - b.price);
+    else if (sortBy === 'Price: high to low') list = [...list].sort((a, b) => b.price - a.price);
+    else if (sortBy === 'Stock: low to high') list = [...list].sort((a, b) => a.stockQty - b.stockQty);
+    return list;
+  }, [products, tab, classFilter, sortBy]);
+
+  const filtersActive = !!searchTerm || tab !== 'all' || classFilter !== 'All classes';
 
   const pageRows = filtered?.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) ?? [];
+
+  const q = (v: string) => v.replace(/"/g, '""');
 
   const handleExport = () => {
     if (!products || products.length === 0) return;
     const headers = ['ID', 'Name', 'Brand', 'Category', 'Price', 'Stock', 'Classification'];
     const csvContent = [
       headers.join(','),
-      ...products.map((p) => `"${p._id}","${p.name}","${p.brand}","${p.category}",${p.price},${p.stockQty},"${p.classification}"`),
+      ...products.map((p) => `"${p._id}","${q(p.name)}","${q(p.brand)}","${q(p.category)}",${p.price},${p.stockQty},"${p.classification}"`),
     ].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -95,24 +106,28 @@ export default function AdminProductsPage() {
       key: 'name',
       label: 'Product',
       render: (row) => (
-        <Link href={`/admin/products/${row._id}/edit`} className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded bg-p-bg border border-p-border-subdued flex-shrink-0 overflow-hidden flex items-center justify-center">
-            {row.imageUrl ? (
-              <img src={row.imageUrl} alt="" className="w-full h-full object-cover" />
-            ) : (
-              <Package size={18} className="text-p-icon-subdued" />
-            )}
+        <Link href={`/admin/products/${row._id}/edit`} className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-lg bg-p-bg border border-p-border-subdued flex-shrink-0 overflow-hidden">
+            {row.imageUrl && <img src={row.imageUrl} alt="" className="w-full h-full object-cover" />}
           </div>
-          <span className="font-medium text-p-focus line-clamp-1">{row.name}</span>
+          <span className="min-w-0">
+            <span className="block font-medium text-p-text line-clamp-1">{row.name}</span>
+            <span className="block text-xs text-p-text-subdued line-clamp-1">{row.brand}</span>
+          </span>
         </Link>
       ),
     },
     {
       key: 'inStock',
       label: 'Status',
-      render: (row) => (
-        <Badge status={row.inStock ? 'success' : 'default'}>{row.inStock ? 'Active' : 'Out of stock'}</Badge>
-      ),
+      render: (row) =>
+        !row.inStock || row.stockQty === 0 ? (
+          <Badge status="critical">Out of stock</Badge>
+        ) : row.stockQty < 10 ? (
+          <Badge status="warning">Low stock</Badge>
+        ) : (
+          <Badge status="success">Active</Badge>
+        ),
     },
     {
       key: 'stockQty',
@@ -120,17 +135,22 @@ export default function AdminProductsPage() {
       align: 'right',
       sortable: true,
       render: (row) => (
-        <span className={row.stockQty === 0 ? 'text-p-critical font-medium' : ''}>{row.stockQty}</span>
+        <span className="tabular-nums">{row.stockQty} in stock</span>
       ),
     },
-    { key: 'category', label: 'Type', hideOnMobile: true, render: (row) => <span className="text-p-text-subdued">{row.category}</span> },
-    { key: 'brand', label: 'Vendor', hideOnMobile: true },
+    {
+      key: 'classification',
+      label: 'Class',
+      hideOnMobile: true,
+      render: (row) => <Badge>{row.classification}</Badge>,
+    },
+    { key: 'category', label: 'Category', hideOnMobile: true, render: (row) => <span className="text-p-text-subdued">{row.category}</span> },
     {
       key: 'price',
       label: 'Price',
       align: 'right',
       sortable: true,
-      render: (row) => `KES ${row.price.toLocaleString()}`,
+      render: (row) => <span className="tabular-nums">KES {row.price.toLocaleString()}</span>,
     },
   ];
 
@@ -139,10 +159,10 @@ export default function AdminProductsPage() {
       <PageHeader
         title="Products"
         secondaryActions={[
-          { label: 'Import', icon: Upload, onClick: () => fileInputRef.current?.click() },
-          { label: 'Export', icon: Download, onClick: handleExport },
+          { label: 'Import', onClick: () => fileInputRef.current?.click() },
+          { label: 'Export', onClick: handleExport },
         ]}
-        primaryAction={{ label: 'Add product', icon: Plus, href: '/admin/products/new' }}
+        primaryAction={{ label: 'Add product', href: '/admin/products/new' }}
       />
       <ProductsSubNav />
       <input type="file" accept=".csv" className="hidden" ref={fileInputRef} onChange={handleImportChange} />
@@ -152,7 +172,7 @@ export default function AdminProductsPage() {
           <Tabs
             tabs={[
               { id: 'all', label: 'All', badge: products?.length },
-              { id: 'active', label: 'Active' },
+              { id: 'active', label: 'In stock' },
               { id: 'out', label: 'Out of stock' },
               { id: 'low', label: 'Low stock' },
             ]}
@@ -165,6 +185,20 @@ export default function AdminProductsPage() {
           searchPlaceholder="Search products..."
           searchValue={searchTerm}
           onSearch={(v) => { setSearchTerm(v); setPage(1); }}
+          filters={[
+            {
+              label: 'Class',
+              options: ['All classes', 'OTC', 'P', 'POM'],
+              value: classFilter,
+              onChange: (v) => { setClassFilter(v); setPage(1); },
+            },
+            {
+              label: 'Sort',
+              options: ['Newest first', 'Name A-Z', 'Price: low to high', 'Price: high to low', 'Stock: low to high'],
+              value: sortBy,
+              onChange: (v) => { setSortBy(v); setPage(1); },
+            },
+          ]}
         />
 
         {!filtered ? (
@@ -179,10 +213,9 @@ export default function AdminProductsPage() {
             onRowClick={(row) => router.push(`/admin/products/${row._id}/edit`)}
             emptyState={
               <EmptyState
-                icon={Package}
-                heading={searchTerm || tab !== 'all' ? 'No products found' : 'Add your products'}
-                body={searchTerm || tab !== 'all' ? 'Try changing the filters or search term.' : 'Start by stocking your store with products your customers will love.'}
-                action={searchTerm || tab !== 'all' ? undefined : { label: 'Add product', onClick: () => router.push('/admin/products/new') }}
+                heading={filtersActive ? 'No products match' : 'No products yet'}
+                body={filtersActive ? 'Try a different search term or clear the filters.' : 'Add your first product to start selling.'}
+                action={filtersActive ? undefined : { label: 'Add product', onClick: () => router.push('/admin/products/new') }}
               />
             }
           />
@@ -201,15 +234,15 @@ export default function AdminProductsPage() {
             label: 'Set as active',
             onClick: async () => {
               for (const id of selected) await toggleStock({ id: id as Id<'products'>, inStock: true });
-              toast(`${selected.size} product(s) set as active`);
+              toast(`${selected.size} product(s) marked in stock`);
               setSelected(new Set());
             },
           },
           {
-            label: 'Set as out of stock',
+            label: 'Mark out of stock',
             onClick: async () => {
               for (const id of selected) await toggleStock({ id: id as Id<'products'>, inStock: false });
-              toast(`${selected.size} product(s) set as out of stock`);
+              toast(`${selected.size} product(s) marked out of stock`);
               setSelected(new Set());
             },
           },

@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useMutation } from 'convex/react';
 import { api } from '../../../../../convex/_generated/api';
-import { Lock, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBranding } from '@/hooks/useBranding';
 import { usePinEntry } from '@/hooks/usePinEntry';
@@ -42,73 +41,56 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="h-screen bg-porcelain flex flex-col items-center justify-center px-4 py-4 sm:px-6 relative overflow-hidden">
-      <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-petrol/5 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-signal/5 rounded-full blur-3xl pointer-events-none" />
-
+    <div className="h-screen bg-p-bg flex flex-col items-center justify-center px-4 py-4 sm:px-6 overflow-hidden font-p-sans">
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="sm:mx-auto sm:w-full sm:max-w-md relative z-10 flex-shrink-0"
+        transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
+        className="w-full max-w-sm"
       >
-        <div className="flex justify-center">
+        <div className="flex flex-col items-center text-center mb-5">
           {branding.logo ? (
-            <img src={branding.logo} alt={branding.name} className="h-11 object-contain" />
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={branding.logo} alt={branding.name} className="h-12 w-auto max-w-[16rem] object-contain" />
           ) : (
-            <div className="h-11 w-11 bg-gradient-to-br from-petrol to-[#0a3830] rounded-2xl flex items-center justify-center shadow-lg shadow-petrol/20">
-              <Lock className="h-5 w-5 text-paper" />
+            <div className="h-10 w-10 rounded-lg bg-p-primary text-white text-lg font-bold flex items-center justify-center overflow-hidden">
+              {(branding.name || 'P').charAt(0).toUpperCase()}
             </div>
           )}
+          <h1 className="mt-3 text-2xl font-semibold tracking-tight text-p-text">Admin sign in</h1>
+          <p className="mt-1 text-sm text-p-text-subdued">Enter your 5-digit passcode for {branding.name}.</p>
         </div>
-        <h2 className="mt-3 text-center text-2xl font-display font-bold tracking-tight text-ink">
-          Admin Portal
-        </h2>
-        <p className="mt-1 text-center text-sm text-petrol-300">
-          Enter your 5-digit secure passcode
-        </p>
-      </motion.div>
 
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.4, delay: 0.1 }}
-        className="mt-5 sm:mx-auto sm:w-full sm:max-w-md relative z-10 flex-shrink-0"
-      >
-        <div className="bg-paper py-6 px-6 shadow-xl sm:rounded-3xl sm:px-8 border border-line">
+        <div className="bg-p-bg-surface rounded-xl border border-p-border-subdued shadow-p-card p-6">
           <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
             <PinKeypad pin={pin} onEnter={handleSubmit} />
 
             <AnimatePresence>
               {error && (
                 <motion.div
+                  role="alert"
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="rounded-xl bg-red-50 p-4 border border-red-100 overflow-hidden"
+                  className="rounded-lg bg-p-critical-subdued border border-p-border-subdued border-l-4 border-l-p-critical overflow-hidden"
                 >
-                  <div className="flex items-center">
-                    <AlertCircle className="h-5 w-5 text-red-500" />
-                    <h3 className="ml-3 text-sm font-medium text-red-800">{error}</h3>
-                  </div>
+                  <p className="px-4 py-3 text-sm font-medium text-[#991B1B]">{error}</p>
                 </motion.div>
               )}
             </AnimatePresence>
 
-            <div>
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={isLoading || !pin.isComplete}
-                className="flex w-full justify-center items-center h-12 rounded-xl bg-petrol text-base font-semibold text-white shadow-md hover:bg-petrol/90 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-petrol/20 transition-all disabled:opacity-50 disabled:hover:shadow-md active:scale-[0.98]"
-              >
-                {isLoading ? (
-                  <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  'Authenticate'
-                )}
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={isLoading || !pin.isComplete}
+              className="flex w-full justify-center items-center h-11 rounded-lg bg-p-primary text-sm font-semibold text-white hover:bg-p-primary-hover active:bg-p-primary-active active:scale-[0.98] transition-[background-color,transform] duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-p-focus focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none"
+            >
+              {isLoading ? (
+                <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin motion-reduce:animate-none" aria-label="Signing in" />
+              ) : (
+                'Sign in'
+              )}
+            </button>
           </form>
         </div>
       </motion.div>

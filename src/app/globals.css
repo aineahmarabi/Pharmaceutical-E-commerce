@@ -17,10 +17,13 @@
   --color-info: #3B82C4;
   --color-line: #DDE7E3;
   --color-whatsapp: #25D366;
+  --color-deep: #0C2B23;
+  --color-on-deep: #F5F6F5;
+  --color-muted-fg: #5B6460;
 
   /* ─── Typography ─── */
-  --font-display: 'Hanken Grotesk', 'Inter', system-ui, sans-serif;
-  --font-body: 'Geist', 'Inter', system-ui, sans-serif;
+  --font-display: var(--font-jost), 'Jost', system-ui, sans-serif;
+  --font-body: var(--font-jost), 'Jost', system-ui, sans-serif;
   --font-mono: 'Geist Mono', 'JetBrains Mono', ui-monospace, monospace;
 
   /* ─── Radii ─── */
@@ -44,13 +47,13 @@
   --color-p-bg-surface: #FFFFFF;
   --color-p-bg-surface-hover: #F8FAFC;
   --color-p-bg-surface-active: #E2E8F0;
-  --color-p-bg-surface-selected: #CCFBF1;
+  --color-p-bg-surface-selected: #EAF3EF;
   --color-p-bg-surface-subdued: #F8FAFC;
   --color-p-bg-inverse: #0F172A;
 
-  --color-p-primary: #0D9488;
-  --color-p-primary-hover: #0F766E;
-  --color-p-primary-active: #115E59;
+  --color-p-primary: #17624A;
+  --color-p-primary-hover: #114D3A;
+  --color-p-primary-active: #0E3F30;
 
   --color-p-critical: #EF4444;
   --color-p-critical-subdued: #FEF2F2;
@@ -68,7 +71,7 @@
   --color-p-text-subdued: #64748B;
   --color-p-text-disabled: #94A3B8;
   --color-p-text-inverse: #FFFFFF;
-  --color-p-text-primary: #0D9488;
+  --color-p-text-primary: #17624A;
   --color-p-text-critical: #EF4444;
 
   --color-p-icon: #64748B;
@@ -77,16 +80,16 @@
   --color-p-border: #CBD5E1;
   --color-p-border-subdued: #E2E8F0;
   --color-p-border-input: #94A3B8;
-  --color-p-border-primary: #0D9488;
+  --color-p-border-primary: #17624A;
   --color-p-border-critical: #EF4444;
 
-  --color-p-focus: #0F766E;
+  --color-p-focus: #17624A;
 
   --shadow-p-card: 0px 1px 0px rgba(0, 0, 0, 0.05);
   --shadow-p-popover: 0px 4px 6px -2px rgba(0, 0, 0, 0.2);
   --shadow-p-modal: 0px 8px 16px -4px rgba(0, 0, 0, 0.22);
 
-  --font-p-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --font-p-sans: var(--font-jost), 'Jost', system-ui, sans-serif;
   --font-p-mono: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
 }
 
@@ -98,25 +101,57 @@
    the values shift within this scope.
 ══════════════════════════════════════════════════════════════ */
 [data-theme='storefront'] {
-  --color-petrol: #0D9488;
-  --color-petrol-700: #0F766E;
-  --color-petrol-300: #5EEAD4;
-  --color-petrol-50: #CCFBF1;
-  --color-ink: #0F172A;
-  --color-porcelain: #F1F5F9;
-  --color-surface-alt: #F8FAFC;
-  --color-text-secondary: #64748B;
-  --color-text-muted: #94A3B8;
-  --color-signal: #F59E0B;
-  --color-amber: #D97706;
-  --color-success: #22C55E;
-  --color-danger: #EF4444;
-  --color-line: #E2E8F0;
+  --color-petrol: #17624A;
+  --color-petrol-700: #114D3A;
+  --color-petrol-300: #5FB894;
+  --color-petrol-50: #EAF3EF;
+  --color-ink: #171717;
+  --color-paper: #FFFFFF;
+  --color-porcelain: #F0F2F5;
+  --color-surface-alt: #F7F8FA;
+  --color-text-secondary: #6B7280;
+  --color-text-muted: #9CA3AF;
+  --color-muted-fg: #6B7280;
+  --color-signal: #DC2F45;
+  --color-amber: #9A5B0A;
+  --color-success: #1F8A5B;
+  --color-danger: #DC2F45;
+  --color-line: #E5E7EB;
 
-  --font-display: var(--font-inter), 'Inter', system-ui, sans-serif;
-  --font-body: var(--font-inter), 'Inter', system-ui, sans-serif;
+  --font-display: var(--font-jost), 'Jost', system-ui, sans-serif;
+  --font-body: var(--font-jost), 'Jost', system-ui, sans-serif;
   --font-mono: var(--font-jbmono), 'JetBrains Mono', ui-monospace, monospace;
 }
+
+
+/* ─── Storefront dark mode (toggle adds .dark to <html>) ─── */
+.dark [data-theme='storefront'] {
+  color-scheme: dark;
+  --color-petrol: #2E9A74;
+  --color-petrol-700: #257F5F;
+  --color-petrol-300: #7DB8A3;
+  --color-petrol-50: #17261F;
+  --color-ink: #F1F5F9;
+  --color-paper: #1A1D27;
+  --color-porcelain: #0F1117;
+  --color-surface-alt: #20242F;
+  --color-text-secondary: #9CA3AF;
+  --color-text-muted: #7B8190;
+  --color-muted-fg: #9CA3AF;
+  --color-line: #2D3242;
+  --color-signal: #F0556A;
+  --color-danger: #F0556A;
+  --color-amber: #E0A24A;
+}
+
+/* ─── Theme switch: new theme spreads out from the toggle ─── */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) { z-index: 1; }
+::view-transition-new(root) { z-index: 2; }
 
 /* ─── Global custom scrollbars ───
    Applies everywhere by default (storefront + admin), themed off the
@@ -193,12 +228,6 @@ body::-webkit-scrollbar-thumb:hover {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-10px); }
 }
-.ghost-float-hover {
-  transition: transform 0.3s ease;
-}
-.group:hover .ghost-float-hover {
-  animation: ghost-float 2.8s ease-in-out infinite;
-}
 
 /* ─── Admin page transition ─── */
 @keyframes pageEnter {
@@ -248,15 +277,6 @@ body {
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
 /* ─── Product card hover (spring via CSS cubic) ─── */
-.product-card-hover {
-  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
-              box-shadow 0.35s ease;
-}
-.product-card-hover:hover {
-  transform: translateY(-6px) scale(1.01);
-  box-shadow: 0 20px 40px -12px rgba(14, 77, 69, 0.18),
-              0 8px 16px -8px rgba(14, 77, 69, 0.12);
-}
 
 /* ─── Brand rail auto-scroll ─── */
 @keyframes brand-scroll {
@@ -354,4 +374,12 @@ body {
   .mesh-blob {
     animation: none !important;
   }
+}
+
+/* ─── Brand logo (black and red, transparent): a faint light outline where the page is dark ─── */
+.dark .brand-logo {
+  filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.95)) drop-shadow(0 0 1px rgba(255, 255, 255, 0.6));
+}
+.brand-logo-glow {
+  filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.95)) drop-shadow(0 0 1px rgba(255, 255, 255, 0.6));
 }

@@ -2,7 +2,7 @@
 
 import React, { use, useState } from 'react';
 import Link from 'next/link';
-import { useMutation, useQuery } from 'convex/react';
+import { useAdminQuery, useAdminMutation } from '@/hooks/useAdminApi';
 import { api } from '../../../../../../convex/_generated/api';
 import type { Id } from '../../../../../../convex/_generated/dataModel';
 import { PageHeader } from '@/components/admin/shared/PageHeader';
@@ -18,10 +18,18 @@ function formatKES(n: number) {
   return `KES ${n.toLocaleString()}`;
 }
 
+const STEP_LABELS: Record<string, string> = {
+  placed: 'Placed',
+  confirmed: 'Confirmed',
+  packed: 'Packed',
+  delivering: 'Out for delivery',
+  completed: 'Completed',
+};
+
 const FULFILLMENT_STEPS = ['placed', 'confirmed', 'packed', 'delivering', 'completed'] as const;
 
 function nextStatus(status: string): (typeof FULFILLMENT_STEPS)[number] | null {
-  const idx = FULFILLMENT_STEPS.indexOf(status as any);
+  const idx = FULFILLMENT_STEPS.indexOf(status as (typeof FULFILLMENT_STEPS)[number]);
   if (idx === -1 || idx === FULFILLMENT_STEPS.length - 1) return null;
   return FULFILLMENT_STEPS[idx + 1];
 }
@@ -31,12 +39,12 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
   const orderId = id as Id<'orders'>;
   const { toast } = useAdminToast();
 
-  const data = useQuery(api.orders.getOrderById, { orderId });
-  const updateFulfillment = useMutation(api.orders.updateFulfillmentStatus);
-  const capturePayment = useMutation(api.orders.captureAuthorizedPayment);
-  const markCod = useMutation(api.orders.markCodCollected);
-  const cancelOrder = useMutation(api.orders.cancelOrder);
-  const addNote = useMutation(api.orders.addOrderTimelineNote);
+  const data = useAdminQuery(api.orders.getOrderById, { orderId });
+  const updateFulfillment = useAdminMutation(api.orders.updateFulfillmentStatus);
+  const capturePayment = useAdminMutation(api.orders.captureAuthorizedPayment);
+  const markCod = useAdminMutation(api.orders.markCodCollected);
+  const cancelOrder = useAdminMutation(api.orders.cancelOrder);
+  const addNote = useAdminMutation(api.orders.addOrderTimelineNote);
 
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
@@ -46,7 +54,7 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
 
   if (data === undefined) {
     return (
-      <div className="pb-16 max-w-[998px] mx-auto">
+      <div className="pb-16 max-w-6xl mx-auto">
         <PageHeader title="Loading order..." backUrl="/admin/orders" />
         <SkeletonLoader type="card" />
       </div>
@@ -55,7 +63,7 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
 
   if (data === null || !data.order) {
     return (
-      <div className="pb-16 max-w-[998px] mx-auto">
+      <div className="pb-16 max-w-6xl mx-auto">
         <PageHeader title="Order not found" backUrl="/admin/orders" />
       </div>
     );
@@ -76,7 +84,7 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
             : []
         }
         primaryAction={next ? {
-          label: `Mark as ${next}`,
+          label: `Mark as ${STEP_LABELS[next].toLowerCase()}`,
           onClick: async () => {
             await updateFulfillment({ orderId, newStatus: next, notifyCustomer: false });
             toast(`Order marked as ${next}`);
@@ -84,44 +92,68 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
         } : undefined}
       />
 
-      <div className="grid lg:grid-cols-[2fr_1fr] gap-5 items-start max-w-[998px] mx-auto">
+      <div className="grid lg:grid-cols-[2fr_1fr] gap-5 items-start max-w-6xl mx-auto">
         <div className="space-y-5 min-w-0">
           <Card
-            title={order.status === 'completed' ? 'Fulfilled' : `${order.status[0].toUpperCase()}${order.status.slice(1)} (${order.items.length} items)`}
-            headerAction={<Badge status={order.status === 'completed' ? 'success' : order.status === 'cancelled' ? 'critical' : 'warning'}>{order.status}</Badge>}
+            title={`Items (${order.items.length})`}
+            headerAction={
+              <Badge status={order.status === 'completed' ? 'success' : order.status === 'cancelled' ? 'critical' : 'warning'}>
+                {STEP_LABELS[order.status] ?? order.status}
+              </Badge>
+            }
           >
-            <div className="space-y-3">
-              {order.items.map((item: any, i: number) => (
-                <div key={i} className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-p-text">{item.name} × {item.qty}</p>
+            <ul className="divide-y divide-p-border-subdued -my-2">
+              {order.items.map((item, i: number) => (
+                <li key={i} className="flex items-center justify-between gap-4 py-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-p-text truncate">{item.name}</p>
+                    <p className="text-xs text-p-text-subdued tabular-nums">
+                      {formatKES(item.price)} × {item.qty}
+                    </p>
                   </div>
-                  <p className="text-sm text-p-text">{formatKES(item.price * item.qty)}</p>
-                </div>
+                  <p className="text-sm tabular-nums text-p-text">{formatKES(item.price * item.qty)}</p>
+                </li>
               ))}
-            </div>
+            </ul>
+            {order.status !== 'cancelled' && (
+              <ol className="mt-5 pt-4 border-t border-p-border-subdued flex items-center gap-1" aria-label="Fulfillment progress">
+                {FULFILLMENT_STEPS.map((step, i) => {
+                  const reached = FULFILLMENT_STEPS.indexOf(order.status as (typeof FULFILLMENT_STEPS)[number]) >= i;
+                  return (
+                    <li key={step} className="flex-1 min-w-0">
+                      <div className={`h-1 rounded-full ${reached ? 'bg-p-primary' : 'bg-p-border-subdued'}`} />
+                      <p className={`mt-1.5 text-xs truncate ${reached ? 'text-p-text font-medium' : 'text-p-text-subdued'}`}>{STEP_LABELS[step]}</p>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
           </Card>
 
           <Card
-            title={order.paymentStatus === 'paid' || order.paymentStatus === 'collected' ? 'Paid' : order.paymentStatus}
+            title="Payment"
             headerAction={
               <Badge status={order.paymentStatus === 'paid' || order.paymentStatus === 'collected' ? 'success' : order.paymentStatus === 'pending' ? 'warning' : 'default'}>
-                {order.paymentStatus}
+                {(() => { const ps = order.paymentStatus ?? 'pending'; return ps === 'collected' ? 'Collected' : ps[0].toUpperCase() + ps.slice(1); })()}
               </Badge>
             }
           >
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
+                <span className="text-p-text-subdued">Method</span>
+                <span className="text-p-text">{order.paymentMethod === 'cod' ? 'Cash' : order.paymentMethod === 'mpesa' ? 'M-Pesa' : order.paymentMethod === 'card' ? 'Card' : order.paymentMethod}</span>
+              </div>
+              <div className="flex justify-between">
                 <span className="text-p-text-subdued">Subtotal · {order.items.length} items</span>
-                <span>{formatKES(order.subtotal)}</span>
+                <span className="tabular-nums">{formatKES(order.subtotal)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-p-text-subdued">Delivery</span>
-                <span>{formatKES(order.deliveryFee)}</span>
+                <span className="tabular-nums">{formatKES(order.deliveryFee)}</span>
               </div>
               <div className="border-t border-p-border-subdued pt-2 flex justify-between font-semibold text-base">
                 <span>Total</span>
-                <span>{formatKES(order.total)}</span>
+                <span className="tabular-nums">{formatKES(order.total)}</span>
               </div>
             </div>
             {order.paymentStatus === 'pending' && (
@@ -142,33 +174,38 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
 
         <div className="space-y-5 min-w-0">
           <Card title="Customer">
-            <p className="text-sm font-medium text-p-focus">{order.customerName}</p>
+            <Link
+              href={`/admin/customers/${encodeURIComponent(order.customerEmail || order.customerPhone)}`}
+              className="text-sm font-medium text-p-text hover:underline"
+            >
+              {order.customerName}
+            </Link>
             {order.customerEmail && <p className="text-sm text-p-text-subdued">{order.customerEmail}</p>}
             {order.customerPhone && <p className="text-sm text-p-text-subdued">{order.customerPhone}</p>}
             <div className="mt-3 pt-3 border-t border-p-border-subdued">
-              <p className="text-[12px] uppercase tracking-wide font-semibold text-p-text-subdued mb-1">Delivery address</p>
+              <p className="text-xs font-medium text-p-text-subdued mb-1">Delivery address</p>
               <p className="text-sm text-p-text">{order.deliveryAddress}</p>
             </div>
           </Card>
 
           <Card title="Timeline">
-            <div className="space-y-3 mb-4">
+            <ol className="mb-4 border-l border-p-border-subdued ml-1 space-y-4">
               {(!timeline || timeline.length === 0) && (
-                <p className="text-sm text-p-text-subdued">No activity yet.</p>
+                <li className="pl-4 text-sm text-p-text-subdued">No activity yet.</li>
               )}
-              {timeline?.map((event: any) => (
-                <div key={event._id} className="flex gap-2">
-                  <div className="w-2 h-2 rounded-full bg-p-text-disabled mt-1.5 flex-shrink-0" />
+              {timeline?.map((event) => (
+                <li key={event._id} className="relative pl-4">
+                  <span className="absolute -left-[4.5px] top-1.5 w-2 h-2 rounded-full bg-p-text-disabled" />
                   <div>
                     <p className="text-sm text-p-text">
-                      {event.action.replace(/_/g, ' ').toLowerCase()}
+                      {(() => { const t = event.action.replace(/_/g, ' ').toLowerCase(); return t.charAt(0).toUpperCase() + t.slice(1); })()}
                       {event.metadata?.body ? `: ${event.metadata.body}` : ''}
                     </p>
-                    <p className="text-[13px] text-p-text-subdued">{new Date(event.createdAt).toLocaleString()}</p>
+                    <p className="text-xs text-p-text-subdued">{new Date(event.createdAt).toLocaleString()}</p>
                   </div>
-                </div>
+                </li>
               ))}
-            </div>
+            </ol>
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
@@ -213,11 +250,11 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
           placeholder="Why is this order being cancelled?"
         />
         <label className="flex items-center gap-2 mt-4 text-sm text-p-text">
-          <input type="checkbox" checked={restock} onChange={(e) => setRestock(e.target.checked)} className="accent-[#0D9488]" />
+          <input type="checkbox" checked={restock} onChange={(e) => setRestock(e.target.checked)} className="accent-[var(--color-p-primary)]" />
           Restock items
         </label>
         <label className="flex items-center gap-2 mt-2 text-sm text-p-text">
-          <input type="checkbox" checked={refund} onChange={(e) => setRefund(e.target.checked)} className="accent-[#0D9488]" />
+          <input type="checkbox" checked={refund} onChange={(e) => setRefund(e.target.checked)} className="accent-[var(--color-p-primary)]" />
           Refund payment
         </label>
       </Modal>

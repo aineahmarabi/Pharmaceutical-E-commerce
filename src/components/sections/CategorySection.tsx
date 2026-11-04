@@ -1,92 +1,217 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
-import {
-  ArrowRight, Pill, Wind, Leaf, Sparkles, Baby, Smile, Activity, Heart,
-  Shield, Lock, HeartHandshake, Flower2, CircleDot, HeartPulse, ShieldCheck, Bug, Droplets, Stethoscope,
-} from 'lucide-react';
 import { useQuery } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { categories as fixtureCategories } from '@/lib/fixtures/categories';
 
-const ease = [0.16, 1, 0.3, 1] as const;
+const SPEED_PX_PER_SEC = 22; // gentle drift
+const RESUME_AFTER_MS = 2500; // idle time before the drift picks up again
 
-const catMeta: Record<string, { icon: React.ElementType; bg: string; fg: string }> = {
-  // Legacy fixture categories
-  'pain-fever':    { icon: Pill,      bg: 'bg-signal/10',   fg: 'text-signal' },
-  'cold-flu':      { icon: Wind,      bg: 'bg-info/10',     fg: 'text-info' },
-  'vitamins':      { icon: Leaf,      bg: 'bg-success/10',  fg: 'text-success' },
-  'skincare':      { icon: Sparkles,  bg: 'bg-amber/10',    fg: 'text-warning' },
-  'baby-mum':      { icon: Baby,      bg: 'bg-petrol-50',   fg: 'text-petrol' },
-  'digestive':     { icon: Smile,     bg: 'bg-signal/10',   fg: 'text-signal' },
-  'diabetes':      { icon: Activity,  bg: 'bg-danger/10',   fg: 'text-danger' },
-  'personal-care': { icon: Heart,     bg: 'bg-success/10',  fg: 'text-success' },
-  // Catalogue categories
-  'pain-relief':            { icon: Pill,          bg: 'bg-signal/10',  fg: 'text-signal' },
-  'antibiotics':             { icon: Shield,         bg: 'bg-petrol-50',  fg: 'text-petrol' },
-  'cough-cold':              { icon: Wind,           bg: 'bg-info/10',    fg: 'text-info' },
-  'baby-care':               { icon: Baby,           bg: 'bg-petrol-50',  fg: 'text-petrol' },
-  'skin-care':               { icon: Sparkles,       bg: 'bg-amber/10',   fg: 'text-warning' },
-  'arthritis-joint-care':    { icon: Activity,       bg: 'bg-danger/10',  fg: 'text-danger' },
-  'sexual-wellness':         { icon: Lock,           bg: 'bg-petrol-50',  fg: 'text-petrol' },
-  'mother-baby':             { icon: HeartHandshake, bg: 'bg-petrol-50',  fg: 'text-petrol' },
-  'allergy':                 { icon: Flower2,        bg: 'bg-success/10', fg: 'text-success' },
-  'vitamins-supplements':    { icon: Leaf,           bg: 'bg-success/10', fg: 'text-success' },
-  'digestive-health':        { icon: CircleDot,      bg: 'bg-signal/10',  fg: 'text-signal' },
-  'cardiovascular':          { icon: HeartPulse,     bg: 'bg-danger/10',  fg: 'text-danger' },
-  'anti-infective':          { icon: ShieldCheck,    bg: 'bg-petrol-50',  fg: 'text-petrol' },
-  'antimalarial':            { icon: Bug,            bg: 'bg-success/10', fg: 'text-success' },
-  'antifungal':              { icon: Droplets,       bg: 'bg-info/10',    fg: 'text-info' },
-  'respiratory':             { icon: Stethoscope,    bg: 'bg-info/10',    fg: 'text-info' },
-};
+function CategoryLink({ slug, name, hidden }: { slug: string; name: string; hidden?: boolean }) {
+  return (
+    <Link
+      href={`/category/${slug}`}
+      tabIndex={hidden ? -1 : undefined}
+      className="block whitespace-nowrap rounded-full border border-line bg-paper px-4 py-2 text-sm font-medium text-ink transition-[colors,transform] duration-100 hover:border-petrol hover:text-petrol active:scale-[0.97]"
+    >
+      {name}
+    </Link>
+  );
+}
 
+/**
+ * Category row that drifts slowly on its own but is a real horizontally scrollable
+ * container, so people can swipe, wheel, use the keyboard or drag it with a mouse.
+ * The drift pauses on any interaction and resumes after a short idle. The list is
+ * rendered three times so it loops seamlessly in both directions.
+ */
 export function CategorySection() {
-  const liveCategories = useQuery(api.taxonomy.listCategories, {});
-  const categories = liveCategories && liveCategories.length > 0 ? liveCategories : fixtureCategories;
-  const doubled = [...categories, ...categories];
+  const live = useQuery(api.taxonomy.listCategories, {});
+  const categories = live && live.length > 0 ? live : fixtureCategories;
+
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    const track = trackRef.current;
+    if (!scroller || !track) return;
+
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) return; // plain scrollable row, no drift, no clones
+
+    const copyWidth = () => {
+      const a = track.children[0] as HTMLElement | undefined;
+      const b = track.children[1] as HTMLElement | undefined;
+      return a && b ? b.offsetLeft - a.offsetLeft : 0;
+    };
+
+    // Start in the middle copy so the user can scroll either way.
+    let w = copyWidth();
+    if (w) scroller.scrollLeft = w;
+
+    let pos = scroller.scrollLeft;
+    let pausedUntil = 0;
+    let lastSet = scroller.scrollLeft; // where the drift last put the row
+    let hovering = false;
+    let focused = false;
+    let raf = 0;
+    let last = performance.now();
+
+    const holdOff = () => {
+      pausedUntil = performance.now() + RESUME_AFTER_MS;
+    };
+
+    // Keep the position inside the middle copy so the loop never runs out.
+    const normalise = () => {
+      w = copyWidth();
+      if (!w) return;
+      let sl = scroller.scrollLeft;
+      if (sl >= w * 2) sl -= w;
+      else if (sl < w) sl += w;
+      else return;
+      scroller.scrollLeft = sl;
+      lastSet = scroller.scrollLeft;
+      pos = sl;
+    };
+
+    const tick = (now: number) => {
+      const dt = Math.min(now - last, 64);
+      last = now;
+      if (!hovering && !focused && now >= pausedUntil && !document.hidden) {
+        pos += (SPEED_PX_PER_SEC * dt) / 1000;
+        scroller.scrollLeft = pos;
+        lastSet = scroller.scrollLeft;
+        normalise();
+      } else {
+        pos = scroller.scrollLeft; // follow wherever the user took it
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+
+    // ── user interaction pauses the drift ──
+    const onEnter = (e: PointerEvent) => { if (e.pointerType === 'mouse') hovering = true; };
+    const onLeave = (e: PointerEvent) => { if (e.pointerType === 'mouse') { hovering = false; holdOff(); } };
+    const onFocusIn = () => { focused = true; };
+    const onFocusOut = () => { focused = false; holdOff(); };
+    const onTouch = () => holdOff();
+    const onWheel = () => holdOff();
+    const onKey = () => holdOff();
+    // Any scroll the drift did not cause (scrollbar, keyboard, assistive tech, script)
+    // counts as the user taking over: pick up from there and pause the drift.
+    const onScroll = () => {
+      if (Math.abs(scroller.scrollLeft - lastSet) > 1.5) {
+        pos = scroller.scrollLeft;
+        lastSet = scroller.scrollLeft;
+        holdOff();
+      }
+      if (performance.now() < pausedUntil) normalise();
+    };
+
+    // ── mouse drag-to-scroll, tracked 1:1 with the pointer ──
+    let dragging = false;
+    let moved = false;
+    let startX = 0;
+    let startLeft = 0;
+    const onDown = (e: PointerEvent) => {
+      if (e.pointerType !== 'mouse' || e.button !== 0) return;
+      dragging = true;
+      moved = false;
+      startX = e.clientX;
+      startLeft = scroller.scrollLeft;
+      holdOff();
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!dragging) return;
+      const dx = e.clientX - startX;
+      if (!moved && Math.abs(dx) > 5) {
+        moved = true;
+        scroller.setPointerCapture(e.pointerId);
+        scroller.style.cursor = 'grabbing';
+      }
+      if (moved) {
+        scroller.scrollLeft = startLeft - dx;
+        holdOff();
+      }
+    };
+    const onUp = () => {
+      dragging = false;
+      scroller.style.cursor = '';
+      holdOff();
+    };
+    // A drag must not also count as a click on a category.
+    const onClickCapture = (e: MouseEvent) => {
+      if (moved) {
+        e.preventDefault();
+        e.stopPropagation();
+        moved = false;
+      }
+    };
+
+    scroller.addEventListener('pointerenter', onEnter);
+    scroller.addEventListener('pointerleave', onLeave);
+    scroller.addEventListener('focusin', onFocusIn);
+    scroller.addEventListener('focusout', onFocusOut);
+    scroller.addEventListener('touchstart', onTouch, { passive: true });
+    scroller.addEventListener('touchend', onTouch, { passive: true });
+    scroller.addEventListener('wheel', onWheel, { passive: true });
+    scroller.addEventListener('keydown', onKey);
+    scroller.addEventListener('scroll', onScroll, { passive: true });
+    scroller.addEventListener('pointerdown', onDown);
+    scroller.addEventListener('pointermove', onMove);
+    scroller.addEventListener('pointerup', onUp);
+    scroller.addEventListener('pointercancel', onUp);
+    scroller.addEventListener('click', onClickCapture, true);
+
+    const onResize = () => { w = copyWidth(); if (w) { scroller.scrollLeft = Math.max(scroller.scrollLeft, w); pos = scroller.scrollLeft; } };
+    window.addEventListener('resize', onResize);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', onResize);
+      scroller.removeEventListener('pointerenter', onEnter);
+      scroller.removeEventListener('pointerleave', onLeave);
+      scroller.removeEventListener('focusin', onFocusIn);
+      scroller.removeEventListener('focusout', onFocusOut);
+      scroller.removeEventListener('touchstart', onTouch);
+      scroller.removeEventListener('touchend', onTouch);
+      scroller.removeEventListener('wheel', onWheel);
+      scroller.removeEventListener('keydown', onKey);
+      scroller.removeEventListener('scroll', onScroll);
+      scroller.removeEventListener('pointerdown', onDown);
+      scroller.removeEventListener('pointermove', onMove);
+      scroller.removeEventListener('pointerup', onUp);
+      scroller.removeEventListener('pointercancel', onUp);
+      scroller.removeEventListener('click', onClickCapture, true);
+    };
+  }, [categories.length]);
 
   return (
-    <section className="py-16 px-4 sm:px-6 lg:px-8 bg-paper overflow-hidden">
-      <div className="max-w-7xl mx-auto">
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5, ease }}
-          className="flex items-end justify-between mb-8"
-        >
-          <div>
-            <p className="font-mono text-xs uppercase tracking-widest text-petrol-300 mb-1">Shop by Category</p>
-            <h2 className="font-display font-bold text-2xl md:text-3xl text-ink tracking-tight">Find what you need</h2>
-          </div>
-          <Link href="/products" className="hidden sm:flex items-center gap-1.5 text-sm text-petrol font-medium hover:gap-3 transition-all">
-            View all <ArrowRight size={14} />
-          </Link>
-        </motion.div>
-      </div>
-
-      <div className="overflow-hidden">
-        <div className="flex gap-3 brand-rail" style={{ width: 'max-content' }}>
-          {doubled.map((cat, i) => {
-            const meta = catMeta[cat.slug] ?? { icon: Pill, bg: 'bg-petrol-50', fg: 'text-petrol' };
-            const Icon = meta.icon;
-            return (
-              <Link
-                key={`${cat.slug}-${i}`}
-                href={`/category/${cat.slug}`}
-                className="group flex-shrink-0 w-24 flex flex-col items-center gap-2.5 p-4 rounded-2xl border border-line/50 bg-porcelain hover:bg-petrol/5 hover:border-petrol/30 transition-all text-center"
-              >
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${meta.bg} transition-transform group-hover:scale-110`}>
-                  <Icon size={20} className={meta.fg} />
-                </div>
-                <span className="font-medium text-xs text-ink leading-snug">{cat.name}</span>
-              </Link>
-            );
-          })}
+    <nav aria-label="Categories">
+      <div
+        ref={scrollerRef}
+        className="-mx-4 cursor-grab overflow-x-auto px-4 scrollbar-hide sm:mx-0 sm:px-0"
+        style={{ overscrollBehaviorX: 'contain' }}
+      >
+        <div ref={trackRef} className="flex w-max gap-2">
+          {[0, 1, 2].map((copy) => (
+            <ul
+              key={copy}
+              className={`flex shrink-0 gap-2 ${copy !== 1 ? '' : ''} ${copy > 0 ? 'motion-reduce:hidden' : ''}`}
+              aria-hidden={copy === 1 ? undefined : true}
+            >
+              {categories.map((cat) => (
+                <li key={`${copy}-${cat.slug}`}>
+                  <CategoryLink slug={cat.slug} name={cat.name} hidden={copy !== 1} />
+                </li>
+              ))}
+            </ul>
+          ))}
         </div>
       </div>
-    </section>
+    </nav>
   );
 }

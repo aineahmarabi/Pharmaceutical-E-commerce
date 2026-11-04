@@ -36,6 +36,7 @@ export function CustomerAuthProvider({ children }: { children: React.ReactNode }
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- read persisted token from localStorage after mount to avoid hydration mismatch
     setToken(localStorage.getItem(TOKEN_KEY));
     setReady(true);
   }, []);

@@ -10,6 +10,7 @@ interface ProductGridProps {
   skeletonCount?: number;
   emptyTitle?: string;
   emptyDescription?: string;
+  emptyAction?: React.ReactNode;
   columns?: string;
   className?: string;
 }
@@ -19,12 +20,13 @@ export function ProductGrid({
   skeletonCount = 12,
   emptyTitle = 'No products found',
   emptyDescription = 'Try a different filter or check back soon.',
-  columns = 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5',
+  emptyAction,
+  columns = 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5',
   className,
 }: ProductGridProps) {
   if (products === undefined) {
     return (
-      <div className={cn('grid gap-4', columns, className)}>
+      <div className={cn('grid gap-3 sm:gap-4', columns, className)} aria-busy="true">
         {Array.from({ length: skeletonCount }).map((_, i) => (
           <ProductCardSkeleton key={i} />
         ))}
@@ -33,11 +35,15 @@ export function ProductGrid({
   }
 
   if (products.length === 0) {
-    return <EmptyState title={emptyTitle} description={emptyDescription} />;
+    return (
+      <div className="bg-paper rounded-xl border border-line">
+        <EmptyState title={emptyTitle} description={emptyDescription} action={emptyAction} />
+      </div>
+    );
   }
 
   return (
-    <div className={cn('grid gap-4', columns, className)}>
+    <div className={cn('grid gap-3 sm:gap-4', columns, className)}>
       {products.map((product) => (
         <ProductCard key={product.id} product={product} />
       ))}

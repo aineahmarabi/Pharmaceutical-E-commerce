@@ -1,10 +1,11 @@
+import { requireStaff, ANY_STAFF, MANAGERS } from './adminGuard';
 import { query, mutation } from './_generated/server';
 import { v } from 'convex/values';
 
 // ─── ADMIN QUERIES (includes out-of-stock) ──────────────────────────────────
 
 export const adminListProducts = query({
-  args: {
+  args: { token: v.string(),
     limit: v.optional(v.number()),
     categorySlug: v.optional(v.string()),
     status: v.optional(v.union(v.literal('active'), v.literal('draft'), v.literal('archived'))),
@@ -12,12 +13,11 @@ export const adminListProducts = query({
     search: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    let q = ctx.db.query('products');
-    
-    if (args.categorySlug) {
-      q = ctx.db.query('products').withIndex('by_category', (idx) => idx.eq('categorySlug', args.categorySlug!)) as any;
-    }
-    
+    await requireStaff(ctx, args.token, ANY_STAFF);
+    const q = args.categorySlug
+      ? ctx.db.query('products').withIndex('by_category', (idx) => idx.eq('categorySlug', args.categorySlug!))
+      : ctx.db.query('products');
+
     let results = await q.take(args.limit || 100);
 
     if (args.brandSlug) {
@@ -25,7 +25,7 @@ export const adminListProducts = query({
     }
     if (args.search) {
       const s = args.search.toLowerCase();
-      results = results.filter(p => p.name.toLowerCase().includes(s) || p.slug.includes(s));
+      results = results.filter(p => p.name.toLowerCase().includes(s) || p.slug.includes(s) || (p.sku ?? '').toLowerCase() === s || (p.barcode ?? '').toLowerCase() === s);
     }
     
     return Promise.all(
@@ -40,8 +40,10 @@ export const adminListProducts = query({
 });
 
 export const adminGetProduct = query({
-  args: { id: v.id('products') },
-  handler: async (ctx, { id }) => {
+  args: { token: v.string(), id: v.id('products') },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, ANY_STAFF);
+    const { id } = args;
     const p = await ctx.db.get(id);
     if (!p) return null;
     return {
@@ -54,7 +56,7 @@ export const adminGetProduct = query({
 });
 
 export const createProduct = mutation({
-  args: {
+  args: { token: v.string(),
     slug: v.string(),
     name: v.string(),
     brand: v.string(),
@@ -75,21 +77,25 @@ export const createProduct = mutation({
     ingredients: v.string(),
     inStock: v.boolean(),
     stockQty: v.number(),
+    sku: v.optional(v.string()),
+    barcode: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
     imageStorageId: v.optional(v.id('_storage')),
   },
   handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
     const existing = await ctx.db.query('products').withIndex('by_slug', (q) => q.eq('slug', args.slug)).first();
     if (existing) throw new Error('Product with this slug already exists.');
+    const { token: _token, ...data } = args;
     return await ctx.db.insert('products', {
-      ...args,
+      ...data,
       isNew: true,
     });
   },
 });
 
 export const updateProduct = mutation({
-  args: {
+  args: { token: v.string(),
     id: v.id('products'),
     updates: v.object({
       name: v.optional(v.string()),
@@ -113,6 +119,7 @@ export const updateProduct = mutation({
       ingredients: v.optional(v.string()),
       manufacturer: v.optional(v.string()),
       sku: v.optional(v.string()),
+      barcode: v.optional(v.string()),
       imageUrl: v.optional(v.string()),
       imageStorageId: v.optional(v.id('_storage')),
       isNew: v.optional(v.boolean()),
@@ -122,7 +129,9 @@ export const updateProduct = mutation({
       offerEndsAt: v.optional(v.number()),
     }),
   },
-  handler: async (ctx, { id, updates }) => {
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
+    const { id, updates } = args;
     await ctx.db.patch(id, updates);
     await ctx.db.insert('auditLog', {
       action: 'UPDATE_PRODUCT',
@@ -134,8 +143,10 @@ export const updateProduct = mutation({
 });
 
 export const duplicateProduct = mutation({
-  args: { id: v.id('products') },
-  handler: async (ctx, { id }) => {
+  args: { token: v.string(), id: v.id('products') },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
+    const { id } = args;
     const p = await ctx.db.get(id);
     if (!p) throw new Error('Not found');
     
@@ -151,23 +162,29 @@ export const duplicateProduct = mutation({
 });
 
 export const archiveProduct = mutation({
-  args: { id: v.id('products') },
-  handler: async (ctx, { id }) => {
+  args: { token: v.string(), id: v.id('products') },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
+    const { id } = args;
     // We just unlist it
     await ctx.db.patch(id, { inStock: false, stockQty: 0 });
   },
 });
 
 export const unarchiveProduct = mutation({
-  args: { id: v.id('products') },
-  handler: async (ctx, { id }) => {
+  args: { token: v.string(), id: v.id('products') },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
+    const { id } = args;
     await ctx.db.patch(id, { inStock: true });
   },
 });
 
 export const adminDeleteProduct = mutation({
-  args: { id: v.id('products') },
-  handler: async (ctx, { id }) => {
+  args: { token: v.string(), id: v.id('products') },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
+    const { id } = args;
     const p = await ctx.db.get(id);
     if (p?.imageStorageId) {
       await ctx.storage.delete(p.imageStorageId);
@@ -177,8 +194,10 @@ export const adminDeleteProduct = mutation({
 });
 
 export const adminToggleStock = mutation({
-  args: { id: v.id('products'), inStock: v.boolean() },
-  handler: async (ctx, { id, inStock }) => {
+  args: { token: v.string(), id: v.id('products'), inStock: v.boolean() },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
+    const { id, inStock } = args;
     await ctx.db.patch(id, { inStock });
   },
 });

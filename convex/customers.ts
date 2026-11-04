@@ -1,18 +1,32 @@
 import { query, mutation } from './_generated/server';
 import { v } from 'convex/values';
+import { requireStaff, MANAGERS } from './adminGuard';
+
+interface CustomerSummary {
+  id: string;
+  name: string;
+  phone: string | undefined;
+  email: string | undefined;
+  totalOrders: number;
+  totalSpent: number;
+  lastOrderDate: number;
+  tags: string[];
+}
 
 export const listCustomers = query({
   args: {
+    token: v.string(),
     search: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
     segmentId: v.optional(v.string()),
     sortBy: v.optional(v.union(v.literal('lastOrder'), v.literal('totalSpent'), v.literal('ordersCount'))),
   },
   handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
     const orders = await ctx.db.query('orders').collect();
     
     // Group by email/phone as a proxy for customer
-    const customersMap = new Map<string, any>();
+    const customersMap = new Map<string, CustomerSummary>();
     
     for (const order of orders) {
       const id = order.customerEmail || order.customerPhone || 'unknown';
@@ -28,7 +42,7 @@ export const listCustomers = query({
           tags: [],
         });
       }
-      const c = customersMap.get(id);
+      const c = customersMap.get(id)!;
       c.totalOrders += 1;
       c.totalSpent += order.total;
       if (order._creationTime > c.lastOrderDate) {
@@ -71,8 +85,9 @@ export const listCustomers = query({
 });
 
 export const getCustomerById = query({
-  args: { customerId: v.string() }, // pseudo-id (email or phone)
-  handler: async (ctx, { customerId }) => {
+  args: { token: v.string(), customerId: v.string() }, // pseudo-id (email or phone)
+  handler: async (ctx, { token, customerId }) => {
+    await requireStaff(ctx, token, MANAGERS);
     const orders = await ctx.db.query('orders').collect();
     const customerOrders = orders.filter(o => o.customerEmail === customerId || o.customerPhone === customerId);
     
@@ -102,7 +117,7 @@ export const getCustomerById = query({
     }
 
     // Segments simulation (since it's expression-based, just an empty list for now unless we evaluate expressions here)
-    const segments: any[] = [];
+    const segments: never[] = [];
       
     return {
       customer: {
@@ -125,20 +140,30 @@ export const getCustomerById = query({
 });
 
 export const updateCustomerNotes = mutation({
-  args: { customerId: v.string(), note: v.string(), authorId: v.id('staff') },
-  handler: async (ctx, { customerId, note, authorId }) => {
+  args: { token: v.string(), customerId: v.string(), note: v.string(), authorId: v.optional(v.id('staff')) },
+  handler: async (ctx, { token, customerId, note, authorId }) => {
+    const identity = await requireStaff(ctx, token, MANAGERS);
+    const trimmed = note.trim();
+    if (!trimmed || trimmed.length > 2000) throw new Error('Note must be 1 to 2000 characters.');
+    // Author is the signed-in staff member; the owner session is not a staff row, so fall back to an active staff member.
+    const author =
+      identity.staffId ??
+      authorId ??
+      (await ctx.db.query('staff').filter((q) => q.eq(q.field('active'), true)).first())?._id;
+    if (!author) throw new Error('No staff member available to author this note.');
     await ctx.db.insert('customerNotes', {
       customerId,
-      authorId,
-      body: note,
+      authorId: author,
+      body: trimmed,
       createdAt: Date.now(),
     });
   },
 });
 
 export const addTag = mutation({
-  args: { customerId: v.string(), tag: v.string() },
-  handler: async (ctx, { customerId, tag }) => {
+  args: { token: v.string(), customerId: v.string(), tag: v.string() },
+  handler: async (ctx, { token, customerId, tag }) => {
+    await requireStaff(ctx, token, MANAGERS);
     const existing = await ctx.db.query('customerTags')
       .withIndex('by_customer', q => q.eq('customerId', customerId))
       .filter(q => q.eq(q.field('tag'), tag))
@@ -151,8 +176,9 @@ export const addTag = mutation({
 });
 
 export const removeTag = mutation({
-  args: { customerId: v.string(), tag: v.string() },
-  handler: async (ctx, { customerId, tag }) => {
+  args: { token: v.string(), customerId: v.string(), tag: v.string() },
+  handler: async (ctx, { token, customerId, tag }) => {
+    await requireStaff(ctx, token, MANAGERS);
     const existing = await ctx.db.query('customerTags')
       .withIndex('by_customer', q => q.eq('customerId', customerId))
       .filter(q => q.eq(q.field('tag'), tag))

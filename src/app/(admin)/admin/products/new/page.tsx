@@ -1,28 +1,28 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { motion } from 'framer-motion';
-import { useMutation } from 'convex/react';
+import { useAdminMutation } from '@/hooks/useAdminApi';
 import { api } from '../../../../../../convex/_generated/api';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, UploadCloud, X, Save } from 'lucide-react';
-import Link from 'next/link';
-import { Select } from '@/components/ui/Select';
-
-const ease = [0.16, 1, 0.3, 1] as const;
+import { X } from 'lucide-react';
+import { PageHeader } from '@/components/admin/shared/PageHeader';
+import { Card } from '@/components/admin/ui/Card';
+import { Input, Textarea } from '@/components/admin/ui/Input';
+import { Select } from '@/components/admin/ui/Select';
+import { Button } from '@/components/admin/ui/Button';
 
 export default function AddProductPage() {
   const router = useRouter();
-  const generateUploadUrl = useMutation(api.products.generateUploadUrl);
-  const createProduct = useMutation(api.adminProducts.createProduct);
+  const generateUploadUrl = useAdminMutation(api.files.generateUploadUrl);
+  const createProduct = useAdminMutation(api.adminProducts.createProduct);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
-  
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Form State
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+
   const [formData, setFormData] = useState({
     name: '',
     brand: '',
@@ -39,6 +39,8 @@ export default function AddProductPage() {
     warnings: '',
     ingredients: '',
     stockQty: '0',
+    sku: '',
+    barcode: '',
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -73,13 +75,13 @@ export default function AddProductPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
     try {
       let imageStorageId = undefined;
-      
+
       // Upload image to Convex Storage
       if (file) {
-        const postUrl = await generateUploadUrl();
+        const postUrl = await generateUploadUrl({});
         const result = await fetch(postUrl, {
           method: 'POST',
           headers: { 'Content-Type': file.type },
@@ -100,6 +102,8 @@ export default function AddProductPage() {
         brandSlug,
         price: Number(formData.price),
         compareAtPrice: formData.compareAtPrice ? Number(formData.compareAtPrice) : undefined,
+        sku: formData.sku.trim() || undefined,
+        barcode: formData.barcode.trim() || undefined,
         stockQty: Number(formData.stockQty),
         inStock: Number(formData.stockQty) > 0,
         conditions: [], // default empty, could add UI for this later
@@ -114,170 +118,134 @@ export default function AddProductPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-[1000px] mx-auto pb-24">
-      <div className="flex items-center justify-between">
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease }} className="flex items-center gap-4">
-          <Link href="/admin/products" className="p-2 bg-paper border border-line rounded-xl hover:bg-porcelain transition-colors text-ink">
-            <ArrowLeft size={16} />
-          </Link>
-          <div>
-            <p className="text-petrol-300 text-sm">Products</p>
-            <h2 className="font-display font-bold text-2xl text-ink">Add Product</h2>
-          </div>
-        </motion.div>
-        
-        <button 
-          onClick={handleSubmit}
-          disabled={isSubmitting}
-          className="flex items-center gap-2 bg-petrol text-paper font-semibold px-5 py-2.5 rounded-xl hover:bg-petrol/90 transition-colors disabled:opacity-50 shadow-sm"
-        >
-          {isSubmitting ? 'Saving...' : <><Save size={16} /> Save Product</>}
-        </button>
-      </div>
+    <div className="pb-16 max-w-5xl mx-auto">
+      <PageHeader
+        title="Add product"
+        backUrl="/admin/products"
+        primaryAction={{ label: isSubmitting ? 'Saving...' : 'Save', onClick: () => formRef.current?.requestSubmit() }}
+      />
 
-      <div className="grid lg:grid-cols-[2fr_1fr] gap-6 items-start">
-        {/* Left Column */}
-        <div className="space-y-6">
-          
-          {/* Basic Info */}
-          <div className="bg-paper rounded-2xl border border-line shadow-sm p-6 space-y-5">
-            <h3 className="font-semibold text-ink text-lg">General Information</h3>
-            <div>
-              <label className="block text-sm font-medium text-ink mb-1.5">Product Title <span className="text-red-500">*</span></label>
-              <input required name="name" value={formData.name} onChange={handleChange} className="w-full px-4 py-2.5 bg-white border border-line rounded-xl focus:outline-none focus:border-petrol focus:ring-1 focus:ring-petrol transition-shadow" placeholder="e.g. Panadol Extra Advance" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-ink mb-1.5">Description <span className="text-red-500">*</span></label>
-              <textarea required name="description" value={formData.description} onChange={handleChange} rows={5} className="w-full px-4 py-2.5 bg-white border border-line rounded-xl focus:outline-none focus:border-petrol focus:ring-1 focus:ring-petrol transition-shadow" placeholder="Detailed product description..." />
-            </div>
-          </div>
-
-          {/* Media (Dropzone) */}
-          <div className="bg-paper rounded-2xl border border-line shadow-sm p-6 space-y-5">
-            <h3 className="font-semibold text-ink text-lg">Media</h3>
-            <div 
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={handleDrop}
-              className={`border-2 border-dashed rounded-2xl p-8 flex flex-col items-center justify-center transition-colors cursor-pointer ${preview ? 'border-line bg-porcelain/30' : 'border-petrol/30 bg-petrol/5 hover:bg-petrol/10'}`}
-              onClick={() => !preview && fileInputRef.current?.click()}
-            >
-              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
-              
-              {preview ? (
-                <div className="relative w-full max-w-[200px] aspect-square rounded-xl overflow-hidden border border-line shadow-sm">
-                  <img src={preview} alt="Preview" className="w-full h-full object-cover" />
-                  <button type="button" onClick={(e) => { e.stopPropagation(); removeFile(); }} className="absolute top-2 right-2 p-1 bg-white/90 text-red-500 rounded-lg hover:bg-red-50 shadow-sm transition-colors">
-                    <X size={16} />
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm text-petrol mb-3">
-                    <UploadCloud size={24} />
-                  </div>
-                  <p className="text-sm font-medium text-ink">Click or drag image here</p>
-                  <p className="text-xs text-petrol-300 mt-1">SVG, PNG, JPG or GIF (max. 5MB)</p>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Clinical Info */}
-          <div className="bg-paper rounded-2xl border border-line shadow-sm p-6 space-y-5">
-            <h3 className="font-semibold text-ink text-lg">Clinical Information</h3>
-            <div className="grid sm:grid-cols-2 gap-5">
-              <div>
-                <label className="block text-sm font-medium text-ink mb-1.5">Generic Name</label>
-                <input name="genericName" value={formData.genericName} onChange={handleChange} className="w-full px-4 py-2 bg-white border border-line rounded-xl focus:outline-none focus:border-petrol" placeholder="e.g. Paracetamol" />
+      <form ref={formRef} onSubmit={handleSubmit}>
+        <div className="grid lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4 items-start">
+          <div className="space-y-4 min-w-0">
+            <Card title="Title and description">
+              <div className="space-y-4">
+                <Input label="Title" required name="name" value={formData.name} onChange={handleChange} placeholder="e.g. Panadol Extra Advance" />
+                <Textarea
+                  label="Description"
+                  required
+                  name="description"
+                  value={formData.description}
+                  onChange={handleChange}
+                  className="min-h-[160px]"
+                />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-ink mb-1.5">Classification</label>
+            </Card>
+
+            <Card title="Media">
+              <div onDragOver={(e) => e.preventDefault()} onDrop={handleDrop} className="flex flex-wrap items-center gap-4">
+                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
+                {preview && (
+                  <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-p-border-subdued flex-shrink-0 bg-p-bg">
+                    <img src={preview} alt="Product preview" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={removeFile}
+                      aria-label="Remove image"
+                      className="absolute top-1 right-1 p-1 bg-p-bg-surface text-p-critical rounded border border-p-border-subdued"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex-1 min-w-[200px] h-24 rounded-lg border border-dashed border-p-border-input text-sm text-p-text-subdued hover:border-p-primary hover:text-p-text transition-colors"
+                >
+                  {preview ? 'Replace image' : 'Add image'}
+                  <span className="block text-xs mt-0.5">or drop a file here</span>
+                </button>
+              </div>
+            </Card>
+
+            <Card title="Pricing">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Input label="Price (KES)" required type="number" name="price" value={formData.price} onChange={handleChange} placeholder="0.00" />
+                <Input
+                  label="Compare-at price (KES)"
+                  type="number"
+                  name="compareAtPrice"
+                  value={formData.compareAtPrice}
+                  onChange={handleChange}
+                  placeholder="0.00"
+                  helpText="To show a reduced price, move the original price here."
+                />
+              </div>
+            </Card>
+
+            <Card title="Inventory">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Input label="Stock quantity" required type="number" name="stockQty" value={formData.stockQty} onChange={handleChange} placeholder="0" />
+                <Input label="Pack size" name="packSize" value={formData.packSize} onChange={handleChange} placeholder="e.g. 2x10 tablets" />
+                <Input label="SKU" name="sku" value={formData.sku} onChange={handleChange} />
+                <Input label="Barcode" name="barcode" value={formData.barcode} onChange={handleChange} helpText="Scan or type. Used at the point of sale." />
+              </div>
+            </Card>
+
+            <Card title="Classification">
+              <div className="grid sm:grid-cols-2 gap-4">
                 <Select
+                  label="Medicine class"
                   value={formData.classification}
                   onChange={(v) => setFormData({ ...formData, classification: v as 'OTC' | 'P' | 'POM' })}
-                  buttonClassName="bg-white"
                   options={[
-                    { value: 'OTC', label: 'Over the Counter (OTC)' },
-                    { value: 'P', label: 'Pharmacy (P)' },
-                    { value: 'POM', label: 'Prescription Only (POM)' },
+                    { value: 'OTC', label: 'Over the counter (OTC)' },
+                    { value: 'P', label: 'Pharmacy only (P)' },
+                    { value: 'POM', label: 'Prescription only (POM)' },
                   ]}
+                  helpText={formData.classification === 'POM' ? 'Customers are told a prescription is needed.' : undefined}
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-ink mb-1.5">Dosage Form</label>
+                <Input label="Generic name" name="genericName" value={formData.genericName} onChange={handleChange} placeholder="e.g. Paracetamol" />
                 <Select
+                  label="Dosage form"
                   value={formData.form}
                   onChange={(v) => setFormData({ ...formData, form: v })}
-                  buttonClassName="bg-white"
                   options={['Tablet', 'Capsule', 'Syrup', 'Cream', 'Drops'].map((f) => ({ value: f, label: f }))}
                 />
+                <Input label="Strength" name="strength" value={formData.strength} onChange={handleChange} placeholder="e.g. 500mg" />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-ink mb-1.5">Strength</label>
-                <input name="strength" value={formData.strength} onChange={handleChange} className="w-full px-4 py-2 bg-white border border-line rounded-xl focus:outline-none focus:border-petrol" placeholder="e.g. 500mg" />
+            </Card>
+
+            <Card title="Clinical information">
+              <div className="space-y-4">
+                <Textarea label="Active ingredients" name="ingredients" value={formData.ingredients} onChange={handleChange} className="min-h-[70px]" placeholder="List active ingredients" />
+                <Textarea label="Directions for use" name="directions" value={formData.directions} onChange={handleChange} className="min-h-[70px]" placeholder="How to use this product" />
+                <Textarea label="Warnings and precautions" name="warnings" value={formData.warnings} onChange={handleChange} className="min-h-[70px]" placeholder="Side effects or warnings" />
               </div>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-ink mb-1.5">Active Ingredients</label>
-              <textarea name="ingredients" value={formData.ingredients} onChange={handleChange} rows={2} className="w-full px-4 py-2 bg-white border border-line rounded-xl focus:outline-none focus:border-petrol" placeholder="List active ingredients..." />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-ink mb-1.5">Directions for use</label>
-              <textarea name="directions" value={formData.directions} onChange={handleChange} rows={2} className="w-full px-4 py-2 bg-white border border-line rounded-xl focus:outline-none focus:border-petrol" placeholder="How to use this product..." />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-ink mb-1.5">Warnings & Precautions</label>
-              <textarea name="warnings" value={formData.warnings} onChange={handleChange} rows={2} className="w-full px-4 py-2 bg-white border border-line rounded-xl focus:outline-none focus:border-petrol" placeholder="Any side effects or warnings..." />
-            </div>
+            </Card>
+          </div>
+
+          <div className="space-y-4 min-w-0">
+            <Card title="Organisation">
+              <div className="space-y-4">
+                <Input label="Category" required name="category" value={formData.category} onChange={handleChange} placeholder="e.g. Pain Relief" />
+                <Input label="Brand" required name="brand" value={formData.brand} onChange={handleChange} placeholder="e.g. GSK" />
+              </div>
+            </Card>
+            <Card title="Status">
+              <p className="text-sm text-p-text-subdued">
+                New products are marked in stock when the stock quantity is above zero.
+              </p>
+            </Card>
           </div>
         </div>
 
-        {/* Right Column */}
-        <div className="space-y-6">
-          
-          {/* Pricing */}
-          <div className="bg-paper rounded-2xl border border-line shadow-sm p-6 space-y-5">
-            <h3 className="font-semibold text-ink text-lg">Pricing</h3>
-            <div>
-              <label className="block text-sm font-medium text-ink mb-1.5">Price (KES) <span className="text-red-500">*</span></label>
-              <input required type="number" name="price" value={formData.price} onChange={handleChange} className="w-full px-4 py-2 bg-white border border-line rounded-xl focus:outline-none focus:border-petrol" placeholder="0.00" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-ink mb-1.5">Compare at price</label>
-              <input type="number" name="compareAtPrice" value={formData.compareAtPrice} onChange={handleChange} className="w-full px-4 py-2 bg-white border border-line rounded-xl focus:outline-none focus:border-petrol" placeholder="0.00" />
-              <p className="text-xs text-petrol-300 mt-1">To show a reduced price, move the original price here.</p>
-            </div>
-          </div>
-
-          {/* Inventory */}
-          <div className="bg-paper rounded-2xl border border-line shadow-sm p-6 space-y-5">
-            <h3 className="font-semibold text-ink text-lg">Inventory</h3>
-            <div>
-              <label className="block text-sm font-medium text-ink mb-1.5">Stock Quantity</label>
-              <input required type="number" name="stockQty" value={formData.stockQty} onChange={handleChange} className="w-full px-4 py-2 bg-white border border-line rounded-xl focus:outline-none focus:border-petrol" placeholder="0" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-ink mb-1.5">Pack Size</label>
-              <input name="packSize" value={formData.packSize} onChange={handleChange} className="w-full px-4 py-2 bg-white border border-line rounded-xl focus:outline-none focus:border-petrol" placeholder="e.g. 2x10 tablets" />
-            </div>
-          </div>
-
-          {/* Organization */}
-          <div className="bg-paper rounded-2xl border border-line shadow-sm p-6 space-y-5">
-            <h3 className="font-semibold text-ink text-lg">Organization</h3>
-            <div>
-              <label className="block text-sm font-medium text-ink mb-1.5">Category <span className="text-red-500">*</span></label>
-              <input required name="category" value={formData.category} onChange={handleChange} className="w-full px-4 py-2 bg-white border border-line rounded-xl focus:outline-none focus:border-petrol" placeholder="e.g. Pain Relief" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-ink mb-1.5">Brand <span className="text-red-500">*</span></label>
-              <input required name="brand" value={formData.brand} onChange={handleChange} className="w-full px-4 py-2 bg-white border border-line rounded-xl focus:outline-none focus:border-petrol" placeholder="e.g. GSK" />
-            </div>
-          </div>
-
+        <div className="flex justify-end gap-2 mt-4">
+          <Button type="button" variant="secondary" onClick={() => router.push('/admin/products')}>Cancel</Button>
+          <Button type="submit" variant="primary" loading={isSubmitting}>Save product</Button>
         </div>
-      </div>
+      </form>
     </div>
   );
 }

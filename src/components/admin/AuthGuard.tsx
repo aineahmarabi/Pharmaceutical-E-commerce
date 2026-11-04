@@ -14,6 +14,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   // We read the token on the client
   useEffect(() => {
     const t = localStorage.getItem('adminToken');
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- read localStorage after mount to avoid hydration mismatch
     setToken(t || '');
   }, []);
 
@@ -37,8 +38,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   // If token hasn't loaded from localStorage yet
   if (token === null) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-petrol"></div>
+      <div className="min-h-screen flex items-center justify-center bg-p-bg" role="status" aria-label="Loading">
+        <div className="animate-spin motion-reduce:animate-none rounded-full h-8 w-8 border-2 border-p-border-subdued border-t-p-primary"></div>
       </div>
     );
   }
@@ -51,8 +52,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   // If we have a token but convex is still loading
   if (token !== '' && isValid === undefined) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-petrol"></div>
+      <div className="min-h-screen flex items-center justify-center bg-p-bg" role="status" aria-label="Loading">
+        <div className="animate-spin motion-reduce:animate-none rounded-full h-8 w-8 border-2 border-p-border-subdued border-t-p-primary"></div>
       </div>
     );
   }

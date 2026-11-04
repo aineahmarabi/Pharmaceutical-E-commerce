@@ -1,3 +1,4 @@
+import { requireStaff, MANAGERS } from './adminGuard';
 import { query, mutation } from './_generated/server';
 import { v } from 'convex/values';
 
@@ -13,15 +14,19 @@ export const listCategories = query({
   }
 });
 export const createCategory = mutation({
-  args: { name: v.string(), description: v.string(), imageStorageId: v.optional(v.id('_storage')) },
+  args: { token: v.string(), name: v.string(), description: v.string(), imageStorageId: v.optional(v.id('_storage')) },
   handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
     const slug = args.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
-    await ctx.db.insert('categories', { ...args, slug, productCount: 0 });
+    await ctx.db.insert('categories', { name: args.name, description: args.description, imageStorageId: args.imageStorageId, slug, productCount: 0 });
   }
 });
 export const deleteCategory = mutation({
-  args: { id: v.id('categories') },
-  handler: async (ctx, args) => ctx.db.delete(args.id)
+  args: { token: v.string(), id: v.id('categories') },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
+    await ctx.db.delete(args.id);
+  }
 });
 
 // Brands
@@ -36,15 +41,19 @@ export const listBrands = query({
   }
 });
 export const createBrand = mutation({
-  args: { name: v.string(), description: v.string(), imageStorageId: v.optional(v.id('_storage')) },
+  args: { token: v.string(), name: v.string(), description: v.string(), imageStorageId: v.optional(v.id('_storage')) },
   handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
     const slug = args.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
-    await ctx.db.insert('brands', { ...args, slug, productCount: 0 });
+    await ctx.db.insert('brands', { name: args.name, description: args.description, imageStorageId: args.imageStorageId, slug, productCount: 0 });
   }
 });
 export const deleteBrand = mutation({
-  args: { id: v.id('brands') },
-  handler: async (ctx, args) => ctx.db.delete(args.id)
+  args: { token: v.string(), id: v.id('brands') },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
+    await ctx.db.delete(args.id);
+  }
 });
 
 // Conditions
@@ -59,13 +68,17 @@ export const listConditions = query({
   }
 });
 export const createCondition = mutation({
-  args: { name: v.string(), description: v.string(), imageStorageId: v.optional(v.id('_storage')) },
+  args: { token: v.string(), name: v.string(), description: v.string(), imageStorageId: v.optional(v.id('_storage')) },
   handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
     const slug = args.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
-    await ctx.db.insert('conditions', { ...args, slug, productCount: 0 });
+    await ctx.db.insert('conditions', { name: args.name, description: args.description, imageStorageId: args.imageStorageId, slug, productCount: 0 });
   }
 });
 export const deleteCondition = mutation({
-  args: { id: v.id('conditions') },
-  handler: async (ctx, args) => ctx.db.delete(args.id)
+  args: { token: v.string(), id: v.id('conditions') },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
+    await ctx.db.delete(args.id);
+  }
 });

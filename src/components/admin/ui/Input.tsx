@@ -10,6 +10,10 @@ export interface InputProps extends Omit<React.InputHTMLAttributes<HTMLInputElem
   containerClassName?: string;
 }
 
+const fieldBase =
+  'w-full rounded-lg px-3 text-sm text-p-text bg-p-bg-surface border transition-colors placeholder:text-p-text-subdued ' +
+  'focus:outline-none focus:ring-2 focus:ring-p-focus/30 disabled:opacity-50 disabled:pointer-events-none';
+
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(function Input(
   { label, helpText, error, id, containerClassName, ...props },
   ref
@@ -30,18 +34,16 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(function Inp
         aria-invalid={!!error}
         aria-describedby={error ? `${inputId}-error` : helpText ? `${inputId}-help` : undefined}
         className={cn(
-          'h-9 w-full rounded px-3 text-sm text-p-text bg-p-bg-surface border transition-colors',
-          'placeholder:text-p-text-disabled',
-          'focus:outline-none focus:shadow-[0_0_0_1px_var(--color-p-focus)]',
-          'disabled:opacity-50 disabled:pointer-events-none',
-          error ? 'border-p-critical focus:border-p-critical' : 'border-p-border-input focus:border-p-focus'
+          fieldBase,
+          'h-9',
+          error ? 'border-p-critical focus:border-p-critical focus:ring-p-critical/30' : 'border-p-border-input focus:border-p-focus'
         )}
         {...props}
       />
       {error ? (
-        <p id={`${inputId}-error`} className="mt-1 text-xs text-p-critical">{error}</p>
+        <p id={`${inputId}-error`} className="mt-1 text-xs text-[#B91C1C]">{error}</p>
       ) : helpText ? (
-        <p id={`${inputId}-help`} className="mt-1 text-[13px] text-p-text-subdued">{helpText}</p>
+        <p id={`${inputId}-help`} className="mt-1 text-xs text-p-text-subdued">{helpText}</p>
       ) : null}
     </div>
   );
@@ -67,19 +69,19 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTML
         id={inputId}
         ref={ref}
         aria-invalid={!!error}
+        aria-describedby={error ? `${inputId}-error` : helpText ? `${inputId}-help` : undefined}
         className={cn(
-          'w-full rounded px-3 py-2 text-sm text-p-text bg-p-bg-surface border transition-colors resize-y',
-          'placeholder:text-p-text-disabled',
-          'focus:outline-none focus:shadow-[0_0_0_1px_var(--color-p-focus)]',
-          error ? 'border-p-critical focus:border-p-critical' : 'border-p-border-input focus:border-p-focus',
+          fieldBase,
+          'py-2 resize-y',
+          error ? 'border-p-critical focus:border-p-critical focus:ring-p-critical/30' : 'border-p-border-input focus:border-p-focus',
           className
         )}
         {...props}
       />
       {error ? (
-        <p className="mt-1 text-xs text-p-critical">{error}</p>
+        <p id={`${inputId}-error`} className="mt-1 text-xs text-[#B91C1C]">{error}</p>
       ) : helpText ? (
-        <p className="mt-1 text-[13px] text-p-text-subdued">{helpText}</p>
+        <p id={`${inputId}-help`} className="mt-1 text-xs text-p-text-subdued">{helpText}</p>
       ) : null}
     </div>
   );

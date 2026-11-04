@@ -1,159 +1,194 @@
 'use client';
 
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Plus, Pencil, Trash2, X, Upload } from 'lucide-react';
-import { useQuery, useMutation } from 'convex/react';
+import React, { useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useQuery } from 'convex/react';
+import { useAdminMutation } from '@/hooks/useAdminApi';
 import { api } from '../../../../../convex/_generated/api';
-import { useToast } from '@/components/ui/Toast';
+import { PageHeader } from '@/components/admin/shared/PageHeader';
+import { Card } from '@/components/admin/ui/Card';
+import { FilterBar } from '@/components/admin/shared/FilterBar';
+import { DataTable, type DataTableColumn } from '@/components/admin/ui/DataTable';
+import { EmptyState } from '@/components/admin/ui/EmptyState';
+import { SkeletonLoader } from '@/components/admin/ui/SkeletonLoader';
+import { Modal } from '@/components/admin/ui/Modal';
+import { Input, Textarea } from '@/components/admin/ui/Input';
+import { useAdminToast } from '@/components/admin/ui/Toast';
 import { useConfirm } from '@/components/admin/ui/ConfirmDialog';
 
-const ease = [0.16, 1, 0.3, 1] as const;
-
 export default function AdminBrandsPage() {
-  const { toast } = useToast();
+  const { toast } = useAdminToast();
   const confirm = useConfirm();
-  const brands = useQuery(api.brands.list);
-  const createBrand = useMutation(api.brands.create);
-  const deleteBrand = useMutation(api.brands.remove);
-  const generateUploadUrl = useMutation(api.files.generateUploadUrl);
+  const items = useQuery(api.brands.list);
+  const createItem = useAdminMutation(api.brands.create);
+  const deleteItem = useAdminMutation(api.brands.remove);
+  const generateUploadUrl = useAdminMutation(api.files.generateUploadUrl);
 
+  const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({ name: '', description: '' });
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsUploading(true);
+  const filtered = useMemo(() => {
+    if (!items) return undefined;
+    const q = search.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((i) => i.name.toLowerCase().includes(q) || (i.description ?? '').toLowerCase().includes(q));
+  }, [items, search]);
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setFormData({ name: '', description: '' });
+    setSelectedImage(null);
+  };
+
+  const handleSubmit = async () => {
+    if (!formData.name.trim()) {
+      toast('Enter a brand name');
+      return;
+    }
+    setSaving(true);
     try {
       let imageStorageId = undefined;
       let imageUrl = undefined;
-      
+
       if (selectedImage) {
-        const postUrl = await generateUploadUrl();
+        const postUrl = await generateUploadUrl({});
         const result = await fetch(postUrl, {
-          method: "POST",
-          headers: { "Content-Type": selectedImage.type },
+          method: 'POST',
+          headers: { 'Content-Type': selectedImage.type },
           body: selectedImage,
         });
         const { storageId } = await result.json();
         imageStorageId = storageId;
-        
-        // Use placeholder for URL since we need another endpoint to get URL, or we can just leave it empty and let frontend fetch
+
+        // Placeholder URL: the storage id can be resolved by the frontend later.
         imageUrl = `/api/image?storageId=${storageId}`;
       }
-      
+
       const slug = formData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-      
-      await createBrand({ ...formData, slug, imageStorageId, imageUrl });
-      setIsModalOpen(false);
-      setFormData({ name: '', description: '' });
-      setSelectedImage(null);
-      toast('Brand created successfully', 'success');
+
+      await createItem({ ...formData, slug, imageStorageId, imageUrl });
+      closeModal();
+      toast('Brand created');
     } catch (error) {
-      toast('Failed to create brand', 'error');
+      toast('Failed to create brand');
     } finally {
-      setIsUploading(false);
+      setSaving(false);
     }
   };
 
-  return (
-    <div className="p-4 sm:p-6 max-w-[1200px] mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <p className="text-petrol-300 text-sm">Taxonomy</p>
-          <h2 className="font-display font-bold text-2xl text-ink">Brands</h2>
+  type Row = NonNullable<typeof items>[number] & { id: string };
+  const columns: DataTableColumn<Row>[] = [
+    {
+      key: 'name',
+      label: 'Brand',
+      render: (row) => (
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-lg bg-p-bg border border-p-border-subdued flex-shrink-0 overflow-hidden">
+            {row.imageUrl && <img src={row.imageUrl} alt="" className="w-full h-full object-cover" />}
+          </div>
+          <span className="font-medium text-p-text line-clamp-1">{row.name}</span>
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-1.5 bg-petrol text-paper text-sm font-semibold px-4 py-2 rounded-xl hover:bg-petrol/90 transition-colors shadow-sm"
+      ),
+    },
+    {
+      key: 'description',
+      label: 'Description',
+      hideOnMobile: true,
+      render: (row) => <span className="text-p-text-subdued line-clamp-1">{row.description || '—'}</span>,
+    },
+    {
+      key: 'productCount',
+      label: 'Products',
+      align: 'right',
+      sortable: true,
+      render: (row) => <span className="tabular-nums">{row.productCount || 0}</span>,
+    },
+    {
+      key: 'actions',
+      label: '',
+      align: 'right',
+      render: (row) => (
+        <button
+          onClick={async (e) => {
+            e.stopPropagation();
+            const ok = await confirm({
+              title: 'Delete brand',
+              message: `Delete "${row.name}"? ${row.productCount || 0} product(s) will lose this brand. This can't be undone.`,
+              confirmLabel: 'Delete',
+              destructive: true,
+            });
+            if (!ok) return;
+            await deleteItem({ id: row._id });
+            toast('Brand deleted');
+          }}
+          className="text-p-critical text-sm font-medium hover:underline"
         >
-          <Plus size={16} /> Add Brand
+          Delete
         </button>
-      </div>
+      ),
+    },
+  ];
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {brands === undefined ? (
-          <p className="text-sm text-petrol-300 animate-pulse">Loading brands...</p>
-        ) : brands.length === 0 ? (
-          <p className="text-sm text-petrol-300 col-span-full">No brands found. Create one to get started.</p>
-        ) : brands.map((brand, i) => (
-          <motion.div
-            key={brand._id}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.05, ease }}
-            className="bg-paper rounded-2xl border border-line p-5 shadow-sm hover:border-petrol/50 transition-colors group"
-          >
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="font-semibold text-lg text-ink">{brand.name}</p>
-                <p className="font-mono text-xs text-petrol-300 mt-1">{brand.productCount || 0} products</p>
-              </div>
-              <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  onClick={async () => {
-                    const ok = await confirm({
-                      title: 'Delete brand',
-                      message: `Delete "${brand.name}"? ${brand.productCount || 0} product(s) will lose this brand. This can't be undone.`,
-                      confirmLabel: 'Delete',
-                      destructive: true,
-                    });
-                    if (!ok) return;
-                    deleteBrand({ id: brand._id });
-                    toast('Brand deleted', 'info');
-                  }}
-                  className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center text-red-500 hover:bg-red-500 hover:text-white transition-colors"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            </div>
-            {brand.description && <p className="text-sm text-ink/70 mt-3 line-clamp-2">{brand.description}</p>}
-          </motion.div>
-        ))}
-      </div>
+  return (
+    <div className="pb-16">
+      <PageHeader
+        title="Brands"
+        secondaryActions={[{ label: 'Full form', href: '/admin/brands/new' }]}
+        primaryAction={{ label: 'Add brand', onClick: () => setIsModalOpen(true) }}
+      />
 
-      {isModalOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-ink/20 backdrop-blur-sm">
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }} 
-            animate={{ opacity: 1, scale: 1 }} 
-            className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-line"
-          >
-            <div className="flex items-center justify-between p-4 border-b border-line bg-porcelain/30">
-              <h3 className="font-semibold text-ink text-lg">Add New Brand</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-petrol-300 hover:text-ink"><X size={20} /></button>
-            </div>
-            <form onSubmit={handleSubmit} className="p-5 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-ink mb-1.5">Brand Logo</label>
-                <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:bg-gray-50 transition cursor-pointer">
-                  <input type="file" accept="image/*" onChange={(e) => setSelectedImage(e.target.files?.[0] || null)} className="hidden" id="brand-image" />
-                  <label htmlFor="brand-image" className="cursor-pointer flex flex-col items-center">
-                    <Upload size={24} className="text-gray-400 mb-2" />
-                    <span className="text-sm text-gray-600">{selectedImage ? selectedImage.name : 'Click to upload logo'}</span>
-                  </label>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-ink mb-1.5">Brand Name <span className="text-red-500">*</span></label>
-                <input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-4 py-2 text-sm bg-white border border-line rounded-xl focus:outline-none focus:border-petrol" placeholder="e.g. GSK" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-ink mb-1.5">Description</label>
-                <textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} rows={3} className="w-full px-4 py-2 text-sm bg-white border border-line rounded-xl focus:outline-none focus:border-petrol" placeholder="Brief description of the brand..." />
-              </div>
-              <div className="pt-2">
-                <button disabled={isUploading} type="submit" className="w-full bg-petrol text-white font-semibold py-2.5 rounded-xl hover:bg-petrol/90 transition-colors disabled:opacity-50">
-                  {isUploading ? 'Uploading...' : 'Save Brand'}
-                </button>
-              </div>
-            </form>
-          </motion.div>
-        </div>
-      )}
+      <Card>
+        <FilterBar searchPlaceholder="Search brands..." searchValue={search} onSearch={setSearch} />
+
+        {!filtered ? (
+          <SkeletonLoader type="text" count={6} />
+        ) : (
+          <DataTable
+            columns={columns}
+            rows={filtered.map((i) => ({ ...i, id: i._id }))}
+            emptyState={
+              <EmptyState
+                heading={search ? 'No brands match' : 'No brands yet'}
+                body={search ? 'Try a different search term.' : 'Add the brands you stock so products can be grouped by brand.'}
+                action={search ? undefined : { label: 'Add brand', onClick: () => setIsModalOpen(true) }}
+              />
+            }
+          />
+        )}
+      </Card>
+
+      <Modal
+        open={isModalOpen}
+        onClose={closeModal}
+        title="Add brand"
+        primaryAction={{ label: saving ? 'Saving...' : 'Save', onClick: handleSubmit, loading: saving }}
+        secondaryAction={{ label: 'Cancel', onClick: closeModal }}
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSubmit();
+          }}
+          className="space-y-4"
+        >
+          <div>
+            <label htmlFor="brand-image" className="block text-sm font-medium text-p-text mb-1">Logo</label>
+            <input
+              id="brand-image"
+              type="file"
+              accept="image/*"
+              onChange={(e) => setSelectedImage(e.target.files?.[0] || null)}
+              className="block w-full text-sm text-p-text-subdued file:mr-3 file:h-9 file:px-3 file:rounded file:border file:border-p-border-input file:bg-p-bg-surface file:text-sm file:text-p-text"
+            />
+          </div>
+          <Input label="Name" required value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="e.g. GSK" />
+          <Textarea label="Description" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className="min-h-[80px]" placeholder="Short description (optional)" />
+          <button type="submit" className="hidden" aria-hidden="true" tabIndex={-1} />
+        </form>
+      </Modal>
     </div>
   );
 }

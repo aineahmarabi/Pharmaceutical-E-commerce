@@ -1,9 +1,11 @@
 import { query } from './_generated/server';
 import { v } from 'convex/values';
+import { requireStaff, ANY_STAFF, MANAGERS } from './adminGuard';
 
 export const getRevenueSummary = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, ANY_STAFF);
     const orders = await ctx.db.query('orders').collect();
     const now = Date.now();
     const day = 24 * 60 * 60 * 1000;
@@ -33,8 +35,11 @@ export const getRevenueSummary = query({
 });
 
 export const getSalesTrend = query({
-  args: { days: v.optional(v.number()) },
-  handler: async (ctx, { days = 30 }) => {
+  args: {
+    token: v.string(), days: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, ANY_STAFF);
+    const { days = 30 } = args;
     const orders = await ctx.db.query('orders').collect();
     const now = Date.now();
     const dayMs = 24 * 60 * 60 * 1000;
@@ -62,8 +67,11 @@ export const getSalesTrend = query({
 });
 
 export const getTopProducts = query({
-  args: { by: v.union(v.literal('volume'), v.literal('revenue')), limit: v.optional(v.number()) },
-  handler: async (ctx, { by, limit = 5 }) => {
+  args: {
+    token: v.string(), by: v.union(v.literal('volume'), v.literal('revenue')), limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, ANY_STAFF);
+    const { by, limit = 5 } = args;
     const orders = await ctx.db.query('orders').collect();
     const productStats = new Map<string, { name: string, units: number, revenue: number }>();
 
@@ -89,8 +97,9 @@ export const getTopProducts = query({
 });
 
 export const getPaymentMethodBreakdown = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
     const orders = await ctx.db.query('orders').collect();
     const counts = { mpesa: 0, card: 0, cod: 0 };
     const revenues = { mpesa: 0, card: 0, cod: 0 };
@@ -107,8 +116,9 @@ export const getPaymentMethodBreakdown = query({
 });
 
 export const getPrescriptionOrderVolume = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
     // POM items are prescription
     // We don't have a prescriptions table, so we proxy this by checking POM classification if possible
     // Alternatively, we just return a dummy if we can't reliably join.
@@ -121,8 +131,11 @@ export const getPrescriptionOrderVolume = query({
 });
 
 export const exportReportCsv = query({
-  args: { reportType: v.string() },
-  handler: async (ctx, { reportType }) => {
+  args: {
+    token: v.string(), reportType: v.string() },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.token, MANAGERS);
+    const { reportType } = args;
     return [{ note: `CSV export for ${reportType} generated` }];
   },
 });

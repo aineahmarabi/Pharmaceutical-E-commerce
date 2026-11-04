@@ -14,8 +14,8 @@ export function Skeleton({ className, style }: SkeletonProps) {
 
 export function ProductCardSkeleton({ className }: SkeletonProps) {
   return (
-    <div className={cn('bg-paper rounded-2xl border border-line overflow-hidden', className)}>
-      <Skeleton className="aspect-[4/3] rounded-none" />
+    <div className={cn('bg-paper rounded-xl border border-line overflow-hidden', className)}>
+      <Skeleton className="aspect-square rounded-none" />
       <div className="p-4 space-y-2">
         <Skeleton className="h-3 w-1/3" />
         <Skeleton className="h-4 w-3/4" />
@@ -30,7 +30,7 @@ export function ProductCardSkeleton({ className }: SkeletonProps) {
 
 export function StatCardSkeleton({ className }: SkeletonProps) {
   return (
-    <div className={cn('bg-paper rounded-2xl border border-line p-5', className)}>
+    <div className={cn('bg-paper rounded-xl border border-line p-5', className)}>
       <div className="flex justify-between items-start mb-3">
         <Skeleton className="h-4 w-24" />
         <Skeleton className="h-8 w-8 rounded-xl" />
@@ -43,7 +43,7 @@ export function StatCardSkeleton({ className }: SkeletonProps) {
 
 export function ChartSkeleton({ className }: SkeletonProps) {
   return (
-    <div className={cn('rounded-2xl overflow-hidden', className)}>
+    <div className={cn('rounded-xl overflow-hidden', className)}>
       <div className="flex items-end gap-2 px-4 pt-4 pb-0 h-40">
         {[65, 40, 75, 55, 80, 60, 90, 50, 70, 45, 85, 65].map((h, i) => (
           <Skeleton key={i} className="flex-1 rounded-t-lg rounded-b-none" style={{ height: `${h}%` }} />

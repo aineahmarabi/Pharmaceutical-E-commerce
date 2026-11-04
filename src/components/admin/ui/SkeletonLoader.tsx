@@ -10,14 +10,14 @@ export function SkeletonLoader({
   count?: number;
   className?: string;
 }) {
-  const base = 'bg-[#E4E5E7] rounded animate-pulse';
+  const base = 'bg-p-bg-surface-active rounded-md animate-pulse motion-reduce:animate-none';
 
   if (type === 'title') {
     return <div className={cn(base, 'h-5 w-2/5 mb-4', className)} />;
   }
 
   if (type === 'thumbnail') {
-    return <div className={cn(base, 'w-10 h-10 rounded', className)} />;
+    return <div className={cn(base, 'w-10 h-10', className)} />;
   }
 
   if (type === 'card') {

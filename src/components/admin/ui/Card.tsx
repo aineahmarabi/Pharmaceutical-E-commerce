@@ -11,22 +11,17 @@ export interface CardProps {
 }
 
 export function Card({ title, headerAction, children, sectioned = false, className, padding = 'normal' }: CardProps) {
-  const pad = padding === 'compact' ? 'p-3.5' : 'p-5';
-  const padTop = padding === 'compact' ? 'px-3.5 pt-3.5' : 'px-5 pt-5';
+  const pad = padding === 'compact' ? 'p-4' : 'p-5';
+  const padTop = padding === 'compact' ? 'px-4 pt-4' : 'px-5 pt-5';
   return (
-    <div
-      className={cn(
-        'bg-p-bg-surface rounded-xl border border-p-border-subdued shadow-p-card transition-shadow duration-150 hover:shadow-p-popover',
-        className
-      )}
-    >
+    <div className={cn('bg-p-bg-surface rounded-xl border border-p-border-subdued shadow-p-card', className)}>
       {title && (
-        <div className={cn('flex items-center justify-between', padTop)}>
+        <div className={cn('flex items-center justify-between gap-3', padTop)}>
           <h3 className="text-base font-semibold text-p-text">{title}</h3>
-          {headerAction && <div className="text-sm text-p-focus">{headerAction}</div>}
+          {headerAction && <div className="text-sm text-p-text-primary">{headerAction}</div>}
         </div>
       )}
-      <div className={pad}>{children}</div>
+      <div className={cn(pad, title && 'pt-4')}>{children}</div>
     </div>
   );
 }

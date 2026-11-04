@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local AI tooling and caches (not part of the app)
+/.claude/
+/.agents/
+/skills-lock.json
+__pycache__/
+*.pyc

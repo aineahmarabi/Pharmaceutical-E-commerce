@@ -1,5 +1,6 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
+import { clearFailures, lockedForMs, recordFailure, safeEqual, secureToken } from './throttle';
 
 const DEFAULT_PASSCODE = '14328';
 
@@ -49,14 +50,22 @@ export const getSessionInfo = query({
 export const login = mutation({
   args: { passcode: v.string() },
   handler: async (ctx, args) => {
+    if (args.passcode.length > 64) return { success: false, error: 'Invalid passcode' };
+
+    // Lock the owner login after repeated failures (a short passcode is guessable).
+    if ((await lockedForMs(ctx, 'admin-passcode')) > 0) {
+      return { success: false, error: 'Too many failed attempts. Please wait 15 minutes and try again.' };
+    }
+
     const security = await ctx.db.query('adminSecurity').first();
     const inputHash = await hashPasscode(args.passcode);
 
     const isValid = security
-      ? security.passcodeHash === inputHash
-      : args.passcode === DEFAULT_PASSCODE;
+      ? safeEqual(security.passcodeHash, inputHash)
+      : safeEqual(args.passcode, DEFAULT_PASSCODE);
 
     if (!isValid) {
+      await recordFailure(ctx, 'admin-passcode', 5);
       if (security) {
         await ctx.db.patch(security._id, {
           failedAttempts: security.failedAttempts + 1,
@@ -65,6 +74,7 @@ export const login = mutation({
       }
       return { success: false, error: 'Invalid passcode' };
     }
+    await clearFailures(ctx, 'admin-passcode');
 
     // First successful login with the default passcode seeds the security row
     // so changePasscode has something real to update going forward.
@@ -76,7 +86,7 @@ export const login = mutation({
       });
     }
 
-    const token = Math.random().toString(36).substring(2) + Date.now().toString(36);
+    const token = secureToken();
 
     await ctx.db.insert('adminSessions', {
       token,
@@ -99,8 +109,17 @@ export const changePasscode = mutation({
       return { success: false, error: 'Session expired. Please log in again.' };
     }
 
+    // Only the owner (a passcode session, not bound to a staff member) may change the passcode.
+    if (session.staffId) {
+      return { success: false, error: 'Only the owner can change the passcode.' };
+    }
+
     if (args.newPasscode.length < 4) {
       return { success: false, error: 'Passcode must be at least 4 characters.' };
+    }
+
+    if ((await lockedForMs(ctx, 'admin-passcode')) > 0) {
+      return { success: false, error: 'Too many failed attempts. Please wait 15 minutes and try again.' };
     }
 
     const security = await ctx.db.query('adminSecurity').first();
@@ -108,6 +127,7 @@ export const changePasscode = mutation({
     const isCurrentValid = security ? security.passcodeHash === currentHash : args.currentPasscode === DEFAULT_PASSCODE;
 
     if (!isCurrentValid) {
+      await recordFailure(ctx, 'admin-passcode', 5);
       return { success: false, error: 'Current passcode is incorrect.' };
     }
 

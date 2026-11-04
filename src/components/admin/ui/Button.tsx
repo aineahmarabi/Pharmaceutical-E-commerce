@@ -15,10 +15,10 @@ export interface ButtonProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonE
 }
 
 const variantClasses: Record<ButtonVariant, string> = {
-  primary: 'bg-p-primary text-white border border-transparent shadow-[0_1px_0_rgba(0,0,0,0.05)] hover:bg-p-primary-hover hover:shadow-[0_2px_6px_-1px_rgba(13,148,136,0.4)] active:bg-p-primary-active',
-  secondary: 'bg-p-bg-surface text-p-text border border-p-border-input shadow-[0_1px_2px_rgba(0,0,0,0.04)] hover:bg-p-bg-surface-hover hover:border-p-text-subdued hover:shadow-[0_2px_4px_rgba(0,0,0,0.06)]',
-  destructive: 'bg-p-critical text-white border border-transparent shadow-[0_1px_0_rgba(0,0,0,0.05)] hover:bg-[#B81900] hover:shadow-[0_2px_6px_-1px_rgba(239,68,68,0.4)]',
-  plain: 'bg-transparent text-p-focus border-none px-2! hover:underline',
+  primary: 'bg-p-primary text-white border border-transparent hover:bg-p-primary-hover active:bg-p-primary-active',
+  secondary: 'bg-p-bg-surface text-p-text border border-p-border-input hover:bg-p-bg-surface-hover active:bg-p-bg-surface-active',
+  destructive: 'bg-p-critical text-white border border-transparent hover:bg-[#DC2626] active:bg-[#B91C1C]',
+  plain: 'bg-transparent text-p-text-primary border border-transparent px-2! hover:bg-p-bg-surface-hover hover:underline',
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
@@ -40,8 +40,9 @@ export function Button({
     <button
       disabled={disabled || loading}
       className={cn(
-        'inline-flex items-center justify-center gap-1.5 rounded-md font-semibold transition-colors duration-150 cursor-pointer',
-        'focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_var(--color-p-focus)]',
+        'inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold whitespace-nowrap cursor-pointer',
+        'transition-[background-color,border-color,transform] duration-100 active:scale-[0.97]',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-p-focus focus-visible:ring-offset-2 focus-visible:ring-offset-p-bg-surface',
         'disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed',
         variantClasses[variant],
         sizeClasses[size],
@@ -51,7 +52,7 @@ export function Button({
       {...props}
     >
       {loading ? (
-        <Loader2 size={14} className="animate-spin" />
+        <Loader2 size={14} className="animate-spin" aria-label="Loading" />
       ) : (
         <>
           {Icon && <Icon size={14} />}

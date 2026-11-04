@@ -2,8 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery } from 'convex/react';
-import { Users } from 'lucide-react';
+import { useAdminQuery } from '@/hooks/useAdminApi';
 import { api } from '../../../../../convex/_generated/api';
 import { PageHeader } from '@/components/admin/shared/PageHeader';
 import { Card } from '@/components/admin/ui/Card';
@@ -11,7 +10,6 @@ import { Tabs } from '@/components/admin/ui/Tabs';
 import { FilterBar } from '@/components/admin/shared/FilterBar';
 import { DataTable, type DataTableColumn } from '@/components/admin/ui/DataTable';
 import { Pagination } from '@/components/admin/ui/Pagination';
-import { EmptyState } from '@/components/admin/ui/EmptyState';
 import { SkeletonLoader } from '@/components/admin/ui/SkeletonLoader';
 
 const PAGE_SIZE = 20;
@@ -22,7 +20,7 @@ export default function AdminCustomersPage() {
   const [tab, setTab] = useState('all');
   const [page, setPage] = useState(1);
 
-  const customers = useQuery(api.customers.listCustomers, {
+  const customers = useAdminQuery(api.customers.listCustomers, {
     search: searchTerm || undefined,
     sortBy: 'lastOrder',
   });
@@ -35,18 +33,17 @@ export default function AdminCustomersPage() {
   }, [customers, tab]);
 
   const pageRows = filtered?.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) ?? [];
+  const filtering = !!searchTerm || tab !== 'all';
 
-  const columns: DataTableColumn<any>[] = [
+  const columns: DataTableColumn<(typeof pageRows)[number]>[] = [
     {
       key: 'name',
       label: 'Customer',
       render: (row) => (
-        <button
-          onClick={() => router.push(`/admin/customers/${encodeURIComponent(row.id)}`)}
-          className="font-medium text-p-focus text-left"
-        >
-          {row.name || 'Unknown'}
-        </button>
+        <div className="min-w-0">
+          <p className="font-medium text-p-text truncate">{row.name || 'Unknown'}</p>
+          <p className="text-xs text-p-text-subdued truncate md:hidden">{row.email || row.phone || ''}</p>
+        </div>
       ),
     },
     { key: 'email', label: 'Email', hideOnMobile: true, render: (row) => row.email || '—' },
@@ -57,16 +54,16 @@ export default function AdminCustomersPage() {
       label: 'Amount spent',
       align: 'right',
       sortable: true,
-      render: (row) => `KES ${row.totalSpent.toLocaleString()}`,
+      render: (row) => <span className="tabular-nums">KES {row.totalSpent.toLocaleString()}</span>,
     },
   ];
 
   return (
     <div className="pb-16">
-      <PageHeader title="Customers" />
+      <PageHeader title="Customers" subtitle={customers ? `${customers.length} customer${customers.length === 1 ? '' : 's'}` : undefined} />
 
-      <Card>
-        <div className="-mx-5 -mt-5 mb-4">
+      <Card padding="compact">
+        <div className="-mx-3.5 -mt-3.5 mb-3">
           <Tabs
             tabs={[
               { id: 'all', label: 'All', badge: customers?.length },
@@ -92,11 +89,12 @@ export default function AdminCustomersPage() {
             rows={pageRows}
             onRowClick={(row) => router.push(`/admin/customers/${encodeURIComponent(row.id)}`)}
             emptyState={
-              <EmptyState
-                icon={Users}
-                heading={searchTerm || tab !== 'all' ? 'No customers found' : 'Everything customers-related in one place'}
-                body={searchTerm || tab !== 'all' ? 'Try changing the filters or search term.' : 'Customers will appear here automatically as orders come in.'}
-              />
+              <div className="py-12 text-center">
+                <h3 className="text-base font-semibold text-p-text">{filtering ? 'No customers found' : 'No customers yet'}</h3>
+                <p className="text-sm text-p-text-subdued mt-1">
+                  {filtering ? 'Try changing the filters or search term.' : 'Customers appear here automatically as orders come in.'}
+                </p>
+              </div>
             }
           />
         )}

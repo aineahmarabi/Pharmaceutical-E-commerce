@@ -17,11 +17,14 @@ export function Pagination({
   const end = Math.min(currentPage * pageSize, totalItems);
 
   return (
-    <div className="flex items-center justify-between px-4 py-4 border-t border-p-border-subdued">
-      <p className="text-sm text-p-text-subdued">
-        Showing {start}–{end} of {totalItems}
+    <nav aria-label="Pagination" className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-p-border-subdued">
+      <p className="text-sm text-p-text-subdued tabular-nums" aria-live="polite">
+        {start}–{end} of {totalItems}
       </p>
       <div className="flex items-center gap-2">
+        <span className="text-sm text-p-text-subdued tabular-nums mr-1 hidden sm:inline">
+          Page {Math.min(currentPage, totalPages)} of {totalPages}
+        </span>
         <Button variant="secondary" size="sm" disabled={currentPage <= 1} onClick={() => onPageChange(currentPage - 1)}>
           Previous
         </Button>
@@ -29,6 +32,6 @@ export function Pagination({
           Next
         </Button>
       </div>
-    </div>
+    </nav>
   );
 }
