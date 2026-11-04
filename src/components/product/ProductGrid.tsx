@@ -44,7 +44,8 @@ export function ProductGrid({
 
   return (
     <div className={cn('grid gap-3 sm:gap-4', columns, className)}>
-      {products.map((product) => (
+      {/* Available items first; sold-out ones follow, keeping their order. */}
+      {[...products].sort((a, b) => Number(b.inStock) - Number(a.inStock)).map((product) => (
         <ProductCard key={product.id} product={product} />
       ))}
     </div>

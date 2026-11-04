@@ -9,6 +9,7 @@ import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../../../convex/_generated/api';
 import type { Id } from '../../../../../convex/_generated/dataModel';
 import { toProduct } from '@/lib/adapters/product';
+import { OutOfStockMark } from '@/components/ui/OutOfStockMark';
 import { ProductImagePlaceholder } from '@/components/ui/ProductImagePlaceholder';
 import { ProductCardSkeleton, Skeleton } from '@/components/ui/Skeleton';
 import { ClassBadge } from '@/components/ui/ClassBadge';
@@ -138,13 +139,14 @@ function ProductDetailContent({ product }: { product: ProductT }) {
           <div className="space-y-4 min-w-0">
             <div className="bg-paper rounded-xl border border-line p-4 sm:p-6 grid md:grid-cols-[minmax(0,360px)_1fr] gap-6">
               {/* Gallery: always on white */}
-              <div className="rounded-lg border border-line bg-white p-4 flex items-center justify-center self-start">
+              <div className="relative overflow-hidden rounded-lg border border-line bg-white p-4 flex items-center justify-center self-start">
                 {product.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={product.imageUrl} alt={product.name} className="w-full aspect-square object-contain" />
                 ) : (
                   <ProductImagePlaceholder aspectRatio="aspect-square" className="w-full rounded-lg" name={product.name} categorySlug={product.categorySlug} />
                 )}
+                {!product.inStock && <OutOfStockMark size="lg" />}
               </div>
 
               <div className="space-y-4 min-w-0">
@@ -221,9 +223,11 @@ function ProductDetailContent({ product }: { product: ProductT }) {
                 {product.packSize && <p className="text-sm text-muted-fg mt-1">{product.packSize}</p>}
               </div>
 
-              <p className={cn('text-sm font-medium', product.inStock ? 'text-success' : 'text-signal')}>
-                {!product.inStock ? 'Out of stock' : lowStock ? `${product.stockQty} left` : 'In stock'}
-              </p>
+              {(!product.inStock || lowStock) && (
+                <p className={cn('text-sm font-medium', product.inStock ? 'text-success' : 'text-signal')}>
+                  {!product.inStock ? 'Out of stock' : `${product.stockQty} left`}
+                </p>
+              )}
 
               {(isRx || product.ageRestricted) && (
                 <div className="rounded-lg border border-line bg-porcelain px-3.5 py-3 text-sm">
@@ -313,7 +317,7 @@ function ProductDetailContent({ product }: { product: ProductT }) {
       <div className="lg:hidden fixed inset-x-0 bottom-16 md:bottom-0 z-30 bg-paper/95 backdrop-blur border-t border-line px-4 py-3 flex items-center gap-3">
         <div className="min-w-0">
           <p className="text-lg font-semibold tabular-nums leading-tight text-ink">{formatPrice(product.price * qty)}</p>
-          <p className="text-xs text-muted-fg truncate">{product.inStock ? 'In stock' : 'Out of stock'}</p>
+          {!product.inStock && <p className="text-xs text-signal truncate">Out of stock</p>}
         </div>
         <button
           type="button"

@@ -182,6 +182,8 @@ export const updateProduct = mutation({
       if (inStock && qtyNow <= 0) throw new Error('Add stock before marking this product in stock.');
       await ctx.db.patch(id, { inStock });
     }
+    // A copy (or archived product) that gets its first stock is put back on the storefront.
+    if (current.unlisted && current.stockQty <= 0 && qtyNow > 0) await ctx.db.patch(id, { unlisted: false });
     await ctx.db.insert('auditLog', {
       action: 'UPDATE_PRODUCT',
       targetType: 'product',
@@ -205,6 +207,7 @@ export const duplicateProduct = mutation({
       name: `${data.name} (Copy)`,
       slug: `${data.slug}-copy-${Math.floor(Math.random() * 10000)}`,
       inStock: false,
+      unlisted: true, // an unfinished copy stays off the storefront until it is saved with stock
       stockQty: 0,
       sku: undefined,
       barcode: undefined,
@@ -217,8 +220,8 @@ export const archiveProduct = mutation({
   handler: async (ctx, args) => {
     await requireStaff(ctx, args.token, MANAGERS);
     const { id } = args;
-    // We just unlist it
-    await ctx.db.patch(id, { inStock: false });
+    // Hidden from the storefront whatever the stock; stock and history are kept.
+    await ctx.db.patch(id, { unlisted: true });
   },
 });
 
@@ -229,8 +232,7 @@ export const unarchiveProduct = mutation({
     const { id } = args;
     const p = await ctx.db.get(id);
     if (!p) throw new Error('Product not found');
-    if (p.stockQty <= 0) throw new Error('Add stock before listing this product again.');
-    await ctx.db.patch(id, { inStock: true });
+    await ctx.db.patch(id, { unlisted: false });
   },
 });
 

@@ -32,6 +32,7 @@ type Product = {
   compareAtPrice?: number;
   stockQty: number;
   inStock: boolean;
+  unlisted?: boolean;
   imageUrl?: string;
 };
 
@@ -121,7 +122,9 @@ export default function AdminProductsPage() {
       key: 'inStock',
       label: 'Status',
       render: (row) =>
-        !row.inStock || row.stockQty === 0 ? (
+        row.unlisted ? (
+          <Badge status="warning">Hidden</Badge>
+        ) : !row.inStock || row.stockQty === 0 ? (
           <Badge status="critical">Out of stock</Badge>
         ) : row.stockQty < 10 ? (
           <Badge status="warning">Low stock</Badge>

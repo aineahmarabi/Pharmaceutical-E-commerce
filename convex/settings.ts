@@ -20,6 +20,7 @@ const PUBLIC_KEYS = new Set([
   'ppbLicenceNumber',
   'ppbLicenceExpiry',
   'lowStockThreshold',
+  'showOutOfStock',
 ]);
 
 export const getStoreSettings = query({

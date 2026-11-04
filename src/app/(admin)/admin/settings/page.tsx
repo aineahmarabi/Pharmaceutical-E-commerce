@@ -29,12 +29,14 @@ export default function StoreDetailsPage() {
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', whatsapp: '', address: '', mapLink: '' });
   const [saving, setSaving] = useState(false);
 
-  const [pharmacy, setPharmacy] = useState({ pharmacistName: '', ppbLicenceNumber: '', ppbLicenceExpiry: '', lowStockThreshold: '' });
+  const [pharmacy, setPharmacy] = useState({ pharmacistName: '', ppbLicenceNumber: '', ppbLicenceExpiry: '', lowStockThreshold: '', showOutOfStock: 'true' });
   const savedPharmacy = {
     pharmacistName: String(allSettings?.find((s) => s.key === 'pharmacistName')?.value ?? ''),
     ppbLicenceNumber: String(allSettings?.find((s) => s.key === 'ppbLicenceNumber')?.value ?? ''),
     ppbLicenceExpiry: String(allSettings?.find((s) => s.key === 'ppbLicenceExpiry')?.value ?? ''),
     lowStockThreshold: String(allSettings?.find((s) => s.key === 'lowStockThreshold')?.value ?? ''),
+    // On unless the admin switched it off.
+    showOutOfStock: String(!['false', false].includes(allSettings?.find((s) => s.key === 'showOutOfStock')?.value as string | boolean)),
   };
   const savedPharmacyKey = JSON.stringify(savedPharmacy);
   useEffect(() => {
@@ -118,7 +120,10 @@ export default function StoreDetailsPage() {
             .filter((k) => pharmacy[k] !== savedPharmacy[k])
             .map((k) => {
               const raw = pharmacy[k].trim();
-              const value = k === 'lowStockThreshold' ? (raw === '' ? null : Math.max(0, Math.floor(Number(raw)) || 0)) : raw;
+              const value =
+                k === 'lowStockThreshold' ? (raw === '' ? null : Math.max(0, Math.floor(Number(raw)) || 0))
+                : k === 'showOutOfStock' ? raw === 'true'
+                : raw;
               return updateSetting({ key: k, value });
             }),
         );
@@ -238,6 +243,20 @@ export default function StoreDetailsPage() {
             value={pharmacy.lowStockThreshold}
             onChange={(e) => setPharmacy({ ...pharmacy, lowStockThreshold: e.target.value })}
           />
+          <label className="flex cursor-pointer items-start gap-3 sm:col-span-2">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={pharmacy.showOutOfStock === 'true'}
+              onChange={(e) => setPharmacy({ ...pharmacy, showOutOfStock: e.target.checked ? 'true' : 'false' })}
+            />
+            <span>
+              <span className="block text-sm font-medium text-p-text">Show sold-out products on the storefront</span>
+              <span className="block text-xs text-p-text-subdued">
+                They stay visible with an &ldquo;Out of stock&rdquo; stamp and cannot be added to the cart. Switch off to hide them until restocked.
+              </span>
+            </span>
+          </label>
         </div>
       </Card>
 

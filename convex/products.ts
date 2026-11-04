@@ -16,16 +16,23 @@ async function resolveImageUrl(
   return fallback;
 }
 
-// ─── CLIENT-FACING QUERIES (never return out-of-stock) ─────────────────────
+/** Admin setting: keep sold-out products on the storefront with an "Out of stock" stamp (default) or hide them. */
+async function showOutOfStock(ctx: { db: QueryCtx['db'] }): Promise<boolean> {
+  const row = await ctx.db.query('storeSettings').withIndex('by_key', (q) => q.eq('key', 'showOutOfStock')).first();
+  return !(row?.value === false || row?.value === 'false');
+}
+
+// ─── CLIENT-FACING QUERIES (sold-out items follow the showOutOfStock setting) ─────────────────────
 
 /** Trending products — excludes out-of-stock */
 export const listTrending = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, { limit = 8 }) => {
+    const showOos = await showOutOfStock(ctx);
     const products = await ctx.db
       .query('products')
       .withIndex('by_trending', (q) => q.eq('isTrending', true))
-      .filter((q) => q.eq(q.field('inStock'), true))
+      .filter((q) => (showOos ? q.neq(q.field('unlisted'), true) : q.and(q.neq(q.field('unlisted'), true), q.eq(q.field('inStock'), true))))
       .take(limit);
     return Promise.all(
       products.map(async (p) => ({
@@ -40,10 +47,11 @@ export const listTrending = query({
 export const listBestSellers = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, { limit = 8 }) => {
+    const showOos = await showOutOfStock(ctx);
     const products = await ctx.db
       .query('products')
       .withIndex('by_best_seller', (q) => q.eq('isBestSeller', true))
-      .filter((q) => q.eq(q.field('inStock'), true))
+      .filter((q) => (showOos ? q.neq(q.field('unlisted'), true) : q.and(q.neq(q.field('unlisted'), true), q.eq(q.field('inStock'), true))))
       .take(limit);
     return Promise.all(
       products.map(async (p) => ({
@@ -58,10 +66,11 @@ export const listBestSellers = query({
 export const listNewArrivals = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, { limit = 8 }) => {
+    const showOos = await showOutOfStock(ctx);
     const products = await ctx.db
       .query('products')
       .withIndex('by_new', (q) => q.eq('isNew', true))
-      .filter((q) => q.eq(q.field('inStock'), true))
+      .filter((q) => (showOos ? q.neq(q.field('unlisted'), true) : q.and(q.neq(q.field('unlisted'), true), q.eq(q.field('inStock'), true))))
       .take(limit);
     return Promise.all(
       products.map(async (p) => ({
@@ -76,11 +85,12 @@ export const listNewArrivals = query({
 export const listOffers = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, { limit = 6 }) => {
+    const showOos = await showOutOfStock(ctx);
     const now = Date.now();
     const candidates = await ctx.db
       .query('products')
       .withIndex('by_offer', (q) => q.eq('isOffer', true))
-      .filter((q) => q.eq(q.field('inStock'), true))
+      .filter((q) => (showOos ? q.neq(q.field('unlisted'), true) : q.and(q.neq(q.field('unlisted'), true), q.eq(q.field('inStock'), true))))
       .collect();
     const products = candidates
       .filter((p) => p.offerEndsAt === undefined || p.offerEndsAt > now)
@@ -98,10 +108,11 @@ export const listOffers = query({
 export const listByCategory = query({
   args: { categorySlug: v.string(), limit: v.optional(v.number()) },
   handler: async (ctx, { categorySlug, limit = 20 }) => {
+    const showOos = await showOutOfStock(ctx);
     const products = await ctx.db
       .query('products')
       .withIndex('by_category', (q) => q.eq('categorySlug', categorySlug))
-      .filter((q) => q.eq(q.field('inStock'), true))
+      .filter((q) => (showOos ? q.neq(q.field('unlisted'), true) : q.and(q.neq(q.field('unlisted'), true), q.eq(q.field('inStock'), true))))
       .take(limit);
     return Promise.all(
       products.map(async (p) => ({
@@ -136,6 +147,7 @@ export const listByIds = query({
 export const homeShelves = query({
   args: { perShelf: v.optional(v.number()), maxShelves: v.optional(v.number()) },
   handler: async (ctx, { perShelf = 5, maxShelves = 6 }) => {
+    const showOos = await showOutOfStock(ctx);
     const take = Math.min(Math.max(1, Math.floor(perShelf)), 12);
     const cap = Math.min(Math.max(1, Math.floor(maxShelves)), 12);
     const categories = await ctx.db.query('categories').collect();
@@ -145,7 +157,7 @@ export const homeShelves = query({
       const items = await ctx.db
         .query('products')
         .withIndex('by_category', (q) => q.eq('categorySlug', c.slug))
-        .filter((q) => q.eq(q.field('inStock'), true))
+        .filter((q) => (showOos ? q.neq(q.field('unlisted'), true) : q.and(q.neq(q.field('unlisted'), true), q.eq(q.field('inStock'), true))))
         .take(take);
       if (items.length === 0) continue;
       shelves.push({
@@ -168,9 +180,10 @@ export const listAll = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, { categorySlug, brandSlug, sort = 'featured', limit = 60 }) => {
+    const showOos = await showOutOfStock(ctx);
     let results = await ctx.db
       .query('products')
-      .filter((q) => q.eq(q.field('inStock'), true))
+      .filter((q) => (showOos ? q.neq(q.field('unlisted'), true) : q.and(q.neq(q.field('unlisted'), true), q.eq(q.field('inStock'), true))))
       .collect();
 
     if (categorySlug) results = results.filter((p) => p.categorySlug === categorySlug);
@@ -195,9 +208,10 @@ export const listAll = query({
 export const listByCondition = query({
   args: { conditionSlug: v.string(), limit: v.optional(v.number()) },
   handler: async (ctx, { conditionSlug, limit = 20 }) => {
+    const showOos = await showOutOfStock(ctx);
     const all = await ctx.db
       .query('products')
-      .filter((q) => q.eq(q.field('inStock'), true))
+      .filter((q) => (showOos ? q.neq(q.field('unlisted'), true) : q.and(q.neq(q.field('unlisted'), true), q.eq(q.field('inStock'), true))))
       .collect();
     const filtered = all
       .filter((p) => p.conditions.includes(conditionSlug))
@@ -215,9 +229,10 @@ export const listByCondition = query({
 export const listByBrand = query({
   args: { brandSlug: v.string(), limit: v.optional(v.number()) },
   handler: async (ctx, { brandSlug, limit = 20 }) => {
+    const showOos = await showOutOfStock(ctx);
     const all = await ctx.db
       .query('products')
-      .filter((q) => q.eq(q.field('inStock'), true))
+      .filter((q) => (showOos ? q.neq(q.field('unlisted'), true) : q.and(q.neq(q.field('unlisted'), true), q.eq(q.field('inStock'), true))))
       .collect();
     const filtered = all
       .filter((p) => p.brandSlug === brandSlug)
@@ -378,16 +393,17 @@ async function loadSearchData(ctx: { db: QueryCtx['db'] }) {
 }
 
 /** Ranked search across name, brand, generic name, category and conditions.
- *  Tolerates typos and partial words; excludes out-of-stock products. */
+ *  Tolerates typos and partial words; follows the showOutOfStock setting. */
 export const searchProducts = query({
   args: { term: v.string(), limit: v.optional(v.number()) },
   handler: async (ctx, { term, limit = 20 }) => {
     const qTokens = tokenize(term);
     if (qTokens.length === 0) return [];
     const fullQuery = qTokens.join(' ');
+    const showOos = await showOutOfStock(ctx);
     const indexed = await loadSearchData(ctx);
     const ranked = indexed
-      .filter((i) => i.product.inStock)
+      .filter((i) => i.product.unlisted !== true && (showOos || i.product.inStock))
       .map((i) => ({ p: i.product, score: scoreProduct(qTokens, i.fields, fullQuery, i.nameFull) }))
       .filter((r) => r.score > 0)
       .sort((a, b) => b.score - a.score || a.p.name.localeCompare(b.p.name))

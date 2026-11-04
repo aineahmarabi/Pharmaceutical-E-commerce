@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { Heart } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { OutOfStockMark } from '@/components/ui/OutOfStockMark';
 import { ProductImagePlaceholder } from './ProductImagePlaceholder';
 import { ClassBadge } from './ClassBadge';
 import { useCartStore, useWishlistStore } from '@/store/cart';
@@ -61,11 +62,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
           {product.classification !== 'OTC' && product.inStock && (
             <ClassBadge classification={product.classification} className="absolute bottom-1.5 left-1.5 bg-paper" />
           )}
-          {!product.inStock && (
-            <span className="absolute bottom-1.5 left-1.5 bg-paper/95 text-muted-fg border border-line px-1.5 py-0.5 rounded-md text-xs font-medium leading-none">
-              Out of stock
-            </span>
-          )}
+          {!product.inStock && <OutOfStockMark />}
         </div>
 
         <div className="flex flex-col flex-1 px-2.5 pt-2.5 pb-1">

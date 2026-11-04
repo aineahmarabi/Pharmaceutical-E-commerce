@@ -37,6 +37,7 @@ export default defineSchema({
     
     // Shopify Inventory details
     inStock: v.boolean(),
+    unlisted: v.optional(v.boolean()), // hidden from the storefront by the admin (archived, or an unfinished copy)
     stockQty: v.number(), // Legacy/Aggregated available
     sku: v.optional(v.string()),
     manufacturer: v.optional(v.string()),
