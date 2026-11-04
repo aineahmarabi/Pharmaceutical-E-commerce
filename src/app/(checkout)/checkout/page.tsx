@@ -41,7 +41,7 @@ const PAYMENT_METHODS: Record<PaymentMethod, { label: (f: Fulfillment) => string
     note: () => 'Payment details are confirmed with you after you place the order. Nothing is charged on this page.',
   },
   cod: {
-    label: (f) => (f === 'pickup' ? 'Pick up at the store' : 'Cash on delivery'),
+    label: () => 'Pay on delivery',
     sub: (f) => (f === 'pickup' ? 'Pay when you collect' : 'Pay when your order arrives'),
     note: (f) => (f === 'pickup' ? 'Pay in cash or M-PESA at the store when you collect your order.' : 'Please have the amount ready.'),
   },
