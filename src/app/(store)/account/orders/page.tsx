@@ -111,6 +111,21 @@ export default function OrdersPage() {
     const next = { orderNumber, contact };
     setSubmitted(next);
     setResult(undefined);
+
+    // An order number on its own is only honoured on the device (or account) that placed the order.
+    if (orderNumber.trim() && !contact.trim()) {
+      const norm = (x: string) => x.toLowerCase().replace(/[\s#]/g, '');
+      const typed = norm(orderNumber);
+      const mine =
+        deviceOrders?.find((o) => norm(o.orderNumber) === typed) ??
+        myOrders?.map((o) => ({ orderNumber: o.orderNumber, status: o.status, paymentStatus: o.paymentStatus, total: o.total, createdAt: o._creationTime })).find((o) => norm(o.orderNumber) === typed);
+      setResult(
+        mine
+          ? { found: true as const, mode: 'status' as const, orders: [{ orderNumber: mine.orderNumber, status: mine.status, paymentStatus: mine.paymentStatus, total: mine.total, createdAt: mine.createdAt }] }
+          : { found: false as const, error: 'That order is not on this device. Add the phone number or email you ordered with to look it up.' },
+      );
+      return;
+    }
     trackOrder(next)
       .then(setResult)
       .catch(() => setResult({ found: false as const, error: 'Something went wrong. Please try again.' }));
@@ -157,11 +172,11 @@ export default function OrdersPage() {
       <form onSubmit={handleSubmit} className="bg-paper border border-line rounded-xl p-4 sm:p-6 space-y-4">
         <div>
           <h2 className="text-lg font-semibold tracking-tight text-ink">{isAuthenticated ? 'Track a guest order' : 'Track order'}</h2>
-          <p className="mt-0.5 text-sm text-muted-fg">Use either one. Add both to see the full order details.</p>
+          <p className="mt-0.5 text-sm text-muted-fg">The order number alone works on the device you ordered from. On another device, add the phone or email you used.</p>
         </div>
         <div>
           <label htmlFor="trk-no" className="block text-sm font-medium text-ink mb-1.5">Order number</label>
-          <input id="trk-no" value={orderNumber} onChange={(e) => setOrderNumber(e.target.value)} placeholder="e.g. #PHR1042" className={accountField} />
+          <input id="trk-no" value={orderNumber} onChange={(e) => setOrderNumber(e.target.value)} placeholder="e.g. ian001" className={accountField} />
         </div>
         <div>
           <label htmlFor="trk-contact" className="block text-sm font-medium text-ink mb-1.5">Phone number or email</label>

@@ -185,6 +185,7 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
             </Link>
             {order.customerEmail && <p className="text-sm text-p-text-subdued">{order.customerEmail}</p>}
             {order.customerPhone && <p className="text-sm text-p-text-subdued">{order.customerPhone}</p>}
+            {order.buyerSlug && <p className="text-xs text-p-text-subdued">Buyer ID: {order.buyerSlug}</p>}
             <div className="mt-3 pt-3 border-t border-p-border-subdued">
               <p className="text-xs font-medium text-p-text-subdued mb-1">Delivery address</p>
               <p className="text-sm text-p-text">{order.deliveryAddress}</p>

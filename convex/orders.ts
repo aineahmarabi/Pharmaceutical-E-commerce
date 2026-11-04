@@ -142,9 +142,15 @@ export const trackOrder = mutation({
     }
     if (!orderNumber && !contact) return { found: false as const, error: 'Enter your order number, or the phone or email you ordered with.' };
 
-    const typed = orderNumber.toUpperCase().replace(/\s+/g, '');
-    const digits = /^#?(?:PHR)?(\d{1,9})$/.exec(typed);
-    const normalizedNumber = digits ? `#PHR${digits[1]}` : typed;
+    // An order number alone proves nothing (ian001 is easy to guess), so it reveals nothing from here. The device that
+    // placed the order recognises its own numbers locally, and anyone else adds the phone or email used.
+    if (orderNumber && !contact) {
+      return { found: false as const, error: "For privacy, add the phone number or email you ordered with. On the device you ordered from, the order number alone works." };
+    }
+
+    const typed = orderNumber.replace(/\s+/g, '').replace(/^#/, '');
+    const legacy = /^(?:phr)?(\d{1,9})$/i.exec(typed);
+    const candidates = legacy ? [`#PHR${legacy[1]}`] : [typed.toLowerCase(), typed.toUpperCase(), `#${typed.toUpperCase()}`];
     const normalizedContact = contact.toLowerCase();
     const contactIsEmail = normalizedContact.includes('@');
     const sameContact = (o: Doc<'orders'>) =>
@@ -160,10 +166,8 @@ export const trackOrder = mutation({
     });
 
     // Every attempt counts against a limit, so neither numbers nor contacts can be brute-forced.
-    const limits: [string, number][] = [];
-    if (orderNumber) limits.push([`track:${normalizedNumber}`, 8]);
-    if (contact) limits.push([`track-contact:${contactIsEmail ? normalizedContact : lastNine(contact)}`, 8]);
-    if (orderNumber && !contact) limits.push(['track-number-only', 120]);
+    const limits: [string, number][] = [[`track-contact:${contactIsEmail ? normalizedContact : lastNine(contact)}`, 8]];
+    if (orderNumber) limits.push([`track:${candidates[0]}`, 8]);
     for (const [key] of limits) {
       if ((await lockedForMs(ctx, key)) > 0) return { found: false as const, error: 'Too many attempts. Please try again in a few minutes.' };
     }
@@ -177,17 +181,12 @@ export const trackOrder = mutation({
       return { found: true as const, mode: 'status' as const, orders: mine };
     }
 
-    const order = await ctx.db
-      .query('orders')
-      .withIndex('by_order_number', (q) => q.eq('orderNumber', normalizedNumber))
-      .first();
-    if (!order) return { found: false as const, error: 'No order found with that number.' };
-
-    // Number only: status and progress, nothing personal.
-    if (!contact) return { found: true as const, mode: 'status' as const, orders: [slim(order)] };
-
-    // Both given: the full order, but only to someone who knows the matching phone or email.
-    if (!sameContact(order)) return { found: false as const, error: "That phone or email doesn't match this order." };
+    let order: Doc<'orders'> | null = null;
+    for (const c of candidates) {
+      order = await ctx.db.query('orders').withIndex('by_order_number', (q) => q.eq('orderNumber', c)).first();
+      if (order) break;
+    }
+    if (!order || !sameContact(order)) return { found: false as const, error: "We couldn't match that order number with that phone or email." };
 
     const timeline = await ctx.db
       .query('auditLog')
@@ -650,6 +649,43 @@ async function nextOrderNumber(ctx: MutationCtx): Promise<string> {
   return `#PHR${max + 1}`;
 }
 
+/** Letters and digits of the first name, lower case: "Ian Otollo" -> "ian". */
+function firstNameSlug(fullName: string): string {
+  const first = fullName.trim().split(/\s+/)[0] ?? '';
+  const clean = first.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12);
+  return clean || 'cust';
+}
+
+/**
+ * Personal order number: first name + how many orders this buyer has placed (ian001, ian002 ...).
+ * A buyer is identified by phone (else email), so two different people called Ian get separate counters:
+ * the second one becomes ian2 and numbers like ian2-001, and nothing can collide.
+ */
+async function allocateBuyerOrderNumber(
+  ctx: MutationCtx,
+  fullName: string,
+  phone: string,
+  email: string,
+): Promise<{ orderNumber: string; buyerSlug: string }> {
+  const last9 = phone.replace(/\D/g, '').slice(-9);
+  const key = last9.length >= 9 ? `p${last9}` : email ? `e${email.toLowerCase()}` : `n${fullName.trim().toLowerCase()}`;
+  const base = firstNameSlug(fullName);
+
+  let buyer = await ctx.db.query('buyers').withIndex('by_key', (q) => q.eq('key', key)).first();
+  if (!buyer) {
+    let slug = base;
+    for (let n = 2; await ctx.db.query('buyers').withIndex('by_slug', (q) => q.eq('slug', slug)).first(); n++) slug = `${base}${n}`;
+    const id = await ctx.db.insert('buyers', { key, slug, firstName: base, orderCount: 0, createdAt: Date.now() });
+    buyer = (await ctx.db.get(id))!;
+  }
+
+  let seq = buyer.orderCount + 1;
+  const make = (n: number) => `${buyer.slug}${/\d$/.test(buyer.slug) ? '-' : ''}${String(n).padStart(3, '0')}`;
+  while (await ctx.db.query('orders').withIndex('by_order_number', (q) => q.eq('orderNumber', make(seq))).first()) seq++;
+  await ctx.db.patch(buyer._id, { orderCount: seq });
+  return { orderNumber: make(seq), buyerSlug: buyer.slug };
+}
+
 export const createOrder = mutation({
   args: {
     token: v.string(),
@@ -889,7 +925,7 @@ export const placeOrder = mutation({
 
     const subtotal = resolvedItems.reduce((acc, i) => acc + i.price * i.qty, 0);
     const total = subtotal + deliveryFee;
-    const orderNumber = await nextOrderNumber(ctx);
+    const { orderNumber, buyerSlug } = await allocateBuyerOrderNumber(ctx, name, phone, email);
 
     const orderId = await ctx.db.insert('orders', {
       orderNumber,
@@ -906,6 +942,7 @@ export const placeOrder = mutation({
       paymentStatus: 'pending',
       deliveryAddress: address,
       notes: notes || undefined,
+      buyerSlug,
       urgent: args.urgent || undefined,
       channel: 'Website',
       prescriptionFileId: args.prescriptionFileId,

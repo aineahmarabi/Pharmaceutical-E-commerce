@@ -175,6 +175,7 @@ export default defineSchema({
     prescriptionFileId: v.optional(v.id('_storage')),
     deliveryAddress: v.string(),
     notes: v.optional(v.string()),
+    buyerSlug: v.optional(v.string()), // which buyer identity placed it (ian, ian2 ...)
     urgent: v.optional(v.boolean()), // the customer ticked "needed urgently" at checkout
     // Shopify Specifics
     channel: v.optional(v.string()),
@@ -408,6 +409,18 @@ export default defineSchema({
   })
     .index('by_customer', ['customerId'])
     .index('by_customer_product', ['customerId', 'productId']),
+
+  // One row per buyer identity (phone, else email). Gives each person their own order numbers: ian001, ian002 ...
+  // A second, different Ian becomes ian2 (ian2-001 ...), so numbers never collide.
+  buyers: defineTable({
+    key: v.string(),
+    slug: v.string(),
+    firstName: v.string(),
+    orderCount: v.number(),
+    createdAt: v.number(),
+  })
+    .index('by_key', ['key'])
+    .index('by_slug', ['slug']),
 
   refillReminders: defineTable({
     customerAccountId: v.id('customerAccounts'),

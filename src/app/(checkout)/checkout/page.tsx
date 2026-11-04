@@ -467,10 +467,10 @@ export default function CheckoutPage() {
               />
             </div>
 
-            <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border border-line p-3 has-[:checked]:border-petrol has-[:checked]:bg-petrol-50">
-              <input type="checkbox" checked={urgent} onChange={(e) => setUrgent(e.target.checked)} className="mt-1 accent-petrol" />
+            <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border border-line p-3 has-[:checked]:border-signal has-[:checked]:bg-signal/5">
+              <input type="checkbox" checked={urgent} onChange={(e) => setUrgent(e.target.checked)} className="mt-1 accent-signal" />
               <span>
-                <span className="block text-sm font-semibold text-ink">Needed urgently</span>
+                <span className="block text-sm font-semibold text-signal">Needed urgently</span>
                 <span className="block text-sm text-muted-fg">We will flag your order so the pharmacy handles it first.</span>
               </span>
             </label>
