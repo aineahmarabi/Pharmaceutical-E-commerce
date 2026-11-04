@@ -114,6 +114,14 @@ function Detail({ id, token, onClose }: { id: Id<'prescriptions'>; token: string
                   <dt className="text-p-text-subdued">Email</dt>
                   <dd className="break-all"><a href={`mailto:${rx.email}`} className="text-p-text-primary hover:underline">{rx.email}</a></dd>
                 </>)}
+                {rx.fulfillment && (<>
+                  <dt className="text-p-text-subdued">Receive</dt>
+                  <dd className="text-p-text">
+                    {rx.fulfillment === 'pickup'
+                      ? 'Pickup from the store'
+                      : <>Delivery{rx.deliveryArea ? `, ${rx.deliveryArea}` : ''}{rx.address ? <span className="block text-p-text-subdued">{rx.address}</span> : null}</>}
+                  </dd>
+                </>)}
                 {rx.notes && (<>
                   <dt className="text-p-text-subdued">Notes</dt>
                   <dd className="whitespace-pre-line text-p-text">{rx.notes}</dd>

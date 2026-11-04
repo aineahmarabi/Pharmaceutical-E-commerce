@@ -26,6 +26,9 @@ export const submit = mutation({
     email: v.optional(v.string()),
     notes: v.optional(v.string()),
     fileIds: v.array(v.id('_storage')),
+    fulfillment: v.optional(v.union(v.literal('delivery'), v.literal('pickup'))),
+    deliveryZoneId: v.optional(v.id('deliveryZones')),
+    address: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const name = args.customerName.trim();
@@ -41,6 +44,19 @@ export const submit = mutation({
       throw new Error('Attach between 1 and 5 files.');
     }
     if (new Set(args.fileIds).size !== args.fileIds.length) throw new Error('Duplicate files.');
+
+    // Delivery needs an active area and an address; pickup needs nothing more.
+    let deliveryZoneId: typeof args.deliveryZoneId = undefined;
+    let deliveryArea: string | undefined;
+    let address: string | undefined;
+    if (args.fulfillment === 'delivery') {
+      const zone = args.deliveryZoneId ? await ctx.db.get(args.deliveryZoneId) : null;
+      if (!zone || !zone.isActive) throw new Error('Choose a delivery area.');
+      address = args.address?.trim() || undefined;
+      if (!address || address.length < 5 || address.length > 300) throw new Error('Enter your street address or landmark.');
+      deliveryZoneId = zone._id;
+      deliveryArea = zone.name;
+    }
 
     for (const id of args.fileIds) {
       const meta = await ctx.db.system.get(id);
@@ -63,6 +79,10 @@ export const submit = mutation({
       phone,
       email,
       notes,
+      fulfillment: args.fulfillment,
+      deliveryZoneId,
+      deliveryArea,
+      address,
       fileIds: args.fileIds,
       status: 'pending',
       createdAt: now,

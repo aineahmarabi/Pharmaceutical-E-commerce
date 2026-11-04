@@ -1,11 +1,13 @@
 'use client';
 
+import { usePharmacyDetails } from '@/components/layout/PharmacyDetails';
 import React from 'react';
 import { LegalPage } from '@/components/layout/LegalPage';
 import { useBranding } from '@/hooks/useBranding';
 
 export default function TermsPage() {
   const branding = useBranding();
+  const { licence } = usePharmacyDetails();
   const contact = branding.email || 'our support team';
   return (
     <LegalPage
@@ -23,7 +25,7 @@ export default function TermsPage() {
         {
           heading: 'About us',
           body: [
-            `${branding.name} is an online pharmacy operating in Kenya from ${branding.address}. Our pharmacy is licensed and regulated by the Pharmacy and Poisons Board (PPB), and medicines are supplied under the supervision of a registered pharmacist in line with the Pharmacy and Poisons Act and its regulations.`,
+            `${branding.name} is an online pharmacy operating in Kenya from ${branding.address}. Our pharmacy is licensed and regulated by the Pharmacy and Poisons Board (PPB)${licence ? ` under licence no. ${licence}` : ''}, and medicines are supplied under the supervision of a registered pharmacist in line with the Pharmacy and Poisons Act and its regulations.`,
           ],
         },
         {

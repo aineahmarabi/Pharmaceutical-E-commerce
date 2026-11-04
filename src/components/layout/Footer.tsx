@@ -7,7 +7,7 @@ import { api } from '../../../convex/_generated/api';
 import { useBranding } from '@/hooks/useBranding';
 import { categories as fixtureCategories } from '@/lib/fixtures/categories';
 import { Logo } from '@/components/layout/Logo';
-import { PharmacyDetailsLine } from '@/components/layout/PharmacyDetails';
+import { LicenceBlock } from '@/components/layout/PharmacyDetails';
 import { NewsletterSignup } from '@/components/sections/NewsletterSignup';
 
 const linkClass = 'text-sm text-muted-fg transition-colors hover:text-ink hover:underline underline-offset-4';
@@ -50,6 +50,7 @@ export function Footer() {
             <p className="mt-3 text-sm leading-relaxed text-muted-fg">
               A licensed pharmacy delivering genuine medicines and health products.
             </p>
+            <LicenceBlock className="mt-4" />
           </div>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
             <a
@@ -121,7 +122,6 @@ export function Footer() {
           <p>
             Licensed pharmacy. Prescription-only medicines are dispensed against a valid prescription checked by a pharmacist.
           </p>
-          <PharmacyDetailsLine />
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <p>Pay by M-PESA or cash on delivery.</p>
             <ul className="flex flex-wrap gap-x-4 gap-y-1">

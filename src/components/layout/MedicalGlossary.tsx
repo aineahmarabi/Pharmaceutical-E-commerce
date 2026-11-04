@@ -52,7 +52,7 @@ export function MedicalGlossary() {
         aria-label="Open medical terms glossary"
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="flex fixed bottom-28 lg:bottom-24 right-0 z-40 items-center bg-paper text-ink text-xs font-semibold px-3 py-3 rounded-l-lg border border-r-0 border-line shadow-sm hover:bg-porcelain transition-colors [writing-mode:vertical-rl] rotate-180 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-petrol/40"
+        className="flex fixed top-1/2 -translate-y-1/2 right-0 z-40 items-center bg-paper text-ink text-xs font-semibold px-3 py-3 rounded-l-lg border border-r-0 border-line shadow-sm hover:bg-porcelain transition-colors [writing-mode:vertical-rl] rotate-180 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-petrol/40"
       >
         Medical terms
       </button>

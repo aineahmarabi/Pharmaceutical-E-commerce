@@ -1,11 +1,13 @@
 'use client';
 
+import { usePharmacyDetails } from '@/components/layout/PharmacyDetails';
 import React from 'react';
 import { LegalPage } from '@/components/layout/LegalPage';
 import { useBranding } from '@/hooks/useBranding';
 
 export default function ReturnsPolicyPage() {
   const branding = useBranding();
+  const { licence } = usePharmacyDetails();
   return (
     <LegalPage
       eyebrow="Help"
@@ -24,6 +26,7 @@ export default function ReturnsPolicyPage() {
           body: [
             'For patient safety, and in line with Pharmacy and Poisons Board (PPB) guidance, medicines cannot be returned or exchanged once they have left our pharmacy, even if the pack is unopened. A returned medicine cannot be safely resold, because we cannot guarantee its storage conditions while it was out of our care.',
             'This applies to prescription-only (POM), pharmacy (P) and over-the-counter (OTC) medicines alike. Please check your order carefully before you place it, and ask one of our pharmacists if you are unsure which product is right for you.',
+            ...(licence ? [`As a pharmacy licensed by the Pharmacy and Poisons Board (licence no. ${licence}), we apply this rule to every order.`] : []),
           ],
         },
         {

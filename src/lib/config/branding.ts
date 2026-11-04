@@ -16,4 +16,6 @@ export const branding = {
     facebook: '',
   },
   currency: 'KES',
+  // Pharmacy and Poisons Board licence number. Editable in Admin > Settings > Pharmacy details.
+  ppbLicenceNumber: 'PPB/U005/039/25' as string,
 } as const;

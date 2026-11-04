@@ -1,11 +1,13 @@
 'use client';
 
+import { usePharmacyDetails } from '@/components/layout/PharmacyDetails';
 import React from 'react';
 import { LegalPage } from '@/components/layout/LegalPage';
 import { useBranding } from '@/hooks/useBranding';
 
 export default function ShippingPolicyPage() {
   const branding = useBranding();
+  const { licence } = usePharmacyDetails();
   return (
     <LegalPage
       eyebrow="Help"
@@ -17,6 +19,7 @@ export default function ShippingPolicyPage() {
           body: [
             `This policy explains how ${branding.name} delivers your order, how long it takes, what it costs and what happens if something goes wrong. It applies to every order placed on this website, whether you check out as a guest or with an account.`,
             'Medicines are health products. Because of that, some orders need a pharmacist’s check before they leave the pharmacy, and some products must be handled with care. Those steps are explained below.',
+            ...(licence ? [`We deliver from our licensed pharmacy in ${branding.address} (Pharmacy and Poisons Board licence no. ${licence}), so everything you receive is supplied under the supervision of a registered pharmacist.`] : []),
           ],
         },
         {

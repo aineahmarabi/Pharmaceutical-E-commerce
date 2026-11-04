@@ -193,7 +193,7 @@ export const faqGroups: FaqGroup[] = [
       {
         q: 'Are your medicines genuine?',
         a: [
-          'Yes. We buy from licensed manufacturers and distributors, we store products as the manufacturer directs, and our pharmacy is regulated by the Pharmacy and Poisons Board of Kenya.',
+          'Yes. We buy from licensed manufacturers and distributors, we store products as the manufacturer directs, and our pharmacy is regulated by the Pharmacy and Poisons Board of Kenya{{licence}}.',
           'Every product is supplied in its original, sealed packaging with its batch number and expiry date. If you ever have doubts about a product, do not use it. Contact us with a photo of the pack and the batch number.',
         ],
       },
@@ -304,7 +304,7 @@ export const faqGroups: FaqGroup[] = [
       {
         q: 'How does cash on delivery work?',
         a: [
-          'Pay the rider in cash when you receive and check your order. Please have the amount ready, since riders may not carry change. If your order contains a prescription medicine, it is released after the pharmacist has verified your prescription, as for any other order.',
+          'Pay the rider in cash when you receive and check your order. Please have the amount ready. If your order contains a prescription medicine, it is released after the pharmacist has verified your prescription, as for any other order.',
         ],
       },
       {
@@ -384,7 +384,7 @@ export const faqGroups: FaqGroup[] = [
       {
         q: 'Is it safe to buy medicines online from you?',
         a: [
-          'Yes. We are a licensed pharmacy regulated by the Pharmacy and Poisons Board. Every prescription medicine is checked by a pharmacist before it is dispatched, our products come from licensed suppliers, and everything is supplied in sealed, original packaging.',
+          'Yes. We are a licensed pharmacy regulated by the Pharmacy and Poisons Board{{licence}}. Every prescription medicine is checked by a pharmacist before it is dispatched, our products come from licensed suppliers, and everything is supplied in sealed, original packaging.',
           'As with any medicine, read the leaflet and follow your prescriber’s or pharmacist’s advice. Be cautious about buying medicines from any seller who does not ask for a prescription when one is required.',
         ],
       },

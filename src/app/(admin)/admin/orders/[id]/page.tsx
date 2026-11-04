@@ -141,7 +141,7 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-p-text-subdued">Method</span>
-                <span className="text-p-text">{order.paymentMethod === 'cod' ? 'Cash' : order.paymentMethod === 'mpesa' ? 'M-Pesa' : order.paymentMethod === 'card' ? 'Card' : order.paymentMethod}</span>
+                <span className="text-p-text">{order.paymentMethod === 'cod' ? 'Cash' : order.paymentMethod === 'mpesa' ? 'M-Pesa' : order.paymentMethod === 'card' ? 'Card' : order.paymentMethod === 'paystack' ? 'Paystack (online)' : order.paymentMethod}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-p-text-subdued">Subtotal · {order.items.length} items</span>

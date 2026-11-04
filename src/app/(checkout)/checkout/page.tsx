@@ -1,5 +1,6 @@
 'use client';
 
+import { usePharmacyDetails } from '@/components/layout/PharmacyDetails';
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -11,12 +12,13 @@ import { useDeliveryZoneStore } from '@/store/delivery';
 import { useToast } from '@/components/ui/Toast';
 import { useBranding } from '@/hooks/useBranding';
 import { useCustomerAuth } from '@/lib/auth/customerAuth';
-import { useQuery, useMutation } from 'convex/react';
+import { useQuery, useMutation, useAction } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { cn, formatPrice } from '@/lib/utils';
+import { PayOnlineMarks } from '@/components/ui/PaymentMarks';
 
 type Fulfillment = 'delivery' | 'pickup';
-type PaymentMethod = 'mpesa' | 'cod';
+type PaymentMethod = 'paystack' | 'mpesa' | 'cod';
 type FormKey = 'name' | 'phone' | 'email' | 'address' | 'city' | 'notes';
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
@@ -28,18 +30,22 @@ const PHONE_RE = /^[0-9+()\s-]{7,}$/;
  * the text here and nowhere else; the page and the order itself do not need to change.
  */
 const PAYMENT_METHODS: Record<PaymentMethod, { label: (f: Fulfillment) => string; sub: (f: Fulfillment) => string; note: (f: Fulfillment) => string }> = {
+  paystack: {
+    label: () => 'Pay online',
+    sub: () => 'M-PESA, Airtel Money or card, secured by Paystack',
+    note: () => 'You will be taken to Paystack to pay securely. We hold your items for 30 minutes while you pay.',
+  },
   mpesa: {
     label: () => 'M-PESA',
     sub: () => 'Pay with M-PESA',
     note: () => 'Payment details are confirmed with you after you place the order. Nothing is charged on this page.',
   },
   cod: {
-    label: (f) => (f === 'pickup' ? 'Pay at the store' : 'Cash on delivery'),
+    label: (f) => (f === 'pickup' ? 'Pick up at the store' : 'Cash on delivery'),
     sub: (f) => (f === 'pickup' ? 'Pay when you collect' : 'Pay when your order arrives'),
-    note: (f) => (f === 'pickup' ? 'Pay in cash or M-PESA at the store when you collect your order.' : 'Please have the amount ready. Our rider may not carry change.'),
+    note: (f) => (f === 'pickup' ? 'Pay in cash or M-PESA at the store when you collect your order.' : 'Please have the amount ready.'),
   },
 };
-const PAYMENT_ORDER: PaymentMethod[] = ['mpesa', 'cod'];
 
 const inputBase =
   'w-full bg-paper border rounded-lg px-3.5 py-3 text-sm text-ink placeholder:text-muted-fg focus:outline-none focus:ring-2 focus:ring-petrol/40 transition-colors';
@@ -65,8 +71,8 @@ function Section({ step, title, done, children }: { step: number; title: string;
 }
 
 function ChoiceCard({
-  checked, onSelect, name, label, sub, value,
-}: { checked: boolean; onSelect: () => void; name: string; label: string; sub: string; value: string }) {
+  checked, onSelect, name, label, sub, value, extra,
+}: { checked: boolean; onSelect: () => void; name: string; label: string; sub: string; value: string; extra?: React.ReactNode }) {
   return (
     <label
       className={cn(
@@ -78,6 +84,7 @@ function ChoiceCard({
       <span>
         <span className="block text-sm font-semibold text-ink">{label}</span>
         {sub && <span className="mt-0.5 block text-sm text-muted-fg">{sub}</span>}
+        {extra}
       </span>
     </label>
   );
@@ -162,17 +169,23 @@ export default function CheckoutPage() {
   const { toast } = useToast();
   const { customer, token: customerToken } = useCustomerAuth();
   const storeBranding = useBranding();
+  const { licence } = usePharmacyDetails();
   const zones = useQuery(api.delivery.listZones);
   const createOrder = useMutation(api.orders.placeOrder);
+  const paystackReady = useQuery(api.paystack.isConfigured) ?? false;
+  const startPayment = useAction(api.paystack.startPayment);
   const { zoneId: rememberedZoneId, setZone: rememberZone } = useDeliveryZoneStore();
 
   const [placing, setPlacing] = useState(false);
   const [fulfillment, setFulfillment] = useState<Fulfillment>('delivery');
   const [selectedZoneId, setSelectedZoneId] = useState<string>('');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('mpesa');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('paystack');
   const [touched, setTouched] = useState<Partial<Record<FormKey | 'zone', boolean>>>({});
   const [attempted, setAttempted] = useState(false);
   const [placedGuest, setPlacedGuest] = useState<{ name: string; email: string; phone: string } | null>(null);
+  // Online payment appears once Paystack is set up; until then the manual M-PESA option stays.
+  const methods: PaymentMethod[] = paystackReady ? ['paystack', 'cod'] : ['mpesa', 'cod'];
+  const method: PaymentMethod = methods.includes(paymentMethod) ? paymentMethod : methods[0];
 
   // Pick up whatever delivery area the customer already chose, re-validated against the
   // live zone list so a deleted or renamed zone can't stick.
@@ -234,6 +247,11 @@ export default function CheckoutPage() {
     setAttempted(true);
     if (!isValid || (fulfillment === 'delivery' && !selectedZone)) {
       toast(errors[errorKeys[0]] ?? 'Please complete your details', 'error');
+      // Bring the first problem into view; the area picker is a custom control, so focus its wrapper's button.
+      const first = errorKeys[0] ?? 'zone';
+      const el = document.getElementById(first === 'zone' ? 'co-zone' : `co-${first}`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      (el?.querySelector('button') ?? el)?.focus({ preventScroll: true });
       return;
     }
     if (items.length === 0) {
@@ -243,19 +261,42 @@ export default function CheckoutPage() {
 
     setPlacing(true);
     try {
-      await createOrder({
+      const orderId = await createOrder({
         customerToken: customerToken ?? undefined,
         customerName: form.name.trim(),
         customerPhone: form.phone.trim(),
         customerEmail: form.email.trim(),
         items: items.map((i) => ({ productId: i.product.id, qty: i.quantity })),
         ...(fulfillment === 'delivery' ? { deliveryZoneId: selectedZone!._id } : { pickup: true }),
-        paymentMethod,
+        paymentMethod: method,
         deliveryAddress: fulfillment === 'delivery'
           ? `${form.address.trim()}, ${form.city.trim()}, ${selectedZone!.name}`
           : `Pickup from store — ${storeBranding.address}`,
         notes: form.notes.trim() || undefined,
       });
+
+      if (method === 'paystack') {
+        // The order exists and its stock is held. Remember it so the return page can confirm or retry the payment.
+        clearCart();
+        try {
+          sessionStorage.setItem('pc-pending-payment', JSON.stringify({ orderId, phone: form.phone.trim() }));
+        } catch {
+          // Private browsing: the return page still verifies by reference; only the retry button is lost.
+        }
+        try {
+          const { url } = await startPayment({
+            orderId,
+            phone: form.phone.trim(),
+            callbackUrl: `${window.location.origin}/checkout/complete`,
+          });
+          window.location.assign(url); // leave the button busy while the browser changes page
+          return;
+        } catch (err) {
+          toast(err instanceof Error ? err.message : 'Could not start the payment.', 'error');
+          router.push('/checkout/complete');
+          return;
+        }
+      }
 
       clearCart();
       toast('Order placed successfully!', 'success');
@@ -298,7 +339,7 @@ export default function CheckoutPage() {
   );
 
   const rxItems = items.filter((i) => i.product.classification === 'POM');
-  const payment = PAYMENT_METHODS[paymentMethod];
+  const payment = PAYMENT_METHODS[method];
 
   const textField = (k: FormKey, label: string, type: string, placeholder: string, autoComplete: string, wide = false) => {
     const err = showErr(k);
@@ -348,9 +389,9 @@ export default function CheckoutPage() {
         <div className="min-w-0 space-y-5">
           <Section step={1} title="Contact" done={contactDone}>
             <div className="grid gap-4 sm:grid-cols-2">
-              {textField('name', 'Full name', 'text', 'Jane Mwangi', 'name', true)}
+              {textField('name', 'Full name', 'text', 'First name Last name', 'name', true)}
               {textField('phone', 'Phone number', 'tel', '0712 345 678', 'tel')}
-              {textField('email', 'Email address', 'email', 'jane@example.com', 'email')}
+              {textField('email', 'Email address', 'email', 'name@example.com', 'email')}
             </div>
             {!customer && (
               <p className="mt-4 text-sm text-muted-fg">
@@ -372,7 +413,7 @@ export default function CheckoutPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 {textField('address', 'Street address', 'text', '14 Ngong Road', 'street-address', true)}
                 {textField('city', 'City / town', 'text', 'Nairobi', 'address-level2')}
-                <div>
+                <div id="co-zone">
                   <label className="mb-1.5 block text-sm font-medium text-ink">Area</label>
                   <Select
                     value={selectedZoneId}
@@ -413,15 +454,16 @@ export default function CheckoutPage() {
             <fieldset>
               <legend className="sr-only">Payment method</legend>
               <div className="grid gap-3 sm:grid-cols-2">
-                {PAYMENT_ORDER.map((id) => (
+                {methods.map((id) => (
                   <ChoiceCard
                     key={id}
                     name="payment"
                     value={id}
-                    checked={paymentMethod === id}
+                    checked={method === id}
                     onSelect={() => setPaymentMethod(id)}
                     label={PAYMENT_METHODS[id].label(fulfillment)}
                     sub={PAYMENT_METHODS[id].sub(fulfillment)}
+                    extra={id === 'paystack' ? <PayOnlineMarks /> : undefined}
                   />
                 ))}
               </div>
@@ -495,7 +537,7 @@ export default function CheckoutPage() {
                 {placeLabel}
               </button>
               <p className="mt-3 hidden text-center text-xs text-muted-fg lg:block">
-                Licensed pharmacy. Genuine products. No hidden fees.
+                PPB-licensed pharmacy{licence ? `, No. ${licence}` : ''}. Genuine products. No hidden fees.
               </p>
             </div>
           </div>

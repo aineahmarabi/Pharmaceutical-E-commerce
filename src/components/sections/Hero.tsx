@@ -1,5 +1,6 @@
 'use client';
 
+import { usePharmacyDetails } from '@/components/layout/PharmacyDetails';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -23,7 +24,7 @@ const needs = [
   { label: 'Vitamins', href: '/category/vitamins-supplements' },
 ];
 
-const facts = [
+const baseFacts = [
   'Licensed pharmacy',
   'Genuine products',
   'Same-day Nairobi delivery before 2pm',
@@ -242,6 +243,8 @@ function HeroBackdrop() {
 
 export function Hero() {
   const branding = useBranding();
+  const { licence } = usePharmacyDetails();
+  const facts = [licence ? `PPB licensed pharmacy · No. ${licence}` : baseFacts[0], ...baseFacts.slice(1)];
   const wa = String(branding.whatsapp).replace(/[^0-9]/g, '');
   const waHref = `https://wa.me/${wa}?text=${encodeURIComponent('Hello, I have a prescription to send.')}`;
 

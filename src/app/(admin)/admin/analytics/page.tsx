@@ -84,6 +84,7 @@ export default function AdminAnalyticsPage() {
     ? [
         { name: 'M-PESA', value: paymentBreakdown.revenues.mpesa },
         { name: 'Card', value: paymentBreakdown.revenues.card },
+        { name: 'Paystack', value: paymentBreakdown.revenues.paystack },
         { name: 'COD', value: paymentBreakdown.revenues.cod },
       ].filter((d) => d.value > 0)
     : [];

@@ -3,7 +3,7 @@ import { Hero } from '@/components/sections/Hero';
 import { BuyAgain } from '@/components/sections/BuyAgain';
 import { RefillDueCard } from '@/components/account/RefillReminder';
 import { NeedTiles } from '@/components/sections/NeedTiles';
-import { NeedShelf } from '@/components/sections/NeedShelf';
+import { NeedShelves } from '@/components/sections/NeedShelf';
 import { Faq } from '@/components/sections/Faq';
 
 export default function HomePage() {
@@ -20,9 +20,7 @@ export default function HomePage() {
         <RefillDueCard />
         <BuyAgain />
         <NeedTiles />
-        <NeedShelf title="Pain relief" slug="pain-relief" />
-        <NeedShelf title="Cold & flu" slug="cough-cold" />
-        <NeedShelf title="Vitamins" slug="vitamins-supplements" />
+        <NeedShelves />
         <Faq />
       </div>
     </>

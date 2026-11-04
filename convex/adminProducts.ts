@@ -1,6 +1,26 @@
 import { requireStaff, ANY_STAFF, MANAGERS } from './adminGuard';
-import { query, mutation } from './_generated/server';
+import { query, mutation, type QueryCtx } from './_generated/server';
+import type { Id } from './_generated/dataModel';
+import { applyStockChange } from './inventory';
 import { v } from 'convex/values';
+
+/** SKU and barcode identify one product only: a duplicate would send POS scans to the wrong item. */
+async function assertUniqueCodes(
+  ctx: { db: QueryCtx['db'] },
+  codes: { sku?: string; barcode?: string },
+  exceptId?: Id<'products'>,
+) {
+  const sku = codes.sku?.trim();
+  if (sku) {
+    const clash = await ctx.db.query('products').withIndex('by_sku', (q) => q.eq('sku', sku)).first();
+    if (clash && clash._id !== exceptId) throw new Error(`The SKU "${sku}" is already used by "${clash.name}".`);
+  }
+  const barcode = codes.barcode?.trim();
+  if (barcode) {
+    const clash = await ctx.db.query('products').withIndex('by_barcode', (q) => q.eq('barcode', barcode)).first();
+    if (clash && clash._id !== exceptId) throw new Error(`The barcode "${barcode}" is already used by "${clash.name}".`);
+  }
+}
 
 // ─── ADMIN QUERIES (includes out-of-stock) ──────────────────────────────────
 
@@ -87,10 +107,21 @@ export const createProduct = mutation({
     const existing = await ctx.db.query('products').withIndex('by_slug', (q) => q.eq('slug', args.slug)).first();
     if (existing) throw new Error('Product with this slug already exists.');
     const { token: _token, ...data } = args;
-    return await ctx.db.insert('products', {
+    const sku = data.sku?.trim() || undefined;
+    const barcode = data.barcode?.trim() || undefined;
+    await assertUniqueCodes(ctx, { sku, barcode });
+    if (!Number.isInteger(data.stockQty) || data.stockQty < 0) throw new Error('Stock must be a whole number, zero or more.');
+    const id = await ctx.db.insert('products', {
       ...data,
+      sku,
+      barcode,
+      inStock: data.stockQty > 0 && data.inStock,
       isNew: true,
     });
+    if (data.stockQty > 0) {
+      await ctx.db.insert('inventoryLog', { productId: id, changeAmount: data.stockQty, reason: 'Opening stock', createdAt: Date.now() });
+    }
+    return id;
   },
 });
 
@@ -132,7 +163,25 @@ export const updateProduct = mutation({
   handler: async (ctx, args) => {
     await requireStaff(ctx, args.token, MANAGERS);
     const { id, updates } = args;
-    await ctx.db.patch(id, updates);
+    const current = await ctx.db.get(id);
+    if (!current) throw new Error('Product not found');
+    const { stockQty, inStock, ...rest } = updates;
+    const patch: typeof rest = { ...rest };
+    if (rest.sku !== undefined) patch.sku = rest.sku.trim() || undefined;
+    if (rest.barcode !== undefined) patch.barcode = rest.barcode.trim() || undefined;
+    await assertUniqueCodes(ctx, { sku: patch.sku, barcode: patch.barcode }, id);
+    if (Object.keys(patch).length > 0) await ctx.db.patch(id, patch);
+
+    // Stock edits use the same path as every other stock change, so the history stays complete.
+    let qtyNow = current.stockQty;
+    if (stockQty !== undefined) {
+      if (!Number.isInteger(stockQty) || stockQty < 0) throw new Error('Stock must be a whole number, zero or more.');
+      qtyNow = (await applyStockChange(ctx, id, stockQty - current.stockQty, 'Edited on the product page')) ?? stockQty;
+    }
+    if (inStock !== undefined) {
+      if (inStock && qtyNow <= 0) throw new Error('Add stock before marking this product in stock.');
+      await ctx.db.patch(id, { inStock });
+    }
     await ctx.db.insert('auditLog', {
       action: 'UPDATE_PRODUCT',
       targetType: 'product',
@@ -157,6 +206,8 @@ export const duplicateProduct = mutation({
       slug: `${data.slug}-copy-${Math.floor(Math.random() * 10000)}`,
       inStock: false,
       stockQty: 0,
+      sku: undefined,
+      barcode: undefined,
     });
   },
 });
@@ -167,7 +218,7 @@ export const archiveProduct = mutation({
     await requireStaff(ctx, args.token, MANAGERS);
     const { id } = args;
     // We just unlist it
-    await ctx.db.patch(id, { inStock: false, stockQty: 0 });
+    await ctx.db.patch(id, { inStock: false });
   },
 });
 
@@ -176,6 +227,9 @@ export const unarchiveProduct = mutation({
   handler: async (ctx, args) => {
     await requireStaff(ctx, args.token, MANAGERS);
     const { id } = args;
+    const p = await ctx.db.get(id);
+    if (!p) throw new Error('Product not found');
+    if (p.stockQty <= 0) throw new Error('Add stock before listing this product again.');
     await ctx.db.patch(id, { inStock: true });
   },
 });
@@ -198,6 +252,9 @@ export const adminToggleStock = mutation({
   handler: async (ctx, args) => {
     await requireStaff(ctx, args.token, MANAGERS);
     const { id, inStock } = args;
+    const p = await ctx.db.get(id);
+    if (!p) throw new Error('Product not found');
+    if (inStock && p.stockQty <= 0) throw new Error('Add stock before marking this product in stock.');
     await ctx.db.patch(id, { inStock });
   },
 });

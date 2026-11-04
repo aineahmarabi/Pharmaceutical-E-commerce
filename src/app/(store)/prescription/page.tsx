@@ -4,6 +4,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
+import { Select } from '@/components/ui/Select';
+import { useDeliveryZoneStore } from '@/store/delivery';
+import { useBranding } from '@/hooks/useBranding';
+import { cn, formatPrice } from '@/lib/utils';
 
 const PHONE_RE = /^[0-9+()\s-]{7,}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -26,7 +30,8 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 type Item = { id: string; file: File; preview: string | null };
-type Errors = Partial<Record<'name' | 'phone' | 'email' | 'files' | 'form', string>>;
+type Errors = Partial<Record<'name' | 'phone' | 'email' | 'files' | 'zone' | 'address' | 'form', string>>;
+type Fulfillment = 'delivery' | 'pickup';
 
 function formatSize(n: number) {
   return n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
@@ -35,7 +40,15 @@ function formatSize(n: number) {
 function UploadForm() {
   const generateUploadUrl = useMutation(api.files.generatePrescriptionUploadUrl);
   const submit = useMutation(api.prescriptions.submit);
-  const [form, setForm] = useState({ name: '', phone: '', email: '', notes: '' });
+  const storeBranding = useBranding();
+  const zones = useQuery(api.delivery.listZones);
+  const { zoneId: rememberedZoneId, setZone: rememberZone } = useDeliveryZoneStore();
+  const [fulfillment, setFulfillment] = useState<Fulfillment>('delivery');
+  const [pickedZoneId, setPickedZoneId] = useState('');
+  const [form, setForm] = useState({ name: '', phone: '', email: '', notes: '', address: '' });
+  // The area the shopper already chose elsewhere on the site is used until they pick another.
+  const zoneId = pickedZoneId || (rememberedZoneId && zones?.some((z) => z._id === rememberedZoneId) ? rememberedZoneId : '');
+  const zone = zones?.find((z) => z._id === zoneId);
   const [items, setItems] = useState<Item[]>([]);
   const [errors, setErrors] = useState<Errors>({});
   const [drag, setDrag] = useState(false);
@@ -85,6 +98,10 @@ function UploadForm() {
     if (!PHONE_RE.test(form.phone.trim())) errs.phone = 'Enter a valid phone number.';
     if (form.email.trim() && !EMAIL_RE.test(form.email.trim())) errs.email = 'Enter a valid email.';
     if (items.length === 0) errs.files = 'Add at least one photo or PDF.';
+    if (fulfillment === 'delivery') {
+      if (!zone) errs.zone = 'Select your area.';
+      if (form.address.trim().length < 5) errs.address = 'Enter your street address or landmark.';
+    }
     setErrors(errs);
     if (Object.keys(errs).length) return;
 
@@ -104,6 +121,8 @@ function UploadForm() {
         email: form.email.trim() || undefined,
         notes: form.notes.trim() || undefined,
         fileIds: ids,
+        fulfillment,
+        ...(fulfillment === 'delivery' && zone ? { deliveryZoneId: zone._id as Id<'deliveryZones'>, address: form.address.trim() } : {}),
       });
       setReference(out.reference);
     } catch (err) {
@@ -123,6 +142,11 @@ function UploadForm() {
         <p className="text-3xl font-semibold tabular-nums tracking-tight text-ink">{reference}</p>
         <p className="text-sm text-muted-fg">
           A pharmacist will review it and contact you on {form.phone.trim()}. Check status below with this reference.
+        </p>
+        <p className="text-sm text-ink">
+          {fulfillment === 'delivery' && zone
+            ? <>Delivery to <span className="font-medium">{zone.name}</span>, {form.address.trim()}.</>
+            : <>You will collect it from our store: {storeBranding.address}.</>}
         </p>
       </div>
     );
@@ -198,6 +222,75 @@ function UploadForm() {
           </ul>
         )}
       </div>
+
+      <fieldset>
+        <legend className={labelCls}>How would you like to receive it?</legend>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {([
+            { id: 'delivery', label: 'Delivery', sub: 'To your address' },
+            { id: 'pickup', label: 'Pickup', sub: 'Collect from the store, free' },
+          ] as const).map(({ id, label, sub }) => (
+            <label
+              key={id}
+              className={cn(
+                'flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-petrol/40',
+                fulfillment === id ? 'border-petrol bg-petrol-50' : 'border-line hover:border-ink/40',
+              )}
+            >
+              <input type="radio" name="rx-fulfillment" value={id} checked={fulfillment === id} onChange={() => setFulfillment(id)} className="mt-1 accent-petrol" />
+              <span>
+                <span className="block text-sm font-semibold text-ink">{label}</span>
+                <span className="mt-0.5 block text-sm text-muted-fg">{sub}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+
+        {fulfillment === 'delivery' ? (
+          <div className="mt-4 space-y-4">
+            <div>
+              <span className={labelCls}>Area</span>
+              <Select
+                value={zoneId}
+                onChange={(id) => {
+                  setPickedZoneId(id);
+                  const z = zones?.find((x) => x._id === id);
+                  if (z) rememberZone(z._id, z.name);
+                }}
+                placeholder="Select your area"
+                options={(zones ?? []).map((z) => ({ value: z._id, label: `${z.name} (KES ${z.price})` }))}
+                buttonClassName={cn('bg-paper', errors.zone && 'border-signal')}
+              />
+              {errors.zone && <p className={errCls}>{errors.zone}</p>}
+              {zone && <p className="mt-1.5 text-xs text-muted-fg">Delivery to {zone.name}: {formatPrice(zone.price)}. Medicines are charged separately once approved.</p>}
+            </div>
+            <div>
+              <label htmlFor="rx-address" className={labelCls}>Street address or landmark</label>
+              <input
+                id="rx-address"
+                value={form.address}
+                onChange={set('address')}
+                autoComplete="street-address"
+                placeholder="14 Ngong Road, near the petrol station"
+                className={inputCls}
+                aria-invalid={!!errors.address}
+                aria-describedby={errors.address ? 'rx-address-err' : undefined}
+              />
+              {errors.address && <p id="rx-address-err" className={errCls}>{errors.address}</p>}
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4 rounded-lg border border-line bg-porcelain p-4 text-sm">
+            <p className="font-semibold text-ink">Pickup address</p>
+            <p className="mt-0.5 text-muted-fg">{storeBranding.address}</p>
+            {storeBranding.mapLink && (
+              <a href={storeBranding.mapLink} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block font-medium text-petrol hover:underline">
+                Directions
+              </a>
+            )}
+          </div>
+        )}
+      </fieldset>
 
       <div>
         <label htmlFor="rx-notes" className={labelCls}>Notes <span className="font-normal text-muted-fg">(optional)</span></label>

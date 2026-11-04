@@ -188,9 +188,9 @@ export default function AddOrderPage() {
         <div className="space-y-4 min-w-0">
           <Card title="Customer">
             <div className="space-y-3">
-              <Input label="Name" required value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Jane Wanjiku" />
+              <Input label="Name" required value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="First name Last name" />
               <Input label="Phone" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="0712 345 678" />
-              <Input label="Email" type="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} placeholder="jane@example.com" />
+              <Input label="Email" type="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} placeholder="name@example.com" />
               <Textarea
                 label="Address or notes"
                 value={deliveryAddress}

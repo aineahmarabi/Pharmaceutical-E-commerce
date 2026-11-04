@@ -1,11 +1,13 @@
 'use client';
 
+import { usePharmacyDetails } from '@/components/layout/PharmacyDetails';
 import React from 'react';
 import { LegalPage } from '@/components/layout/LegalPage';
 import { useBranding } from '@/hooks/useBranding';
 
 export default function PrivacyPolicyPage() {
   const branding = useBranding();
+  const { licence } = usePharmacyDetails();
   const contact = branding.email || 'our support team';
   return (
     <LegalPage
@@ -16,7 +18,7 @@ export default function PrivacyPolicyPage() {
         {
           heading: 'About this policy',
           body: [
-            `${branding.name} ("we", "us") is an online pharmacy in Kenya. This policy explains what personal data we collect when you use this website or order from us, why we collect it, who we share it with, how long we keep it and what rights you have. We handle personal data in line with Kenya’s Data Protection Act, 2019, and we are the data controller for the information described here.`,
+            `${branding.name} ("we", "us") is an online pharmacy in Kenya, licensed by the Pharmacy and Poisons Board${licence ? ` (licence no. ${licence})` : ''}. This policy explains what personal data we collect when you use this website or order from us, why we collect it, who we share it with, how long we keep it and what rights you have. We handle personal data in line with Kenya’s Data Protection Act, 2019, and we are the data controller for the information described here.`,
             'Some of the data we handle, such as prescriptions, concerns your health. The law treats this as sensitive personal data, and we take extra care with it.',
           ],
         },

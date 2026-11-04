@@ -4,7 +4,8 @@ import type { Id, Doc } from './_generated/dataModel';
 import { requireCustomerId } from './customerAuth';
 import { requireStaff, ANY_STAFF, MANAGERS } from './adminGuard';
 import { lockedForMs, recordFailure } from './throttle';
-import { syncLowStockNotification } from './inventory';
+import { syncLowStockNotification, applyStockChange } from './inventory';
+import { internal } from './_generated/api';
 
 // ─── QUERIES ─────────────────────────────────────────────────────────────
 
@@ -373,20 +374,17 @@ export const cancelOrder = mutation({
     const { orderId, reason, restock, refund } = args;
     const order = await ctx.db.get(orderId);
     if (!order) throw new Error('Order not found');
+    if (order.status === 'cancelled') throw new Error('This order is already cancelled.');
 
-    await ctx.db.patch(orderId, { 
+    await ctx.db.patch(orderId, {
       status: 'cancelled',
       paymentStatus: refund ? 'refunded' : order.paymentStatus
     });
 
     if (restock) {
       for (const item of order.items) {
-        await ctx.db.insert('inventoryLog', {
-          productId: item.productId as Id<'products'>, // assuming valid ID
-          changeAmount: item.qty,
-          reason: `Order Cancelled: ${reason}`,
-          createdAt: Date.now(),
-        });
+        const productId = ctx.db.normalizeId('products', item.productId);
+        if (productId) await applyStockChange(ctx, productId, item.qty, `Order ${order.orderNumber} cancelled: ${reason}`);
       }
     }
 
@@ -418,16 +416,17 @@ export const refundOrder = mutation({
     
     await ctx.db.patch(orderId, { paymentStatus: status });
 
-    lineItemRefunds.forEach(async (refund, idx) => {
-      if (restockPerItem[idx]) {
-        await ctx.db.insert('inventoryLog', {
-          productId: refund.productId as Id<'products'>,
-          changeAmount: refund.qty,
-          reason: `Order Refunded`,
-          createdAt: Date.now(),
-        });
+    // Sequential and awaited, so the stock changes are part of the same transaction as the refund.
+    for (let idx = 0; idx < lineItemRefunds.length; idx++) {
+      const refund = lineItemRefunds[idx];
+      if (!restockPerItem[idx]) continue;
+      const line = order.items.find((i) => i.productId === refund.productId);
+      if (!line || !Number.isInteger(refund.qty) || refund.qty < 1 || refund.qty > line.qty) {
+        throw new Error('A refunded item does not match the order.');
       }
-    });
+      const productId = ctx.db.normalizeId('products', refund.productId);
+      if (productId) await applyStockChange(ctx, productId, refund.qty, `Order ${order.orderNumber} refunded`);
+    }
 
     await ctx.db.insert('auditLog', {
       action: 'REFUND_ORDER',
@@ -736,7 +735,7 @@ export const placeOrder = mutation({
     pickup: v.optional(v.boolean()),
     deliveryAddress: v.string(),
     notes: v.optional(v.string()),
-    paymentMethod: v.union(v.literal('mpesa'), v.literal('cod')),
+    paymentMethod: v.union(v.literal('mpesa'), v.literal('cod'), v.literal('paystack')),
     prescriptionFileId: v.optional(v.id('_storage')),
     customerToken: v.optional(v.string()),
   },
@@ -851,6 +850,12 @@ export const placeOrder = mutation({
         createdAt: Date.now(),
       });
       await syncLowStockNotification(ctx, u.product, u.product.stockQty, u.newQty);
+    }
+
+    // Online payment: the stock is held for 30 minutes. If the payment is not completed by then,
+    // the order is released and the units go back on the shelf (see paystack.releaseUnpaid).
+    if (args.paymentMethod === 'paystack') {
+      await ctx.scheduler.runAfter(30 * 60 * 1000, internal.paystack.releaseUnpaid, { orderId });
     }
 
     return orderId;

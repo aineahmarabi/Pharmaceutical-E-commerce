@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Logo } from '@/components/layout/Logo';
 import { CheckoutFooter } from '@/components/layout/CheckoutFooter';
+import { WhatsAppButton } from '@/components/layout/WhatsAppButton';
 
 /**
  * Checkout shell: just the logo, a way back to the cart, and policy links. No store
@@ -27,7 +28,7 @@ export default function CheckoutGroupLayout({ children }: { children: React.Reac
       </main>
 
       <CheckoutFooter />
-
+      <WhatsAppButton />
     </div>
   );
 }

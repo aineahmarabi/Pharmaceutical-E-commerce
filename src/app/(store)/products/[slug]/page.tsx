@@ -22,6 +22,7 @@ import { DeliveryArea } from '@/components/cart/DeliveryArea';
 import { useCartStore, useWishlistStore } from '@/store/cart';
 import { useToast } from '@/components/ui/Toast';
 import { useBranding } from '@/hooks/useBranding';
+import { usePharmacyDetails } from '@/components/layout/PharmacyDetails';
 import { branding } from '@/lib/config/branding';
 import { cn, formatPrice } from '@/lib/utils';
 
@@ -67,6 +68,7 @@ function ProductDetailContent({ product }: { product: ProductT }) {
   const { toggle, has } = useWishlistStore();
   const { toast } = useToast();
   const store = useBranding();
+  const { licence } = usePharmacyDetails();
   const [qty, setQty] = useState(1);
   const wishlisted = has(product.id);
 
@@ -289,7 +291,7 @@ function ProductDetailContent({ product }: { product: ProductT }) {
             </a>
             <ul className="grid grid-cols-3 divide-x divide-line rounded-xl border border-line bg-paper text-center text-xs text-muted-fg">
               <li className="px-2 py-3">Genuine products</li>
-              <li className="px-2 py-3">Licensed pharmacy</li>
+              <li className="px-2 py-3">PPB licensed{licence ? <span className="mt-0.5 block font-semibold tabular-nums text-ink">{licence}</span> : null}</li>
               <li className="px-2 py-3">Easy returns</li>
             </ul>
           </aside>

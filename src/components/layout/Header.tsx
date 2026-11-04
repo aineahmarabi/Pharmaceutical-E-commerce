@@ -1,12 +1,13 @@
 'use client';
 
+import { LicenceChip } from '@/components/layout/PharmacyDetails';
 import { AccountReminderDot } from '@/components/account/RefillReminder';
 import { ThemeToggle } from './ThemeToggle';
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, CircleUser, Heart, ShoppingBag, ChevronDown, X, Menu, ArrowRight } from 'lucide-react';
+import { Search, CircleUser, Heart, ShoppingBag, ChevronDown, X, Menu, ArrowRight, PackageSearch, Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useBranding } from '@/hooks/useBranding';
 import { categories } from '@/lib/fixtures/categories';
@@ -254,7 +255,10 @@ export function Header() {
               className="overflow-hidden bg-deep"
             >
               <div className="mx-auto flex h-8 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-                <p className="hidden shrink-0 text-xs text-on-deep/70 md:block">
+                <div className="flex shrink-0 items-center gap-4">
+                  <LicenceChip />
+                </div>
+                <p className="hidden shrink-0 text-xs text-on-deep/70 lg:block">
                   Delivering to{' '}
                   <span className="inline-block min-w-24 font-medium text-on-deep" aria-live="off">
                     <AnimatePresence mode="wait" initial={false}>
@@ -271,7 +275,7 @@ export function Header() {
                     </AnimatePresence>
                   </span>
                 </p>
-                <div className="flex flex-1 justify-center">
+                <div className="hidden flex-1 justify-center sm:flex">
                   <AnimatePresence mode="wait" initial={false}>
                     <motion.p
                       key={promoIdx}
@@ -285,9 +289,25 @@ export function Header() {
                     </motion.p>
                   </AnimatePresence>
                 </div>
-                <div className="hidden shrink-0 items-center gap-5 text-xs text-on-deep/70 md:flex">
-                  <Link href="/account/orders" className="transition-colors hover:text-on-deep">Track order</Link>
-                  <a href={`tel:${branding.phone}`} className="tabular-nums transition-colors hover:text-on-deep">{branding.phone}</a>
+                <div className="hidden shrink-0 items-center gap-4 text-xs md:flex">
+                  {/* An action: bright, underlined, with an icon. */}
+                  <Link
+                    href="/account/orders"
+                    className="inline-flex items-center gap-1.5 font-medium text-on-deep underline decoration-on-deep/40 underline-offset-4 transition-colors hover:decoration-on-deep"
+                  >
+                    <PackageSearch size={14} aria-hidden="true" />
+                    Track order
+                  </Link>
+                  <span aria-hidden="true" className="h-3.5 w-px bg-on-deep/25" />
+                  {/* Contact information: calmer, with a phone icon, so it is not mistaken for a tracking number. */}
+                  <a
+                    href={`tel:${branding.phone}`}
+                    className="inline-flex items-center gap-1.5 tabular-nums text-on-deep/70 transition-colors hover:text-on-deep"
+                    aria-label={`Call us on ${branding.phone}`}
+                  >
+                    <Phone size={14} aria-hidden="true" />
+                    {branding.phone}
+                  </a>
                 </div>
               </div>
             </motion.div>

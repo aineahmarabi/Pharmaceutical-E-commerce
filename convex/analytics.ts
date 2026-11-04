@@ -101,8 +101,8 @@ export const getPaymentMethodBreakdown = query({
   handler: async (ctx, args) => {
     await requireStaff(ctx, args.token, MANAGERS);
     const orders = await ctx.db.query('orders').collect();
-    const counts = { mpesa: 0, card: 0, cod: 0 };
-    const revenues = { mpesa: 0, card: 0, cod: 0 };
+    const counts = { mpesa: 0, card: 0, cod: 0, paystack: 0 };
+    const revenues = { mpesa: 0, card: 0, cod: 0, paystack: 0 };
 
     orders.forEach(o => {
       if (o.status !== 'cancelled') {

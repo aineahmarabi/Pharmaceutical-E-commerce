@@ -128,6 +128,38 @@ export const listByIds = query({
 });
 
 /** All products for the /products listing — excludes out-of-stock, supports filter+sort */
+/**
+ * Homepage shelves: one shelf per category that currently has products in stock, in the
+ * order the categories were created. Empty categories are skipped, so a shelf appears by
+ * itself as soon as its category is stocked.
+ */
+export const homeShelves = query({
+  args: { perShelf: v.optional(v.number()), maxShelves: v.optional(v.number()) },
+  handler: async (ctx, { perShelf = 5, maxShelves = 6 }) => {
+    const take = Math.min(Math.max(1, Math.floor(perShelf)), 12);
+    const cap = Math.min(Math.max(1, Math.floor(maxShelves)), 12);
+    const categories = await ctx.db.query('categories').collect();
+    const shelves: Array<{ slug: string; name: string; products: Array<Doc<'products'> & { imageUrl: string | undefined }> }> = [];
+    for (const c of categories) {
+      if (shelves.length >= cap) break;
+      const items = await ctx.db
+        .query('products')
+        .withIndex('by_category', (q) => q.eq('categorySlug', c.slug))
+        .filter((q) => q.eq(q.field('inStock'), true))
+        .take(take);
+      if (items.length === 0) continue;
+      shelves.push({
+        slug: c.slug,
+        name: c.name,
+        products: await Promise.all(
+          items.map(async (p) => ({ ...p, imageUrl: await resolveImageUrl(ctx, p.imageStorageId, p.imageUrl) })),
+        ),
+      });
+    }
+    return shelves;
+  },
+});
+
 export const listAll = query({
   args: {
     categorySlug: v.optional(v.string()),

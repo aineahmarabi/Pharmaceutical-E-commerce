@@ -67,7 +67,9 @@ export default defineSchema({
     .index('by_trending', ['isTrending'])
     .index('by_best_seller', ['isBestSeller'])
     .index('by_new', ['isNew'])
-    .index('by_offer', ['isOffer']),
+    .index('by_offer', ['isOffer'])
+    .index('by_sku', ['sku'])
+    .index('by_barcode', ['barcode']),
 
   reviews: defineTable({
     productId: v.id('products'),
@@ -164,9 +166,11 @@ export default defineSchema({
       v.literal('completed'),
       v.literal('cancelled')
     ),
-    paymentMethod: v.union(v.literal('mpesa'), v.literal('card'), v.literal('cod')),
+    paymentMethod: v.union(v.literal('mpesa'), v.literal('card'), v.literal('cod'), v.literal('paystack')),
     paymentStatus: v.optional(v.union(v.literal('pending'), v.literal('paid'), v.literal('collected'), v.literal('refunded'), v.literal('partially_refunded'))),
     paymentRef: v.optional(v.string()),
+    paidAt: v.optional(v.number()),
+    paymentChannel: v.optional(v.string()),
     prescriptionFileId: v.optional(v.id('_storage')),
     deliveryAddress: v.string(),
     notes: v.optional(v.string()),
@@ -175,6 +179,7 @@ export default defineSchema({
     tags: v.optional(v.array(v.string())),
   })
     .index('by_order_number', ['orderNumber'])
+    .index('by_payment_ref', ['paymentRef'])
     .index('by_customer', ['customerId'])
     .index('by_status', ['status']),
 
@@ -424,6 +429,11 @@ export default defineSchema({
     phone: v.string(),
     email: v.optional(v.string()),
     notes: v.optional(v.string()),
+    // How the customer wants to receive the medicine once the prescription is approved.
+    fulfillment: v.optional(v.union(v.literal('delivery'), v.literal('pickup'))),
+    deliveryZoneId: v.optional(v.id('deliveryZones')),
+    deliveryArea: v.optional(v.string()),
+    address: v.optional(v.string()),
     fileIds: v.array(v.id('_storage')),
     status: v.union(v.literal('pending'), v.literal('approved'), v.literal('rejected'), v.literal('needs_info')),
     pharmacistNote: v.optional(v.string()),

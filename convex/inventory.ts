@@ -2,7 +2,7 @@ import { query, mutation } from './_generated/server';
 import { v } from 'convex/values';
 import { requireStaff, ANY_STAFF } from './adminGuard';
 import type { MutationCtx, QueryCtx } from './_generated/server';
-import type { Doc } from './_generated/dataModel';
+import type { Doc, Id } from './_generated/dataModel';
 
 export const DEFAULT_LOW_STOCK_THRESHOLD = 10;
 
@@ -82,6 +82,29 @@ export const listInventory = query({
   },
 });
 
+/**
+ * The one safe way to change a product's stock: updates the count, keeps the in-stock flag
+ * in step with it, writes the history line and raises or clears the low-stock alert.
+ * The count never goes below zero. Returns the new count, or null if the product no longer exists.
+ */
+export async function applyStockChange(
+  ctx: { db: MutationCtx['db'] },
+  productId: Id<'products'>,
+  delta: number,
+  reason: string,
+  actorId?: Id<'staff'>,
+): Promise<number | null> {
+  const product = await ctx.db.get(productId);
+  if (!product) return null;
+  const newQty = Math.max(0, product.stockQty + delta);
+  const actual = newQty - product.stockQty;
+  if (actual === 0) return product.stockQty;
+  await ctx.db.patch(productId, { stockQty: newQty, inStock: newQty > 0 });
+  await ctx.db.insert('inventoryLog', { productId, changeAmount: actual, reason, actorId, createdAt: Date.now() });
+  await syncLowStockNotification(ctx, product, product.stockQty, newQty);
+  return newQty;
+}
+
 export const adjustStock = mutation({
   args: {
     token: v.string(),
@@ -97,7 +120,11 @@ export const adjustStock = mutation({
     const product = await ctx.db.get(productId);
     if (!product) throw new Error('Product not found');
 
+    if (!Number.isFinite(changeAmount) || !Number.isInteger(changeAmount) || changeAmount === 0) {
+      throw new Error('Enter a whole number of units to add or remove.');
+    }
     const newStock = product.stockQty + changeAmount;
+    if (newStock < 0) throw new Error(`Only ${product.stockQty} unit(s) in stock, so that many cannot be removed.`);
     await ctx.db.patch(productId, {
       stockQty: newStock,
       inStock: newStock > 0,
