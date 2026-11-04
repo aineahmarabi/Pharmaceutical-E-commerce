@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../../../convex/_generated/api';
 import { useCustomerAuth } from '@/lib/auth/customerAuth';
@@ -8,6 +8,8 @@ import Link from 'next/link';
 import { BuyAgainButton } from '@/components/account/BuyAgainButton';
 import { RefillReminderButton } from '@/components/account/RefillReminder';
 import { AccountFrame, accountField, primaryBtn } from '../AccountFrame';
+import { CopyOrderNumber } from '@/components/ui/CopyOrderNumber';
+import { readDeviceOrders, type DeviceOrderRef } from '@/lib/deviceOrders';
 
 const STATUS_LABELS: Record<string, string> = {
   placed: 'Order placed',
@@ -53,6 +55,17 @@ export default function OrdersPage() {
   const { isAuthenticated, token } = useCustomerAuth();
   const myOrders = useQuery(api.orders.listMyOrders, token ? { token } : 'skip');
 
+  // Orders this device placed as a guest: no account or order number needed to follow them.
+  const [deviceRefs, setDeviceRefs] = useState<DeviceOrderRef[]>([]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reads localStorage, which is not available during server render
+    setDeviceRefs(readDeviceOrders());
+  }, []);
+  const deviceOrders = useQuery(
+    api.orders.trackOnDevice,
+    !isAuthenticated && deviceRefs.length ? { refs: deviceRefs.map((r) => ({ orderId: r.orderId, phone: r.phone })) } : 'skip',
+  );
+
   const [orderNumber, setOrderNumber] = useState('');
   const [contact, setContact] = useState('');
   type TrackResult = Awaited<ReturnType<typeof trackOrder>>;
@@ -88,7 +101,7 @@ export default function OrdersPage() {
               <div key={order._id} className="bg-paper border border-line rounded-xl p-4 sm:p-6 space-y-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="font-semibold text-ink">{order.orderNumber}</p>
+                    <CopyOrderNumber value={order.orderNumber} />
                     <p className="text-sm text-muted-fg mt-0.5">
                       {fmtDate(order._creationTime)} · <span className="tabular-nums">KES {order.total.toLocaleString()}</span>
                     </p>
@@ -105,6 +118,28 @@ export default function OrdersPage() {
             ))
           )}
         </div>
+      )}
+
+      {!isAuthenticated && deviceOrders && deviceOrders.length > 0 && (
+        <section aria-labelledby="device-orders" className="space-y-3">
+          <h2 id="device-orders" className="text-lg font-semibold tracking-tight text-ink">Your orders on this device</h2>
+          {deviceOrders.map((order) => (
+            <div key={order._id} className="space-y-4 rounded-xl border border-line bg-paper p-4 sm:p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <CopyOrderNumber value={order.orderNumber} className="text-base" />
+                  <p className="mt-0.5 text-sm text-muted-fg">
+                    {fmtDate(order.createdAt)} · <span className="tabular-nums">KES {order.total.toLocaleString()}</span>
+                    {order.paymentStatus === 'paid' && ' · Paid'}
+                    {order.paymentStatus === 'pending' && order.paymentMethod === 'paystack' && order.status !== 'cancelled' && ' · Awaiting payment'}
+                  </p>
+                </div>
+                <StatusChip status={order.status} />
+              </div>
+              <StatusTimeline status={order.status} />
+            </div>
+          ))}
+        </section>
       )}
 
       <form onSubmit={handleSubmit} className="bg-paper border border-line rounded-xl p-4 sm:p-6 max-w-xl space-y-4">
@@ -132,7 +167,7 @@ export default function OrdersPage() {
             <div className="bg-paper border border-line rounded-xl p-4 sm:p-6 space-y-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-lg font-semibold text-ink">{result.order.orderNumber}</p>
+                  <CopyOrderNumber value={result.order.orderNumber} className="text-lg" />
                   <p className="text-sm text-muted-fg mt-0.5">Placed {fmtDate(result.order._creationTime)}</p>
                 </div>
                 <StatusChip status={result.order.status} />

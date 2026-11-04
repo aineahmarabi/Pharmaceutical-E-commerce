@@ -16,6 +16,8 @@ import { useQuery, useMutation, useAction } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { cn, formatPrice } from '@/lib/utils';
 import { PayOnlineMarks } from '@/components/ui/PaymentMarks';
+import { CopyOrderNumber } from '@/components/ui/CopyOrderNumber';
+import { rememberDeviceOrder } from '@/lib/deviceOrders';
 
 type Fulfillment = 'delivery' | 'pickup';
 type PaymentMethod = 'paystack' | 'mpesa' | 'cod';
@@ -87,6 +89,17 @@ function ChoiceCard({
         {extra}
       </span>
     </label>
+  );
+}
+
+function PlacedOrderNumber({ orderId, phone }: { orderId: string; phone: string }) {
+  const found = useQuery(api.orders.trackOnDevice, { refs: [{ orderId, phone }] });
+  const number = found?.[0]?.orderNumber;
+  if (!number) return null;
+  return (
+    <p className="mt-3 text-sm text-muted-fg">
+      Order number <CopyOrderNumber value={number} className="text-base" />
+    </p>
   );
 }
 
@@ -182,7 +195,7 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('paystack');
   const [touched, setTouched] = useState<Partial<Record<FormKey | 'zone', boolean>>>({});
   const [attempted, setAttempted] = useState(false);
-  const [placedGuest, setPlacedGuest] = useState<{ name: string; email: string; phone: string } | null>(null);
+  const [placedGuest, setPlacedGuest] = useState<{ name: string; email: string; phone: string; orderId: string } | null>(null);
   // Online payment appears once Paystack is set up; until then the manual M-PESA option stays.
   const methods: PaymentMethod[] = paystackReady ? ['paystack', 'cod'] : ['mpesa', 'cod'];
   const method: PaymentMethod = methods.includes(paymentMethod) ? paymentMethod : methods[0];
@@ -275,9 +288,11 @@ export default function CheckoutPage() {
         notes: form.notes.trim() || undefined,
       });
 
+      rememberDeviceOrder(orderId, form.phone.trim());
+
       if (method === 'paystack') {
-        // The order exists and its stock is held. Remember it so the return page can confirm or retry the payment.
-        clearCart();
+        // The order exists and its stock is held. The cart is kept until the payment is confirmed, so nothing
+        // disappears while the customer is handed over to Paystack (or if they come back without paying).
         try {
           sessionStorage.setItem('pc-pending-payment', JSON.stringify({ orderId, phone: form.phone.trim() }));
         } catch {
@@ -303,7 +318,7 @@ export default function CheckoutPage() {
       if (customer) {
         router.push('/account/orders');
       } else {
-        setPlacedGuest({ name: form.name.trim(), email: form.email.trim(), phone: form.phone.trim() });
+        setPlacedGuest({ name: form.name.trim(), email: form.email.trim(), phone: form.phone.trim(), orderId });
         setPlacing(false);
       }
     } catch (err) {
@@ -318,13 +333,14 @@ export default function CheckoutPage() {
       <div className="mx-auto max-w-md space-y-4">
         <div className="rounded-xl border border-line bg-paper p-6 text-center sm:p-8">
           <p className="text-lg font-semibold text-ink">Order placed</p>
+          <PlacedOrderNumber orderId={placedGuest.orderId} phone={placedGuest.phone} />
           <p className="mt-1 text-sm text-muted-fg">We will contact you on {placedGuest.phone || placedGuest.email} to confirm.</p>
           <div className="mt-5 flex flex-wrap justify-center gap-3">
             <Link href="/products" className="rounded-lg bg-petrol px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-petrol-700">Continue shopping</Link>
             <Link href="/account/orders" className="rounded-lg border border-line bg-paper px-6 py-3 text-sm font-semibold text-ink transition-colors hover:bg-porcelain">Track order</Link>
           </div>
         </div>
-        <SaveDetailsPanel {...placedGuest} />
+        <SaveDetailsPanel name={placedGuest.name} email={placedGuest.email} phone={placedGuest.phone} />
       </div>
     </div>
   );

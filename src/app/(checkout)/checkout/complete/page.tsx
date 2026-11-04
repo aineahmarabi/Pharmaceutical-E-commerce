@@ -7,6 +7,8 @@ import { useAction } from 'convex/react';
 import { api } from '../../../../../convex/_generated/api';
 import type { Id } from '../../../../../convex/_generated/dataModel';
 import { cn } from '@/lib/utils';
+import { useCartStore } from '@/store/cart';
+import { CopyOrderNumber } from '@/components/ui/CopyOrderNumber';
 
 type View = 'checking' | 'paid' | 'pending' | 'failed' | 'problem' | 'none';
 const PENDING_KEY = 'pc-pending-payment';
@@ -29,6 +31,7 @@ function Complete() {
   const reference = params.get('reference') ?? params.get('trxref') ?? '';
   const verify = useAction(api.paystack.verifyPayment);
   const startPayment = useAction(api.paystack.startPayment);
+  const clearCart = useCartStore((st) => st.clearCart);
 
   const [view, setView] = useState<View>(reference ? 'checking' : 'none');
   const [orderNumber, setOrderNumber] = useState('');
@@ -47,6 +50,7 @@ function Complete() {
         if (out.orderNumber) setOrderNumber(out.orderNumber);
         if (out.state === 'paid') {
           try { sessionStorage.removeItem(PENDING_KEY); } catch { /* nothing to clear */ }
+          clearCart(); // only now that the money has arrived
           setView('paid');
         } else if (out.state === 'pending' || out.state === 'unknown') {
           setView('pending');
@@ -64,7 +68,7 @@ function Complete() {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [reference, verify, round]);
+  }, [reference, verify, clearCart, round]);
 
   const retry = useCallback(async () => {
     const pending = readPending();
@@ -93,7 +97,7 @@ function Complete() {
     checking: { title: 'Confirming your payment', body: 'This takes a few seconds. Please do not close this page.' },
     paid: {
       title: 'Payment received',
-      body: orderNumber ? `Thank you. Your order ${orderNumber} is confirmed and we are preparing it.` : 'Thank you. Your order is confirmed and we are preparing it.',
+      body: 'Thank you. Your order is confirmed and we are preparing it.',
     },
     pending: {
       title: 'Waiting for your payment',
@@ -118,6 +122,11 @@ function Complete() {
       <div className="mx-auto max-w-md rounded-xl border border-line bg-paper p-6 text-center sm:p-8" role="status" aria-live="polite">
         <h1 className="text-xl font-semibold tracking-tight text-ink">{copy[view].title}</h1>
         <p className="mt-2 text-sm leading-relaxed text-muted-fg">{copy[view].body}</p>
+        {view === 'paid' && orderNumber && (
+          <p className="mt-3 text-sm text-muted-fg">
+            Order number <CopyOrderNumber value={orderNumber} className="text-base" />
+          </p>
+        )}
 
         {view === 'checking' && (
           <div className="mx-auto mt-5 h-1.5 w-40 overflow-hidden rounded-full bg-porcelain" aria-hidden="true">

@@ -138,7 +138,9 @@ export const trackOrder = mutation({
     if (orderNumber.length > 40 || contact.length > 254) {
       return { found: false as const, error: 'No order found with that number.' };
     }
-    const normalizedNumber = orderNumber.trim().toUpperCase();
+    const typed = orderNumber.trim().toUpperCase().replace(/\s+/g, '');
+    const digits = /^#?(?:PHR)?(\d{1,9})$/.exec(typed);
+    const normalizedNumber = digits ? `#PHR${digits[1]}` : typed;
     const normalizedContact = contact.trim().toLowerCase();
 
     // Rate limit per order number (every attempt counts) so numbers cannot be brute-forced.
@@ -172,6 +174,43 @@ export const trackOrder = mutation({
       .collect();
 
     return { found: true as const, order, timeline };
+  },
+});
+
+const lastNine = (p?: string) => (p ?? '').replace(/\D/g, '').slice(-9);
+
+/**
+ * Status of orders this device placed as a guest. The device sends the order ids it remembered plus the phone used;
+ * ids are unguessable, and the phone must match, so nobody can read an order without already holding both.
+ */
+export const trackOnDevice = query({
+  args: { refs: v.array(v.object({ orderId: v.string(), phone: v.string() })) },
+  handler: async (ctx, { refs }) => {
+    const out: {
+      _id: Id<'orders'>;
+      orderNumber: string;
+      status: Doc<'orders'>['status'];
+      paymentStatus: Doc<'orders'>['paymentStatus'];
+      paymentMethod: Doc<'orders'>['paymentMethod'];
+      total: number;
+      createdAt: number;
+    }[] = [];
+    for (const ref of refs.slice(0, 20)) {
+      const id = ctx.db.normalizeId('orders', ref.orderId);
+      if (!id) continue;
+      const order = await ctx.db.get(id);
+      if (!order || lastNine(order.customerPhone) !== lastNine(ref.phone) || !lastNine(ref.phone)) continue;
+      out.push({
+        _id: order._id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        paymentStatus: order.paymentStatus,
+        paymentMethod: order.paymentMethod,
+        total: order.total,
+        createdAt: order._creationTime,
+      });
+    }
+    return out;
   },
 });
 
