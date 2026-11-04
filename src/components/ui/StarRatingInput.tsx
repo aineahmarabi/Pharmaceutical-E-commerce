@@ -32,7 +32,7 @@ export function StarRatingInput({ value, onChange, size = 22, className }: StarR
           >
             <Star
               size={size}
-              className={starValue <= display ? 'text-ink' : 'text-line'}
+              className="text-gold"
               fill={starValue <= display ? 'currentColor' : 'none'}
               strokeWidth={1.75}
             />

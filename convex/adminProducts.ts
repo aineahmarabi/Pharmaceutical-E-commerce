@@ -245,6 +245,9 @@ export const adminDeleteProduct = mutation({
     if (p?.imageStorageId) {
       await ctx.storage.delete(p.imageStorageId);
     }
+    // Drop "notify me" requests for it, so nobody is told about a product that no longer exists.
+    const waiting = await ctx.db.query('stockWatches').filter((q) => q.eq(q.field('productId'), id)).collect();
+    for (const w of waiting) await ctx.db.delete(w._id);
     await ctx.db.delete(id);
   },
 });

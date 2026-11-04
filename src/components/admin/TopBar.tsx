@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useMutation } from 'convex/react';
 import { useAdminQuery, useAdminMutation } from '@/hooks/useAdminApi';
@@ -218,15 +217,15 @@ export function AdminTopBar({ onMenuClick, onSearchClick }: { onMenuClick: () =>
                   <p className="text-xs text-p-text-subdued truncate">{role ? ROLE_LABELS[role] : 'Admin'}</p>
                 </div>
                 <div className="py-1">
-                  <Link
+                  <a
                     href="/"
                     target="_blank"
-                    rel="noopener"
+                    rel="noopener noreferrer"
                     role="menuitem"
                     className="flex items-center h-9 px-4 text-sm text-p-text hover:bg-p-bg-surface-hover focus-visible:outline-none focus-visible:bg-p-bg-surface-hover"
                   >
                     View storefront
-                  </Link>
+                  </a>
                   <button
                     role="menuitem"
                     onClick={handleLogout}

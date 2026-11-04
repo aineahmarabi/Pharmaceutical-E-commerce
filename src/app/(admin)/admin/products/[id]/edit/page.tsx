@@ -5,6 +5,7 @@ import { useAdminQuery, useAdminMutation } from '@/hooks/useAdminApi';
 import { api } from '../../../../../../../convex/_generated/api';
 import type { Id } from '../../../../../../../convex/_generated/dataModel';
 import { useRouter } from 'next/navigation';
+import { useConfirm } from '@/components/admin/ui/ConfirmDialog';
 import { X } from 'lucide-react';
 import { PageHeader } from '@/components/admin/shared/PageHeader';
 import { Card } from '@/components/admin/ui/Card';
@@ -48,7 +49,8 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
   const product = useAdminQuery(api.adminProducts.adminGetProduct, { id: productId });
   const generateUploadUrl = useAdminMutation(api.files.generateUploadUrl);
   const updateProduct = useAdminMutation(api.adminProducts.updateProduct);
-  const duplicateProduct = useAdminMutation(api.adminProducts.duplicateProduct);
+  const deleteProduct = useAdminMutation(api.adminProducts.adminDeleteProduct);
+  const confirm = useConfirm();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [file, setFile] = useState<File | null>(null);
@@ -204,11 +206,18 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
           backUrl="/admin/products"
           secondaryActions={[
             {
-              label: 'Duplicate',
+              label: 'Delete',
               onClick: async () => {
-                const newId = await duplicateProduct({ id: productId });
-                toast('Product duplicated');
-                router.push(`/admin/products/${newId}/edit`);
+                const ok = await confirm({
+                  title: 'Delete product',
+                  message: `Permanently delete "${product.name}"? It disappears from the storefront and this can't be undone. Past orders keep their own record of it.`,
+                  confirmLabel: 'Delete',
+                  destructive: true,
+                });
+                if (!ok) return;
+                await deleteProduct({ id: productId });
+                toast('Product deleted');
+                router.push('/admin/products');
               },
             },
           ]}

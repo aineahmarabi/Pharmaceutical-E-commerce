@@ -171,15 +171,15 @@ function SidebarContent({ onClose, showClose }: { onClose?: () => void; showClos
 
       <div className="border-t border-white/10 p-3 flex-shrink-0 space-y-0.5">
         {visible(settingsNav.href) && <NavItem item={settingsNav} onClick={onClose} />}
-        <Link
+        <a
           href="/"
           target="_blank"
-          rel="noopener"
+          rel="noopener noreferrer"
           className="flex items-center h-9 pl-3 pr-3 rounded-lg text-sm font-medium text-on-deep/60 hover:text-white hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-p-success/70"
         >
           <ExternalLink size={16} aria-hidden="true" className="mr-2.5 shrink-0 text-on-deep/55" />
           View storefront
-        </Link>
+        </a>
       </div>
     </div>
   );

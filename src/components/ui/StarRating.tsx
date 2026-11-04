@@ -23,7 +23,7 @@ export function StarRating({ rating, reviewCount, size = 12, className }: StarRa
             <Star
               key={i}
               size={size}
-              className={cn(filled || half ? 'text-ink' : 'text-line')}
+              className="text-gold"
               fill={filled ? 'currentColor' : 'none'}
               strokeWidth={1.75}
             />
