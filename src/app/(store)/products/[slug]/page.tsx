@@ -9,6 +9,7 @@ import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../../../convex/_generated/api';
 import type { Id } from '../../../../../convex/_generated/dataModel';
 import { toProduct } from '@/lib/adapters/product';
+import { useStockWatch } from '@/hooks/useStockWatch';
 import { OutOfStockMark } from '@/components/ui/OutOfStockMark';
 import { ProductImagePlaceholder } from '@/components/ui/ProductImagePlaceholder';
 import { ProductCardSkeleton, Skeleton } from '@/components/ui/Skeleton';
@@ -19,7 +20,6 @@ import { QuantityStepper } from '@/components/ui/QuantityStepper';
 import { Breadcrumb } from '@/components/ui/Breadcrumb';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ProductCard } from '@/components/ui/ProductCard';
-import { DeliveryArea } from '@/components/cart/DeliveryArea';
 import { useCartStore, useWishlistStore } from '@/store/cart';
 import { useToast } from '@/components/ui/Toast';
 import { useBranding } from '@/hooks/useBranding';
@@ -95,6 +95,18 @@ function ProductDetailContent({ product }: { product: ProductT }) {
     toast(`Added ${qty} × ${product.name}`, 'success');
   };
 
+  const { isWatching, watch, unwatch, isAuthenticated } = useStockWatch();
+  const notifying = isWatching(product.id);
+  const handleNotify = () => {
+    if (notifying) {
+      void unwatch(product.id);
+      toast('Notification cancelled', 'info');
+    } else {
+      void watch(product.id);
+      toast('We will notify you when it is back', 'success');
+    }
+  };
+
   const handleBuyNow = () => {
     if (!product.inStock) return;
     addItem(product, qty);
@@ -107,7 +119,7 @@ function ProductDetailContent({ product }: { product: ProductT }) {
     toast(wishlisted ? 'Removed from wishlist' : `Saved — ${product.name}`, wishlisted ? 'info' : 'success');
   };
 
-  const lowStock = product.inStock && product.stockQty > 0 && product.stockQty <= 10;
+  const lowStock = product.inStock && product.stockQty > 0 && product.stockQty <= 5;
   const isRx = product.classification === 'POM';
   const waMessage = encodeURIComponent(`Hello, I'd like to order ${product.name}${product.strength ? ` ${product.strength}` : ''}. I have a prescription.`);
   const waHref = `https://wa.me/${String(store.whatsapp).replace(/\D/g, '')}?text=${waMessage}`;
@@ -246,8 +258,6 @@ function ProductDetailContent({ product }: { product: ProductT }) {
                 </div>
               )}
 
-              <DeliveryArea className="border-t border-line pt-4" />
-
               <div className="flex items-center gap-3">
                 <QuantityStepper value={qty} onChange={setQty} />
                 <button
@@ -265,14 +275,31 @@ function ProductDetailContent({ product }: { product: ProductT }) {
               </div>
 
               <div className="grid gap-2">
-                <button
-                  type="button"
-                  onClick={handleAdd}
-                  disabled={!product.inStock}
-                  className="w-full bg-petrol hover:bg-petrol-700 text-white text-sm font-semibold py-3 rounded-lg transition-colors active:scale-[0.97] duration-100 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-petrol/40 focus-visible:ring-offset-2"
-                >
-                  {product.inStock ? 'Add to cart' : 'Unavailable'}
-                </button>
+                {product.inStock ? (
+                  <button
+                    type="button"
+                    onClick={handleAdd}
+                    className="w-full bg-petrol hover:bg-petrol-700 text-white text-sm font-semibold py-3 rounded-lg transition-colors active:scale-[0.97] duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-petrol/40 focus-visible:ring-offset-2"
+                  >
+                    Add to cart
+                  </button>
+                ) : (
+                  <div>
+                    <button
+                      type="button"
+                      onClick={handleNotify}
+                      aria-pressed={notifying}
+                      className="w-full bg-petrol hover:bg-petrol-700 text-white text-sm font-semibold py-3 rounded-lg transition-colors active:scale-[0.97] duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-petrol/40 focus-visible:ring-offset-2"
+                    >
+                      {notifying ? 'We will notify you' : 'Notify me'}
+                    </button>
+                    {notifying && (
+                      <p className="mt-1.5 text-center text-xs text-muted-fg">
+                        {isAuthenticated ? 'Saved to your account.' : 'Saved on this device.'} You will see a notice here when it is back.
+                      </p>
+                    )}
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={handleBuyNow}

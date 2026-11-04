@@ -2,12 +2,30 @@ import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import { clearFailures, lockedForMs, recordFailure, safeEqual, secureToken } from './throttle';
 
-const DEFAULT_PASSCODE = '14328';
+// First-ever login only: the starting passcode comes from the ADMIN_BOOTSTRAP_PASSCODE environment variable, never from
+// source code (this repository is public). With no variable and no saved passcode, owner login stays closed.
+const bootstrapPasscode = () => process.env.ADMIN_BOOTSTRAP_PASSCODE ?? '';
 
-async function hashPasscode(passcode: string): Promise<string> {
-  const data = new TextEncoder().encode(passcode);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, '0')).join('');
+const toHex = (buf: ArrayBuffer | Uint8Array) => Array.from(new Uint8Array(buf as ArrayBuffer)).map((b) => b.toString(16).padStart(2, '0')).join('');
+
+/** Older records: plain SHA-256. Only used to verify, then upgraded on the next successful login. */
+async function legacyHash(passcode: string): Promise<string> {
+  return toHex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(passcode)));
+}
+
+/** Salted, slow hash: a copy of the database cannot be used to guess a short passcode quickly. */
+async function slowHash(passcode: string, saltHex: string): Promise<string> {
+  const salt = new Uint8Array(saltHex.match(/.{2}/g)!.map((h) => parseInt(h, 16)));
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(passcode), 'PBKDF2', false, ['deriveBits']);
+  return toHex(await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: salt as BufferSource, iterations: 100_000, hash: 'SHA-256' }, key, 256));
+}
+
+const newSalt = () => toHex(crypto.getRandomValues(new Uint8Array(16)));
+
+async function matches(security: { passcodeHash: string; passcodeSalt?: string }, passcode: string): Promise<boolean> {
+  return security.passcodeSalt
+    ? safeEqual(security.passcodeHash, await slowHash(passcode, security.passcodeSalt))
+    : safeEqual(security.passcodeHash, await legacyHash(passcode));
 }
 
 export const validateSession = query({
@@ -58,11 +76,8 @@ export const login = mutation({
     }
 
     const security = await ctx.db.query('adminSecurity').first();
-    const inputHash = await hashPasscode(args.passcode);
-
-    const isValid = security
-      ? safeEqual(security.passcodeHash, inputHash)
-      : safeEqual(args.passcode, DEFAULT_PASSCODE);
+    const bootstrap = bootstrapPasscode();
+    const isValid = security ? await matches(security, args.passcode) : bootstrap !== '' && safeEqual(args.passcode, bootstrap);
 
     if (!isValid) {
       await recordFailure(ctx, 'admin-passcode', 5);
@@ -79,11 +94,17 @@ export const login = mutation({
     // First successful login with the default passcode seeds the security row
     // so changePasscode has something real to update going forward.
     if (!security) {
+      const salt = newSalt();
       await ctx.db.insert('adminSecurity', {
-        passcodeHash: await hashPasscode(DEFAULT_PASSCODE),
+        passcodeHash: await slowHash(args.passcode, salt),
+        passcodeSalt: salt,
         failedAttempts: 0,
         updatedAt: Date.now(),
       });
+    } else if (!security.passcodeSalt) {
+      // Quietly move an older plain-SHA-256 record to the salted format now that the real passcode is in hand.
+      const salt = newSalt();
+      await ctx.db.patch(security._id, { passcodeHash: await slowHash(args.passcode, salt), passcodeSalt: salt });
     }
 
     const token = secureToken();
@@ -123,19 +144,20 @@ export const changePasscode = mutation({
     }
 
     const security = await ctx.db.query('adminSecurity').first();
-    const currentHash = await hashPasscode(args.currentPasscode);
-    const isCurrentValid = security ? security.passcodeHash === currentHash : args.currentPasscode === DEFAULT_PASSCODE;
+    const bootstrap = bootstrapPasscode();
+    const isCurrentValid = security ? await matches(security, args.currentPasscode) : bootstrap !== '' && safeEqual(args.currentPasscode, bootstrap);
 
     if (!isCurrentValid) {
       await recordFailure(ctx, 'admin-passcode', 5);
       return { success: false, error: 'Current passcode is incorrect.' };
     }
 
-    const newHash = await hashPasscode(args.newPasscode);
+    const salt = newSalt();
+    const newHash = await slowHash(args.newPasscode, salt);
     if (security) {
-      await ctx.db.patch(security._id, { passcodeHash: newHash, updatedAt: Date.now() });
+      await ctx.db.patch(security._id, { passcodeHash: newHash, passcodeSalt: salt, updatedAt: Date.now() });
     } else {
-      await ctx.db.insert('adminSecurity', { passcodeHash: newHash, failedAttempts: 0, updatedAt: Date.now() });
+      await ctx.db.insert('adminSecurity', { passcodeHash: newHash, passcodeSalt: salt, failedAttempts: 0, updatedAt: Date.now() });
     }
 
     return { success: true };

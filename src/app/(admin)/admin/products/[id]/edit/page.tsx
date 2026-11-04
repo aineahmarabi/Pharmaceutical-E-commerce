@@ -320,7 +320,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
               <div className="space-y-2">
                 {qty === 0 ? (
                   <Badge status="critical">Out of stock</Badge>
-                ) : qty < 10 ? (
+                ) : qty <= 5 ? (
                   <Badge status="warning">Low stock</Badge>
                 ) : (
                   <Badge status="success">Active</Badge>

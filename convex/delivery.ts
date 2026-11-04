@@ -33,7 +33,9 @@ export const updateZone = mutation({
   handler: async (ctx, args) => {
     await requireStaff(ctx, args.token, MANAGERS);
     const { id, token: _token, ...rest } = args;
-    await ctx.db.patch(id, rest);
+    if (!rest.name.trim()) throw new Error('A zone needs a name.');
+    if (!Number.isFinite(rest.price) || rest.price < 0) throw new Error('The rate must be zero or more.');
+    await ctx.db.patch(id, { ...rest, name: rest.name.trim() });
   },
 });
 

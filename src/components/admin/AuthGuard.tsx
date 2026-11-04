@@ -24,7 +24,13 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // If the query returns false, or if we have no token at all, redirect to login
     if ((isValid === false || token === '') && pathname !== '/admin/login') {
-      router.push('/admin/login');
+      let signedOut = false;
+      try {
+        signedOut = sessionStorage.getItem('pc-admin-signed-out') === '1';
+        sessionStorage.removeItem('pc-admin-signed-out');
+      } catch { /* storage unavailable */ }
+      // A deliberate sign-out goes to the storefront; an expired or missing session goes to the login page.
+      router.push(signedOut ? '/' : '/admin/login');
     }
   }, [isValid, token, pathname, router]);
 

@@ -9,6 +9,7 @@ import { BuyAgainButton } from '@/components/account/BuyAgainButton';
 import { RefillReminderButton } from '@/components/account/RefillReminder';
 import { AccountFrame, accountField, primaryBtn } from '../AccountFrame';
 import { CopyOrderNumber } from '@/components/ui/CopyOrderNumber';
+import { useBranding } from '@/hooks/useBranding';
 import { readDeviceOrders, type DeviceOrderRef } from '@/lib/deviceOrders';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -49,6 +50,37 @@ function StatusTimeline({ status }: { status: string }) {
   );
 }
 
+/** Opens WhatsApp with a ready, polite message about this order, so the pharmacy can see which one to hurry. */
+function NudgeOnWhatsApp({ orderNumber, status, total, placedAt, items }: { orderNumber: string; status: string; total: number; placedAt: number; items?: { name: string; qty: number }[] }) {
+  const branding = useBranding();
+  const number = String(branding.whatsapp ?? '').replace(/\D/g, '');
+  if (!number || status === 'completed' || status === 'cancelled') return null;
+  const lines = [
+    `Hello ${branding.name}, I am following up on my order ${orderNumber}.`,
+    `Placed ${fmtDate(placedAt)} · KES ${total.toLocaleString()} · currently "${STATUS_LABELS[status] ?? status}".`,
+    ...(items && items.length ? [`Items: ${items.map((i) => `${i.name} × ${i.qty}`).join(', ')}.`] : []),
+    'If it is possible, kindly speed it up, as it is fairly urgent for me. Thank you for your help.',
+  ];
+  const text = encodeURIComponent(lines.join('\n'));
+  const phone = String(branding.phone ?? '').replace(/[^0-9+]/g, '');
+  const pill =
+    'inline-flex h-9 items-center rounded-lg border border-line bg-paper px-3 text-sm font-medium text-ink transition-colors hover:border-petrol hover:text-petrol active:scale-[0.97]';
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-xs text-muted-fg">Need it urgently?</span>
+      <a href={`https://wa.me/${number}?text=${text}`} target="_blank" rel="noopener noreferrer" className={pill}>
+        WhatsApp
+      </a>
+      {phone && (
+        <>
+          <a href={`sms:${phone}?body=${text}`} className={pill}>SMS</a>
+          <a href={`tel:${phone}`} className={pill}>Call</a>
+        </>
+      )}
+    </div>
+  );
+}
+
 const fmtDate = (t: number) => new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
 export default function OrdersPage() {
@@ -75,7 +107,7 @@ export default function OrdersPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!orderNumber.trim() || !contact.trim()) return;
+    if (!orderNumber.trim() && !contact.trim()) return;
     const next = { orderNumber, contact };
     setSubmitted(next);
     setResult(undefined);
@@ -110,6 +142,7 @@ export default function OrdersPage() {
                 </div>
                 <StatusTimeline status={order.status} />
                 <div className="flex flex-wrap items-center gap-3 border-t border-line pt-4">
+                  <NudgeOnWhatsApp orderNumber={order.orderNumber} status={order.status} total={order.total} placedAt={order._creationTime} items={order.items} />
                   <BuyAgainButton items={order.items} />
                   <RefillReminderButton orderId={order._id} />
                   <Link href={`/account/orders/${order._id}`} className="text-sm font-medium text-petrol hover:underline">Details</Link>
@@ -120,6 +153,22 @@ export default function OrdersPage() {
         </div>
       )}
 
+      <div className="grid items-start gap-6 lg:grid-cols-2">
+      <form onSubmit={handleSubmit} className="bg-paper border border-line rounded-xl p-4 sm:p-6 space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight text-ink">{isAuthenticated ? 'Track a guest order' : 'Track order'}</h2>
+          <p className="mt-0.5 text-sm text-muted-fg">Use either one. Add both to see the full order details.</p>
+        </div>
+        <div>
+          <label htmlFor="trk-no" className="block text-sm font-medium text-ink mb-1.5">Order number</label>
+          <input id="trk-no" value={orderNumber} onChange={(e) => setOrderNumber(e.target.value)} placeholder="e.g. #PHR1042" className={accountField} />
+        </div>
+        <div>
+          <label htmlFor="trk-contact" className="block text-sm font-medium text-ink mb-1.5">Phone number or email</label>
+          <input id="trk-contact" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="Used at checkout" className={accountField} />
+        </div>
+        <button type="submit" className={`${primaryBtn} w-full`}>Track order</button>
+      </form>
       {!isAuthenticated && deviceOrders && deviceOrders.length > 0 && (
         <section aria-labelledby="device-orders" className="space-y-3">
           <h2 id="device-orders" className="text-lg font-semibold tracking-tight text-ink">Your orders on this device</h2>
@@ -137,23 +186,12 @@ export default function OrdersPage() {
                 <StatusChip status={order.status} />
               </div>
               <StatusTimeline status={order.status} />
+              <NudgeOnWhatsApp orderNumber={order.orderNumber} status={order.status} total={order.total} placedAt={order.createdAt} />
             </div>
           ))}
         </section>
       )}
-
-      <form onSubmit={handleSubmit} className="bg-paper border border-line rounded-xl p-4 sm:p-6 max-w-xl space-y-4">
-        <h2 className="text-lg font-semibold tracking-tight text-ink">{isAuthenticated ? 'Track a guest order' : 'Track order'}</h2>
-        <div>
-          <label htmlFor="trk-no" className="block text-sm font-medium text-ink mb-1.5">Order number</label>
-          <input id="trk-no" value={orderNumber} onChange={(e) => setOrderNumber(e.target.value)} placeholder="e.g. #PHR1042" className={accountField} />
-        </div>
-        <div>
-          <label htmlFor="trk-contact" className="block text-sm font-medium text-ink mb-1.5">Phone number or email</label>
-          <input id="trk-contact" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="Used at checkout" className={accountField} />
-        </div>
-        <button type="submit" className={`${primaryBtn} w-full`}>Track order</button>
-      </form>
+      </div>
 
       {submitted && (
         <div>
@@ -162,6 +200,26 @@ export default function OrdersPage() {
           ) : !result.found ? (
             <div role="alert" className="bg-paper border border-signal rounded-xl p-4">
               <p className="text-sm text-signal font-medium">{result.error}</p>
+            </div>
+          ) : result.mode === 'status' ? (
+            <div className="space-y-3">
+              {result.orders.map((o) => (
+                <div key={o.orderNumber} className="space-y-4 rounded-xl border border-line bg-paper p-4 sm:p-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <CopyOrderNumber value={o.orderNumber} className="text-base" />
+                      <p className="mt-0.5 text-sm text-muted-fg">
+                        {fmtDate(o.createdAt)} · <span className="tabular-nums">KES {o.total.toLocaleString()}</span>
+                        {o.paymentStatus === 'paid' && ' · Paid'}
+                      </p>
+                    </div>
+                    <StatusChip status={o.status} />
+                  </div>
+                  <StatusTimeline status={o.status} />
+                  <NudgeOnWhatsApp orderNumber={o.orderNumber} status={o.status} total={o.total} placedAt={o.createdAt} />
+                </div>
+              ))}
+              <p className="text-xs text-muted-fg">Add your phone or email and the order number together to see the items and delivery details.</p>
             </div>
           ) : (
             <div className="bg-paper border border-line rounded-xl p-4 sm:p-6 space-y-5">
@@ -174,6 +232,7 @@ export default function OrdersPage() {
               </div>
 
               <StatusTimeline status={result.order.status} />
+              <NudgeOnWhatsApp orderNumber={result.order.orderNumber} status={result.order.status} total={result.order.total} placedAt={result.order._creationTime} items={result.order.items} />
 
               <div className="border-t border-line pt-4 space-y-2">
                 {result.order.items.map((item, i) => (

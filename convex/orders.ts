@@ -133,38 +133,61 @@ export const getMyOrder = query({
  * rather than exposing orders by number alone.
  */
 export const trackOrder = mutation({
-  args: { orderNumber: v.string(), contact: v.string() },
-  handler: async (ctx, { orderNumber, contact }) => {
+  args: { orderNumber: v.optional(v.string()), contact: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const orderNumber = (args.orderNumber ?? '').trim();
+    const contact = (args.contact ?? '').trim();
     if (orderNumber.length > 40 || contact.length > 254) {
-      return { found: false as const, error: 'No order found with that number.' };
+      return { found: false as const, error: 'No order found.' };
     }
-    const typed = orderNumber.trim().toUpperCase().replace(/\s+/g, '');
+    if (!orderNumber && !contact) return { found: false as const, error: 'Enter your order number, or the phone or email you ordered with.' };
+
+    const typed = orderNumber.toUpperCase().replace(/\s+/g, '');
     const digits = /^#?(?:PHR)?(\d{1,9})$/.exec(typed);
     const normalizedNumber = digits ? `#PHR${digits[1]}` : typed;
-    const normalizedContact = contact.trim().toLowerCase();
+    const normalizedContact = contact.toLowerCase();
+    const contactIsEmail = normalizedContact.includes('@');
+    const sameContact = (o: Doc<'orders'>) =>
+      contactIsEmail
+        ? o.customerEmail?.toLowerCase() === normalizedContact
+        : !!lastNine(contact) && lastNine(o.customerPhone) === lastNine(contact);
+    const slim = (o: Doc<'orders'>) => ({
+      orderNumber: o.orderNumber,
+      status: o.status,
+      paymentStatus: o.paymentStatus,
+      total: o.total,
+      createdAt: o._creationTime,
+    });
 
-    // Rate limit per order number (every attempt counts) so numbers cannot be brute-forced.
-    const throttleKey = `track:${normalizedNumber}`;
-    if ((await lockedForMs(ctx, throttleKey)) > 0) {
-      return { found: false as const, error: 'Too many attempts. Please try again in a few minutes.' };
+    // Every attempt counts against a limit, so neither numbers nor contacts can be brute-forced.
+    const limits: [string, number][] = [];
+    if (orderNumber) limits.push([`track:${normalizedNumber}`, 8]);
+    if (contact) limits.push([`track-contact:${contactIsEmail ? normalizedContact : lastNine(contact)}`, 8]);
+    if (orderNumber && !contact) limits.push(['track-number-only', 120]);
+    for (const [key] of limits) {
+      if ((await lockedForMs(ctx, key)) > 0) return { found: false as const, error: 'Too many attempts. Please try again in a few minutes.' };
     }
-    await recordFailure(ctx, throttleKey, 8);
+    for (const [key, max] of limits) await recordFailure(ctx, key, max);
+
+    // Contact only: that customer's recent orders, status only (no address or items).
+    if (!orderNumber) {
+      const recent = await ctx.db.query('orders').order('desc').take(400);
+      const mine = recent.filter(sameContact).slice(0, 10).map(slim);
+      if (mine.length === 0) return { found: false as const, error: 'No orders found for that phone or email.' };
+      return { found: true as const, mode: 'status' as const, orders: mine };
+    }
 
     const order = await ctx.db
       .query('orders')
       .withIndex('by_order_number', (q) => q.eq('orderNumber', normalizedNumber))
       .first();
-
     if (!order) return { found: false as const, error: 'No order found with that number.' };
 
-    const matches =
-      order.customerEmail?.toLowerCase() === normalizedContact ||
-      order.customerPhone?.toLowerCase() === normalizedContact ||
-      order.customerPhone?.replace(/\s+/g, '') === contact.trim().replace(/\s+/g, '');
+    // Number only: status and progress, nothing personal.
+    if (!contact) return { found: true as const, mode: 'status' as const, orders: [slim(order)] };
 
-    if (!matches) {
-      return { found: false as const, error: "That phone or email doesn't match this order." };
-    }
+    // Both given: the full order, but only to someone who knows the matching phone or email.
+    if (!sameContact(order)) return { found: false as const, error: "That phone or email doesn't match this order." };
 
     const timeline = await ctx.db
       .query('auditLog')
@@ -173,7 +196,7 @@ export const trackOrder = mutation({
       .order('desc')
       .collect();
 
-    return { found: true as const, order, timeline };
+    return { found: true as const, mode: 'full' as const, order, timeline };
   },
 });
 
@@ -776,6 +799,7 @@ export const placeOrder = mutation({
     notes: v.optional(v.string()),
     paymentMethod: v.union(v.literal('mpesa'), v.literal('cod'), v.literal('paystack')),
     prescriptionFileId: v.optional(v.id('_storage')),
+    urgent: v.optional(v.boolean()),
     customerToken: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -804,6 +828,21 @@ export const placeOrder = mutation({
         throw new Error('Too many orders from this number. Please try again later.');
       }
       await recordFailure(ctx, key, 10);
+    }
+
+    // Unpaid online orders hold stock for 30 minutes, so cap them (per customer and overall) to stop anyone
+    // tying up the shelves with orders they never pay for.
+    if (args.paymentMethod === 'paystack') {
+      const since = Date.now() - 30 * 60 * 1000;
+      const recent = await ctx.db.query('orders').order('desc').take(120);
+      const unpaid = recent.filter(
+        (o) => o._creationTime > since && o.paymentMethod === 'paystack' && o.paymentStatus !== 'paid' && o.status !== 'cancelled',
+      );
+      const mine = unpaid.filter(
+        (o) => (digits && o.customerPhone.replace(/\D/g, '').slice(-9) === digits.slice(-9)) || (email && o.customerEmail?.toLowerCase() === email.toLowerCase()),
+      );
+      if (mine.length >= 3) throw new Error('You already have unpaid orders waiting. Please pay for them or try again in a few minutes.');
+      if (unpaid.length >= 40) throw new Error('We are busy right now. Please try again in a few minutes.');
     }
 
     // Signed-in customers: derive the account from the session token, never from the client.
@@ -867,14 +906,15 @@ export const placeOrder = mutation({
       paymentStatus: 'pending',
       deliveryAddress: address,
       notes: notes || undefined,
+      urgent: args.urgent || undefined,
       channel: 'Website',
       prescriptionFileId: args.prescriptionFileId,
     });
 
     await ctx.db.insert('notifications', {
       type: 'new_order',
-      title: 'New order received',
-      message: `${orderNumber} — ${name} · KES ${total.toLocaleString()}`,
+      title: args.urgent ? 'Urgent order received' : 'New order received',
+      message: `${args.urgent ? 'URGENT · ' : ''}${orderNumber} — ${name} · KES ${total.toLocaleString()}`,
       targetId: orderId,
       read: false,
       createdAt: Date.now(),

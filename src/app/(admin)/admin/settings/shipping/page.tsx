@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useAdminQuery, useAdminMutation } from '@/hooks/useAdminApi';
 import { api } from '../../../../../../convex/_generated/api';
+import type { Id } from '../../../../../../convex/_generated/dataModel';
 import { Card } from '@/components/admin/ui/Card';
 import { Input } from '@/components/admin/ui/Input';
 import { Button } from '@/components/admin/ui/Button';
@@ -16,9 +17,32 @@ export default function ShippingSettingsPage() {
   const zones = useAdminQuery(api.delivery.adminListZones, {});
   const createZone = useAdminMutation(api.delivery.createZone);
   const deleteZone = useAdminMutation(api.delivery.deleteZone);
+  const updateZone = useAdminMutation(api.delivery.updateZone);
 
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editPrice, setEditPrice] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const saveEdit = async (zone: { _id: Id<'deliveryZones'>; isActive: boolean }) => {
+    const rate = Number(editPrice);
+    if (!editName.trim() || editPrice.trim() === '' || !Number.isFinite(rate) || rate < 0) {
+      toast('Enter a zone name and a rate of zero or more');
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      await updateZone({ id: zone._id, name: editName.trim(), price: rate, isActive: zone.isActive });
+      setEditingId(null);
+      toast('Delivery zone updated');
+    } catch {
+      toast('Could not update the zone');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   const handleAdd = async () => {
     if (!name || !price) return;
@@ -56,27 +80,70 @@ export default function ShippingSettingsPage() {
               <tbody>
                 {zones.map((zone) => (
                   <tr key={zone._id} className="h-12 border-b border-p-border-subdued last:border-0 text-sm">
-                    <td className="px-5 text-p-text">{zone.name}</td>
-                    <td className="px-5 text-right font-medium text-p-text tabular-nums whitespace-nowrap">KES {zone.price.toLocaleString()}</td>
-                    <td className="px-5 text-right">
-                      <button
-                        onClick={async () => {
-                          const ok = await confirm({
-                            title: 'Delete delivery zone',
-                            message: `Remove "${zone.name}"? Orders already placed are unaffected, but customers won't be able to select this zone anymore.`,
-                            confirmLabel: 'Delete',
-                            destructive: true,
-                          });
-                          if (ok) {
-                            await deleteZone({ id: zone._id });
-                            toast('Delivery zone deleted');
-                          }
-                        }}
-                        className="text-sm text-p-critical hover:underline"
-                      >
-                        Delete
-                      </button>
-                    </td>
+                    {editingId === zone._id ? (
+                      <>
+                        <td className="px-5 py-2">
+                          <input
+                            aria-label="Zone name"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            className="h-9 w-full rounded-md border border-p-border-input bg-p-bg-surface px-2 text-sm text-p-text"
+                          />
+                        </td>
+                        <td className="px-5 py-2 text-right">
+                          <input
+                            aria-label="Rate in KES"
+                            type="number"
+                            min={0}
+                            value={editPrice}
+                            onChange={(e) => setEditPrice(e.target.value)}
+                            className="h-9 w-28 rounded-md border border-p-border-input bg-p-bg-surface px-2 text-right text-sm tabular-nums text-p-text"
+                          />
+                        </td>
+                        <td className="px-5 text-right whitespace-nowrap">
+                          <button onClick={() => saveEdit(zone)} disabled={savingEdit} className="mr-4 text-sm font-medium text-p-text-primary hover:underline disabled:opacity-50">
+                            Save
+                          </button>
+                          <button onClick={() => setEditingId(null)} disabled={savingEdit} className="text-sm text-p-text-subdued hover:underline">
+                            Cancel
+                          </button>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-5 text-p-text">{zone.name}</td>
+                        <td className="px-5 text-right font-medium text-p-text tabular-nums whitespace-nowrap">KES {zone.price.toLocaleString()}</td>
+                        <td className="px-5 text-right whitespace-nowrap">
+                          <button
+                            onClick={() => {
+                              setEditingId(zone._id);
+                              setEditName(zone.name);
+                              setEditPrice(String(zone.price));
+                            }}
+                            className="mr-4 text-sm font-medium text-p-text-primary hover:underline"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={async () => {
+                              const ok = await confirm({
+                                title: 'Delete delivery zone',
+                                message: `Remove "${zone.name}"? Orders already placed are unaffected, but customers won't be able to select this zone anymore.`,
+                                confirmLabel: 'Delete',
+                                destructive: true,
+                              });
+                              if (ok) {
+                                await deleteZone({ id: zone._id });
+                                toast('Delivery zone deleted');
+                              }
+                            }}
+                            className="text-sm text-p-critical hover:underline"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </>
+                    )}
                   </tr>
                 ))}
               </tbody>

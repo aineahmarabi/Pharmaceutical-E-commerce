@@ -1,12 +1,12 @@
 export type StaffRole = 'super_admin' | 'admin' | 'pharmacist';
 
 export const ROLE_LABELS: Record<StaffRole, string> = {
-  super_admin: 'Super admin',
+  super_admin: 'Admin', // legacy name, same role
   admin: 'Admin',
   pharmacist: 'Pharmacist',
 };
 
-/** Route roots each role may access. super_admin always has full access. */
+/** Route roots each role may access. Admins (and legacy super admins) have full access. */
 const ROLE_ALLOWED_ROOTS: Record<StaffRole, string[]> = {
   super_admin: [],
   admin: [
@@ -36,7 +36,7 @@ export const ROLE_LANDING_PATH: Record<StaffRole, string> = {
 };
 
 export function canAccessRoute(role: StaffRole, pathname: string): boolean {
-  if (role === 'super_admin') return true;
+  if (role === 'super_admin' || role === 'admin') return true;
   if (pathname === '/admin/login') return true;
   if (pathname === '/admin') return true;
   return ROLE_ALLOWED_ROOTS[role].some((root) => root !== '/admin' && pathname.startsWith(root));

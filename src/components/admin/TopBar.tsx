@@ -93,9 +93,11 @@ export function AdminTopBar({ onMenuClick, onSearchClick }: { onMenuClick: () =>
 
   const handleLogout = async () => {
     const token = localStorage.getItem('adminToken');
+    // Tell the route guard this was a deliberate sign-out, so it sends the user to the storefront, not the login page.
+    try { sessionStorage.setItem('pc-admin-signed-out', '1'); } catch { /* storage unavailable: falls back to the login page */ }
     if (token) await logoutMutation({ token });
     localStorage.removeItem('adminToken');
-    window.location.href = '/admin/login';
+    window.location.href = '/';
   };
 
   return (

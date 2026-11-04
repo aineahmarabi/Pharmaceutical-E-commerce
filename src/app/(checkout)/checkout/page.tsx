@@ -195,6 +195,7 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('paystack');
   const [touched, setTouched] = useState<Partial<Record<FormKey | 'zone', boolean>>>({});
   const [attempted, setAttempted] = useState(false);
+  const [urgent, setUrgent] = useState(false);
   const [placedGuest, setPlacedGuest] = useState<{ name: string; email: string; phone: string; orderId: string } | null>(null);
   // Online payment appears once Paystack is set up; until then the manual M-PESA option stays.
   const methods: PaymentMethod[] = paystackReady ? ['paystack', 'cod'] : ['mpesa', 'cod'];
@@ -286,6 +287,7 @@ export default function CheckoutPage() {
           ? `${form.address.trim()}, ${form.city.trim()}, ${selectedZone!.name}`
           : `Pickup from store — ${storeBranding.address}`,
         notes: form.notes.trim() || undefined,
+        urgent: urgent || undefined,
       });
 
       rememberDeviceOrder(orderId, form.phone.trim());
@@ -464,6 +466,14 @@ export default function CheckoutPage() {
                 className={cn(inputBase, 'resize-none border-line focus:border-petrol')}
               />
             </div>
+
+            <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border border-line p-3 has-[:checked]:border-petrol has-[:checked]:bg-petrol-50">
+              <input type="checkbox" checked={urgent} onChange={(e) => setUrgent(e.target.checked)} className="mt-1 accent-petrol" />
+              <span>
+                <span className="block text-sm font-semibold text-ink">Needed urgently</span>
+                <span className="block text-sm text-muted-fg">We will flag your order so the pharmacy handles it first.</span>
+              </span>
+            </label>
           </Section>
 
           <Section step={3} title="Payment" done>

@@ -97,9 +97,12 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
           <Card
             title={`Items (${order.items.length})`}
             headerAction={
-              <Badge status={order.status === 'completed' ? 'success' : order.status === 'cancelled' ? 'critical' : 'warning'}>
-                {STEP_LABELS[order.status] ?? order.status}
-              </Badge>
+              <span className="flex items-center gap-2">
+                {order.urgent && <Badge status="critical">Urgent</Badge>}
+                <Badge status={order.status === 'completed' ? 'success' : order.status === 'cancelled' ? 'critical' : 'warning'}>
+                  {STEP_LABELS[order.status] ?? order.status}
+                </Badge>
+              </span>
             }
           >
             <ul className="divide-y divide-p-border-subdued -my-2">

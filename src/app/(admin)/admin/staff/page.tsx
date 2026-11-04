@@ -16,7 +16,8 @@ import { useAdminToast } from '@/components/admin/ui/Toast';
 import { useConfirm } from '@/components/admin/ui/ConfirmDialog';
 import { ROLE_LABELS, type StaffRole } from '@/lib/permissions';
 
-const roleOptions = (Object.keys(ROLE_LABELS) as StaffRole[]).map((r) => ({ value: r, label: ROLE_LABELS[r] }));
+type AssignableRole = 'admin' | 'pharmacist';
+const roleOptions = (['admin', 'pharmacist'] as const).map((r) => ({ value: r, label: ROLE_LABELS[r] }));
 
 export default function AdminStaffPage() {
   const { toast } = useAdminToast();
@@ -31,7 +32,7 @@ export default function AdminStaffPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [role, setRole] = useState<StaffRole>('pharmacist');
+  const [role, setRole] = useState<AssignableRole>('pharmacist');
   const [pin, setPin] = useState('');
   const [adding, setAdding] = useState(false);
 
@@ -110,14 +111,14 @@ export default function AdminStaffPage() {
                     <td className="px-4">
                       <Select
                         className="w-40"
-                        value={s.role}
+                        value={s.role === 'super_admin' ? 'admin' : s.role}
                         onChange={async (v) => {
                           const ok = await confirm({
                             title: 'Change role',
                             message: `Change ${s.name}'s role to ${ROLE_LABELS[v as StaffRole]}? This changes what they can access immediately.`,
                             confirmLabel: 'Change role',
                           });
-                          if (ok) await updateStaffRole({ id: s._id, role: v as StaffRole });
+                          if (ok) await updateStaffRole({ id: s._id, role: v as AssignableRole });
                         }}
                         options={roleOptions}
                       />
@@ -173,7 +174,7 @@ export default function AdminStaffPage() {
           <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} />
           <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
           <Input label="Phone (optional)" value={phone} onChange={(e) => setPhone(e.target.value)} />
-          <Select label="Role" value={role} onChange={(v) => setRole(v as StaffRole)} options={roleOptions} />
+          <Select label="Role" value={role} onChange={(v) => setRole(v as AssignableRole)} options={roleOptions} />
           <Input
             label="4-digit PIN"
             helpText="Staff use this PIN to log into the admin panel."

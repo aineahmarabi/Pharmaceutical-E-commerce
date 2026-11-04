@@ -238,8 +238,8 @@ export default function StoreDetailsPage() {
             label="Low stock alert level"
             type="number"
             min={0}
-            placeholder="10"
-            helpText="Alert when a product falls to this many units. Default 10."
+            placeholder="5"
+            helpText="Alert when a product falls to this many units. Default 5."
             value={pharmacy.lowStockThreshold}
             onChange={(e) => setPharmacy({ ...pharmacy, lowStockThreshold: e.target.value })}
           />

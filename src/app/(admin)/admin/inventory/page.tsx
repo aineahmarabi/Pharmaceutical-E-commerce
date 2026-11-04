@@ -55,7 +55,7 @@ export default function AdminInventoryPage() {
       render: (r) =>
         r.stockQty === 0 ? (
           <Badge status="critical">Out of stock</Badge>
-        ) : r.stockQty <= 10 ? (
+        ) : r.stockQty <= 5 ? (
           <Badge status="warning">Low stock</Badge>
         ) : (
           <Badge status="success">In stock</Badge>

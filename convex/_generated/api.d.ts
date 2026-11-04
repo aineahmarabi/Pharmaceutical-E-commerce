@@ -33,6 +33,7 @@ import type * as refillReminders from "../refillReminders.js";
 import type * as reviews from "../reviews.js";
 import type * as settings from "../settings.js";
 import type * as staff from "../staff.js";
+import type * as stockWatches from "../stockWatches.js";
 import type * as taxonomy from "../taxonomy.js";
 import type * as throttle from "../throttle.js";
 
@@ -68,6 +69,7 @@ declare const fullApi: ApiFromModules<{
   reviews: typeof reviews;
   settings: typeof settings;
   staff: typeof staff;
+  stockWatches: typeof stockWatches;
   taxonomy: typeof taxonomy;
   throttle: typeof throttle;
 }>;

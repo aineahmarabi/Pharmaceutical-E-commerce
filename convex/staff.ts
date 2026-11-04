@@ -5,7 +5,8 @@ import type { Id } from './_generated/dataModel';
 import { v } from 'convex/values';
 import { requireStaff, OWNER_ONLY } from './adminGuard';
 
-const roleValidator = v.union(v.literal('super_admin'), v.literal('admin'), v.literal('pharmacist'));
+// New assignments are 'admin' or 'pharmacist'. 'super_admin' still exists on older records and is treated as admin.
+const roleValidator = v.union(v.literal('admin'), v.literal('pharmacist'));
 
 async function hashPin(pin: string): Promise<string> {
   const data = new TextEncoder().encode(pin);
@@ -13,10 +14,10 @@ async function hashPin(pin: string): Promise<string> {
   return Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-async function assertNotLastSuperAdmin(ctx: MutationCtx, id: Id<'staff'>) {
+async function assertNotLastAdmin(ctx: MutationCtx, id: Id<'staff'>) {
   const all = await ctx.db.query('staff').collect();
-  const others = all.filter((s) => s._id !== id && s.active && s.role === 'super_admin');
-  if (others.length === 0) throw new Error('You cannot remove or demote the last active super admin.');
+  const others = all.filter((s) => s._id !== id && s.active && (s.role === 'super_admin' || s.role === 'admin'));
+  if (others.length === 0) throw new Error('You cannot remove or demote the last active admin.');
 }
 
 export const listStaff = query({
@@ -94,8 +95,8 @@ export const updateStaffRole = mutation({
   handler: async (ctx, { token, id, role }) => {
     await requireStaff(ctx, token, OWNER_ONLY);
     const target = await ctx.db.get(id);
-    if (target && target.active && target.role === 'super_admin' && role !== 'super_admin') {
-      await assertNotLastSuperAdmin(ctx, id);
+    if (target && target.active && (target.role === 'super_admin' || target.role === 'admin') && role === 'pharmacist') {
+      await assertNotLastAdmin(ctx, id);
     }
     await ctx.db.patch(id, { role });
   },
@@ -106,8 +107,8 @@ export const deactivateStaff = mutation({
   handler: async (ctx, { token, id }) => {
     await requireStaff(ctx, token, OWNER_ONLY);
     const target = await ctx.db.get(id);
-    if (target && target.active && target.role === 'super_admin') {
-      await assertNotLastSuperAdmin(ctx, id);
+    if (target && target.active && (target.role === 'super_admin' || target.role === 'admin')) {
+      await assertNotLastAdmin(ctx, id);
     }
     // Soft delete to preserve audit logs
     await ctx.db.patch(id, { active: false });

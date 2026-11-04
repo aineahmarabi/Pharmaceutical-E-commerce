@@ -16,10 +16,27 @@ const securityHeaders = [
   { key: 'X-DNS-Prefetch-Control', value: 'on' },
 ];
 
+// Content-Security-Policy: scripts may only come from this site (plus the inline bootstrap Next.js itself emits), the
+// page may not be framed, and connections are limited to this site and the Convex backend. Production only, because
+// the dev server needs eval for hot reload.
+const csp = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data:",
+  "connect-src 'self' https://*.convex.cloud wss://*.convex.cloud https://*.convex.site",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "form-action 'self'",
+].join('; ');
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   async headers() {
-    return [{ source: '/:path*', headers: securityHeaders }];
+    const headers = process.env.NODE_ENV === 'production' ? [...securityHeaders, { key: 'Content-Security-Policy', value: csp }] : securityHeaders;
+    return [{ source: '/:path*', headers }];
   },
   images: {
     remotePatterns: [

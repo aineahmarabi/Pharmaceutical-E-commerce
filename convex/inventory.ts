@@ -4,7 +4,7 @@ import { requireStaff, ANY_STAFF } from './adminGuard';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 
-export const DEFAULT_LOW_STOCK_THRESHOLD = 10;
+export const DEFAULT_LOW_STOCK_THRESHOLD = 5;
 
 export async function getLowStockThreshold(ctx: { db: QueryCtx['db'] }): Promise<number> {
   const row = await ctx.db.query('storeSettings').withIndex('by_key', (q) => q.eq('key', 'lowStockThreshold')).first();

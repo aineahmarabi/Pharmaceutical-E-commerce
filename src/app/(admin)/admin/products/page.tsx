@@ -61,7 +61,7 @@ export default function AdminProductsPage() {
     let list = products;
     if (tab === 'active') list = list.filter((p) => p.inStock);
     else if (tab === 'out') list = list.filter((p) => !p.inStock);
-    else if (tab === 'low') list = list.filter((p) => p.inStock && p.stockQty < 10);
+    else if (tab === 'low') list = list.filter((p) => p.inStock && p.stockQty <= 5);
     if (classFilter !== 'All classes') list = list.filter((p) => p.classification === classFilter);
     if (sortBy === 'Name A-Z') list = [...list].sort((a, b) => a.name.localeCompare(b.name));
     else if (sortBy === 'Price: low to high') list = [...list].sort((a, b) => a.price - b.price);
@@ -126,7 +126,7 @@ export default function AdminProductsPage() {
           <Badge status="warning">Hidden</Badge>
         ) : !row.inStock || row.stockQty === 0 ? (
           <Badge status="critical">Out of stock</Badge>
-        ) : row.stockQty < 10 ? (
+        ) : row.stockQty <= 5 ? (
           <Badge status="warning">Low stock</Badge>
         ) : (
           <Badge status="success">Active</Badge>

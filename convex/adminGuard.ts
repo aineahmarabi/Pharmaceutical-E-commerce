@@ -9,15 +9,15 @@ import type { Id } from './_generated/dataModel';
  * function must take `token: v.string()` and begin with `await requireStaff(ctx, args.token, ...)`.
  *
  * Roles mirror src/lib/permissions.ts:
- *   super_admin  the owner (passcode login), can do everything
- *   admin        staff manager
+ *   admin        full access, including staff (the passcode login is stored as 'super_admin' and is the same thing)
  *   pharmacist   POS, orders, inventory and prescriptions
  */
 export type StaffRole = 'super_admin' | 'admin' | 'pharmacist';
 
 export const ANY_STAFF: StaffRole[] = ['super_admin', 'admin', 'pharmacist'];
 export const MANAGERS: StaffRole[] = ['super_admin', 'admin'];
-export const OWNER_ONLY: StaffRole[] = ['super_admin'];
+// Staff management is for admins; 'super_admin' is the legacy name for the same role.
+export const OWNER_ONLY: StaffRole[] = ['super_admin', 'admin'];
 
 export interface StaffIdentity {
   role: StaffRole;

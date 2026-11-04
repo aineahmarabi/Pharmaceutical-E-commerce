@@ -4,6 +4,7 @@ import { WhatsAppButton } from '@/components/layout/WhatsAppButton';
 import { ScrollToTop } from '@/components/layout/ScrollToTop';
 import { MedicalGlossary } from '@/components/layout/MedicalGlossary';
 import { MobileTabBar } from '@/components/layout/MobileTabBar';
+import { RestockNotice } from '@/components/layout/RestockNotice';
 import { CartDrawer } from '@/components/cart/CartDrawer';
 
 export default function StoreLayout({ children }: { children: React.ReactNode }) {
@@ -16,6 +17,7 @@ export default function StoreLayout({ children }: { children: React.ReactNode })
       <ScrollToTop />
       <MedicalGlossary />
       <MobileTabBar />
+      <RestockNotice />
       <CartDrawer />
     </div>
   );

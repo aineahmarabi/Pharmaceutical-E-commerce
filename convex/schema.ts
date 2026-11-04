@@ -175,6 +175,7 @@ export default defineSchema({
     prescriptionFileId: v.optional(v.id('_storage')),
     deliveryAddress: v.string(),
     notes: v.optional(v.string()),
+    urgent: v.optional(v.boolean()), // the customer ticked "needed urgently" at checkout
     // Shopify Specifics
     channel: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
@@ -261,6 +262,7 @@ export default defineSchema({
 
   adminSecurity: defineTable({
     passcodeHash: v.string(),
+    passcodeSalt: v.optional(v.string()), // present once the passcode uses salted PBKDF2 instead of plain SHA-256
     failedAttempts: v.number(),
     lastFailedAt: v.optional(v.number()),
     updatedAt: v.number(),
@@ -398,6 +400,15 @@ export default defineSchema({
   }).index('by_token', ['token']).index('by_customer', ['customerAccountId']),
 
   // In-app refill reminders: shown on the site once remindAt has passed.
+  // Customers waiting for a sold-out product to return (guests keep this on their own device instead).
+  stockWatches: defineTable({
+    customerId: v.id('customerAccounts'),
+    productId: v.id('products'),
+    createdAt: v.number(),
+  })
+    .index('by_customer', ['customerId'])
+    .index('by_customer_product', ['customerId', 'productId']),
+
   refillReminders: defineTable({
     customerAccountId: v.id('customerAccounts'),
     orderId: v.id('orders'),
