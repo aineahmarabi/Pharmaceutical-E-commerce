@@ -25,7 +25,10 @@ export function Logo({ size = 'md', className }: { size?: keyof typeof sizes; cl
         className,
       )}
     >
-      {branding.logo ? (
+      {!branding.loaded ? (
+        // Settings not known yet: reserve the space instead of flashing the placeholder mark.
+        <span aria-hidden="true" className={cn('block w-28', s.img)} />
+      ) : branding.logo ? (
         // The logo uploaded by the admin (Settings > Branding) takes priority. It already
         // contains the brand name and sits directly on the page, with no box around it.
         // In dark mode a faint light outline keeps its black parts readable (see .brand-logo).

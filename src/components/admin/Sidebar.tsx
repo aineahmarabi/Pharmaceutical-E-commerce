@@ -112,10 +112,13 @@ function SidebarContent({ onClose, showClose }: { onClose?: () => void; showClos
   const pendingRxCount = pendingRx?.length;
   const messages = useAdminQuery(api.messages.listMessages, role === 'super_admin' || role === 'admin' ? {} : 'skip');
   const unreadMessageCount = messages?.filter((m) => !m.read).length;
+  const lowStock = useQuery(api.inventory.getLowStockAlerts, rxToken ? { token: rxToken } : 'skip');
+  const lowStockCount = lowStock?.length;
 
   const withBadge = (item: NavLeaf): NavLeaf => {
     if (item.href === '/admin/orders' && pendingOrderCount) return { ...item, badge: pendingOrderCount };
     if (item.href === '/admin/prescriptions' && pendingRxCount) return { ...item, badge: pendingRxCount };
+    if (item.href === '/admin/inventory' && lowStockCount) return { ...item, badge: lowStockCount };
     if (item.href === '/admin/messages' && unreadMessageCount) return { ...item, badge: unreadMessageCount };
     return item;
   };

@@ -233,7 +233,7 @@ export function Header() {
     { label: 'Offers', href: '/offers' },
   ];
 
-  const zoneName = deliveryZones?.[zoneShowcaseIdx % (deliveryZones.length || 1)]?.name ?? 'Nationwide';
+  const zoneName = deliveryZones ? (deliveryZones[zoneShowcaseIdx % (deliveryZones.length || 1)]?.name ?? 'Nationwide') : '';
 
   return (
     <>
@@ -300,14 +300,18 @@ export function Header() {
                   </Link>
                   <span aria-hidden="true" className="h-3.5 w-px bg-on-deep/25" />
                   {/* Contact information: calmer, with a phone icon, so it is not mistaken for a tracking number. */}
-                  <a
-                    href={`tel:${branding.phone}`}
-                    className="inline-flex items-center gap-1.5 tabular-nums text-on-deep/70 transition-colors hover:text-on-deep"
-                    aria-label={`Call us on ${branding.phone}`}
-                  >
-                    <Phone size={14} aria-hidden="true" />
-                    {branding.phone}
-                  </a>
+                  {branding.phone ? (
+                    <a
+                      href={`tel:${branding.phone}`}
+                      className="inline-flex items-center gap-1.5 tabular-nums text-on-deep/70 transition-colors hover:text-on-deep"
+                      aria-label={`Call us on ${branding.phone}`}
+                    >
+                      <Phone size={14} aria-hidden="true" />
+                      {branding.phone}
+                    </a>
+                  ) : (
+                    <span aria-hidden="true" className="inline-block h-3.5 w-28" />
+                  )}
                 </div>
               </div>
             </motion.div>

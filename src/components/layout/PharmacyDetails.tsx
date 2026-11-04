@@ -1,13 +1,12 @@
 'use client';
 
 import React from 'react';
-import { useQuery } from 'convex/react';
-import { api } from '../../../convex/_generated/api';
+import { useStoreSettings } from '@/hooks/useStoreSettings';
 import { branding as defaultBranding } from '@/lib/config/branding';
 import { cn } from '@/lib/utils';
 
 export function usePharmacyDetails() {
-  const settings = useQuery(api.settings.getStoreSettings);
+  const settings = useStoreSettings();
   const get = (key: string) => {
     const v = settings?.find((s) => s.key === key)?.value;
     return typeof v === 'string' && v.trim() ? v.trim() : '';
